@@ -579,9 +579,9 @@ function ProfileModal({ user, onClose, onLogout, onUpdatePhoto }) {
     e.target.value = "";
   };
 
-  const roleLabel = user.role === "admin" ? "Yönetici" : "Öğretmen";
-  const roleIcon = user.role === "admin" ? "👑" : "👩‍🏫";
-  const roleColor = user.role === "admin" ? C.orange : C.blue;
+  const roleLabel = user.role === "admin" ? "Admin" : user.role === "manager" ? "Yönetici" : "Öğretmen";
+  const roleIcon = user.role === "admin" ? "👑" : user.role === "manager" ? "🔑" : "👩‍🏫";
+  const roleColor = user.role === "admin" ? C.orange : user.role === "manager" ? "#7c3aed" : C.blue;
   const initials = (user.name || "U").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   const tabBtn = (key, label) => (
@@ -2394,6 +2394,398 @@ function ReportsPage({ members, finance, staff }) {
   );
 }
 
+// ── YÖNETİCİ PANELİ (READ-ONLY) ──────────────────────────
+function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto }) {
+  const isMobile = useIsMobile(600);
+  const [page, setPage] = useState("dashboard");
+  const [showProfile, setShowProfile] = useState(false);
+  const [finFilter, setFinFilter] = useState("Tümü");
+
+  const navItems = [
+    { key: "dashboard", label: "Anasayfa", icon: "🏠" },
+    { key: "finance",   label: "Finans",   icon: "💰" },
+    { key: "staff",     label: "Personel", icon: "🏅" },
+    { key: "calendar",  label: "Takvim",   icon: "📅" },
+    { key: "reports",   label: "Raporlar", icon: "📊" },
+  ];
+  const navColors = [C.blue, C.orange, C.green, "#7c3aed", C.green];
+
+  const allChildren = members.flatMap(p => p.children || []);
+  const activeCount = allChildren.filter(c => c.status === "Aktif").length;
+  const totalIncome  = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
+  const totalExpense = finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+  const netBalance = totalIncome - totalExpense;
+
+  const ReadOnlyBadge = () => (
+    <div style={{ display:"inline-flex", alignItems:"center", gap:5, background:"#fef3c7", border:"1.5px solid #fbbf24", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:800, color:"#92400e" }}>
+      🔒 Görüntüleme Modu
+    </div>
+  );
+
+  const renderPage = () => {
+    if (page === "dashboard") return (
+      <div className="fade-in">
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:4 }}>
+          <div className="ks-page-title" style={{ color:C.text }}>🏠 Genel Bakış</div>
+          <ReadOnlyBadge />
+        </div>
+        <div style={{ fontSize:14, color:C.textDim, marginBottom:22, fontWeight:600 }}>Sistem durumu genel özeti</div>
+        <div className="stat-cards">
+          <StatCard label="Toplam Üye" value={allChildren.length} sub={`${activeCount} aktif`} color={C.blue} icon="👥" />
+          <StatCard label="Personel" value={staff.length} sub={`${staff.filter(s=>s.role==="Antrenör").length} antrenör`} color={C.green} icon="🏅" />
+          <StatCard label="Toplam Gelir" value={`₺${totalIncome.toLocaleString("tr-TR")}`} sub="Tüm zamanlar" color={C.orange} icon="💰" />
+          <StatCard label="Toplam Gider" value={`₺${totalExpense.toLocaleString("tr-TR")}`} sub="Tüm zamanlar" color={C.red} icon="📤" />
+          <StatCard label="Net Bakiye" value={`₺${netBalance.toLocaleString("tr-TR")}`} sub={netBalance >= 0 ? "Kârlı" : "Zararlı"} color={netBalance >= 0 ? C.green : C.red} icon="📊" />
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%, 280px), 1fr))", gap:18, marginTop:8 }}>
+          <Card>
+            <CardTitle color={C.blue} icon="👥">Üye Durumu</CardTitle>
+            {[["Aktif", "Aktif", C.green], ["Pasif", "Pasif", C.textDim]].map(([label, status, color]) => {
+              const cnt = allChildren.filter(c => c.status === status).length;
+              return (
+                <div key={status} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
+                  <span style={{ fontWeight:800, fontSize:14, color:C.text }}>{label}</span>
+                  <Badge color={color}>{cnt} üye</Badge>
+                </div>
+              );
+            })}
+          </Card>
+          <Card>
+            <CardTitle color={C.orange} icon="💰">Finansal Özet</CardTitle>
+            {[["Gelir", totalIncome, C.green], ["Gider", totalExpense, C.red], ["Net Bakiye", netBalance, netBalance >= 0 ? C.green : C.red]].map(([label, val, color]) => (
+              <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
+                <span style={{ fontWeight:800, fontSize:14, color:C.text }}>{label}</span>
+                <span style={{ fontWeight:900, fontSize:15, color }}>{val < 0 ? "-" : ""}₺{Math.abs(val).toLocaleString("tr-TR")}</span>
+              </div>
+            ))}
+          </Card>
+          <Card>
+            <CardTitle color={C.green} icon="🏅">Personel Dağılımı</CardTitle>
+            {["Antrenör", "Resepsiyon", "Temizlik", "Yönetici"].map(role => {
+              const cnt = staff.filter(s => s.role === role).length;
+              if (!cnt) return null;
+              return (
+                <div key={role} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                  <span style={{ fontWeight:700, fontSize:13, color:C.text }}>{role}</span>
+                  <Badge color={C.blue}>{cnt} kişi</Badge>
+                </div>
+              );
+            })}
+          </Card>
+        </div>
+      </div>
+    );
+
+    if (page === "finance") {
+      const filtered = finFilter === "Tümü" ? finance : finance.filter(f => f.type === finFilter);
+      const fInc = filtered.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
+      const fExp = filtered.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+      return (
+        <div className="fade-in">
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:4 }}>
+            <div className="ks-page-title" style={{ color:C.text }}>💰 Finans</div>
+            <ReadOnlyBadge />
+          </div>
+          <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>Para akışı — yalnızca görüntüleme</div>
+          <div className="stat-cards" style={{ marginBottom:18 }}>
+            <StatCard label="Gelir" value={`₺${fInc.toLocaleString("tr-TR")}`} color={C.green} icon="💰" />
+            <StatCard label="Gider" value={`₺${fExp.toLocaleString("tr-TR")}`} color={C.red} icon="📤" />
+            <StatCard label="Net" value={`₺${(fInc - fExp).toLocaleString("tr-TR")}`} color={(fInc - fExp) >= 0 ? C.green : C.red} icon="📊" />
+          </div>
+          <Card>
+            <div style={{ display:"flex", gap:8, marginBottom:16, flexWrap:"wrap" }}>
+              {["Tümü", "Gelir", "Gider"].map(f => (
+                <button key={f} onClick={() => setFinFilter(f)} style={{ padding:"6px 14px", borderRadius:20, border:`1.5px solid ${finFilter === f ? C.blue : C.border}`, background:finFilter === f ? C.blue : "transparent", color:finFilter === f ? "#fff" : C.textMid, fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit" }}>{f}</button>
+              ))}
+            </div>
+            {filtered.length === 0
+              ? <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>Kayıt bulunamadı</div>
+              : filtered.slice().reverse().map(f => (
+                <div key={f.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 0", borderBottom:`1px solid ${C.border}` }}>
+                  <div style={{ width:36, height:36, borderRadius:10, background:f.type==="Gelir" ? C.green+"18" : C.red+"18", display:"flex", alignItems:"center", justifyContent:"center", fontSize:18, flexShrink:0 }}>
+                    {f.type === "Gelir" ? "💰" : "📤"}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:800, fontSize:13, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{f.desc}</div>
+                    <div style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{f.date}</div>
+                  </div>
+                  <div style={{ fontWeight:900, fontSize:15, color:f.type==="Gelir" ? C.green : C.red, flexShrink:0 }}>
+                    {f.type === "Gelir" ? "+" : "-"}₺{f.amount.toLocaleString("tr-TR")}
+                  </div>
+                  <Badge color={f.type==="Gelir" ? C.green : C.red}>{f.type}</Badge>
+                </div>
+              ))
+            }
+          </Card>
+        </div>
+      );
+    }
+
+    if (page === "staff") return (
+      <div className="fade-in">
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:4 }}>
+          <div className="ks-page-title" style={{ color:C.text }}>🏅 Personel</div>
+          <ReadOnlyBadge />
+        </div>
+        <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>Personel listesi — yalnızca görüntüleme</div>
+        <div className="stat-cards" style={{ marginBottom:18 }}>
+          <StatCard label="Toplam Personel" value={staff.length} color={C.blue} icon="🏅" />
+          <StatCard label="Antrenör" value={staff.filter(s => s.role === "Antrenör").length} color={C.green} icon="🎯" />
+          <StatCard label="Aylık Gider" value={`₺${staff.reduce((s, p) => s + (p.salary || 0), 0).toLocaleString("tr-TR")}`} color={C.orange} icon="💵" />
+        </div>
+        <Card>
+          {staff.length === 0
+            ? <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>Personel bulunamadı</div>
+            : staff.map(s => (
+              <div key={s.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 0", borderBottom:`1px solid ${C.border}` }}>
+                <div style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg, ${C.blue} 0%, ${C.green} 100%)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, fontWeight:900, color:"#fff", flexShrink:0 }}>
+                  {(s.name || "?").split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase()}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:900, fontSize:14, color:C.text }}>{s.name}</div>
+                  <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.role} · {s.shift || "—"}</div>
+                </div>
+                <div style={{ textAlign:"right", flexShrink:0 }}>
+                  <Badge color={C.blue}>{s.employmentType || "—"}</Badge>
+                  <div style={{ fontSize:12, fontWeight:800, color:C.green, marginTop:4 }}>₺{(s.salary || 0).toLocaleString("tr-TR")}</div>
+                </div>
+              </div>
+            ))
+          }
+        </Card>
+      </div>
+    );
+
+    if (page === "calendar") return (
+      <div className="fade-in">
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:4 }}>
+          <div className="ks-page-title" style={{ color:C.text }}>📅 Haftalık Program</div>
+          <ReadOnlyBadge />
+        </div>
+        <CalendarPage schedule={schedule} staff={staff} setSchedule={() => {}} />
+      </div>
+    );
+
+    if (page === "reports") return (
+      <div className="fade-in">
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, marginBottom:4 }}>
+          <div className="ks-page-title" style={{ color:C.text }}>📊 Raporlar</div>
+          <ReadOnlyBadge />
+        </div>
+        <ReportsPage members={members} finance={finance} staff={staff} />
+      </div>
+    );
+
+    return null;
+  };
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg, display:"flex", flexDirection:"column" }}>
+      {showProfile && (
+        <ProfileModal user={user} onClose={() => setShowProfile(false)}
+          onLogout={() => { firebase.auth().signOut(); window.location.reload(); }}
+          onUpdatePhoto={onUpdatePhoto} />
+      )}
+
+      {/* Header */}
+      <div style={{ background:"linear-gradient(90deg, #7c3aed 0%, #5b21b6 100%)", padding:isMobile ? "0 12px" : "0 24px", height:isMobile ? 54 : 60, display:"flex", alignItems:"center", justifyContent:"space-between", boxShadow:"0 2px 16px rgba(124,58,237,0.22)", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:isMobile ? 8 : 12 }}>
+          <div style={{ fontSize:isMobile ? 20 : 24 }}>🏫</div>
+          <div>
+            <div style={{ fontSize:isMobile ? 13 : 15, fontWeight:900, color:"#fff", lineHeight:1.1 }}>Kids Station</div>
+            {!isMobile && <div style={{ fontSize:10, color:"rgba(255,255,255,0.6)", fontWeight:700, letterSpacing:1 }}>YÖNETİCİ PANELİ</div>}
+          </div>
+          {!isMobile && (
+            <div style={{ marginLeft:8, background:"rgba(255,255,255,0.15)", borderRadius:20, padding:"3px 12px", fontSize:11, fontWeight:800, color:"rgba(255,255,255,0.85)", border:"1px solid rgba(255,255,255,0.25)" }}>
+              🔒 Görüntüleme Modu
+            </div>
+          )}
+        </div>
+        <button onClick={() => setShowProfile(true)} title="Profil" style={{ width:isMobile ? 34 : 38, height:isMobile ? 34 : 38, borderRadius:"50%", border:"2.5px solid rgba(255,255,255,0.4)", overflow:"hidden", cursor:"pointer", padding:0, flexShrink:0, boxShadow:"0 2px 10px rgba(0,0,0,0.22)" }}>
+          <UserAvatar user={user} size={isMobile ? 34 : 38} fontSize={isMobile ? 13 : 15} />
+        </button>
+      </div>
+
+      {/* Nav */}
+      <div className="nav-scroll" style={{ background:"#fff", boxShadow:"0 2px 8px rgba(0,0,0,0.07)", padding:"0 8px", display:"flex", gap:4, overflowX:"auto", scrollbarWidth:"none", borderBottom:`1.5px solid ${C.border}` }}>
+        {navItems.map((item, i) => {
+          const active = page === item.key;
+          const col = navColors[i];
+          return (
+            <button key={item.key} onClick={() => setPage(item.key)} className="nav-btn" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:isMobile ? "8px 10px" : "10px 14px", border:"none", borderBottom:active ? `3px solid ${col}` : "3px solid transparent", background:active ? col+"12" : "transparent", color:active ? col : C.textMid, fontWeight:active ? 900 : 700, fontSize:isMobile ? 9 : 10, cursor:"pointer", fontFamily:"inherit", minWidth:isMobile ? 54 : 64, flexShrink:0, transition:"all 0.15s", letterSpacing:0.3 }}>
+              <span style={{ fontSize:isMobile ? 18 : 20 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Content */}
+      <div style={{ flex:1, padding:isMobile ? "16px 12px" : "24px 28px", maxWidth:1100, width:"100%", margin:"0 auto", boxSizing:"border-box" }}>
+        {renderPage()}
+      </div>
+    </div>
+  );
+}
+
+// ── KULLANICI YÖNETİMİ (ADMIN) ────────────────────────────
+function UserManagementPage() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState("teacher");
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const db = firebase.firestore();
+      const snap = await db.collection("users").get();
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (e) {
+      setError("Kullanıcılar yüklenirken hata: " + e.message);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadUsers(); }, []);
+
+  const handleCreate = async () => {
+    if (!newName.trim()) { setError("Ad Soyad zorunludur."); return; }
+    if (!newEmail.trim()) { setError("E-posta zorunludur."); return; }
+    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalı."); return; }
+    setCreating(true);
+    setError("");
+    try {
+      const API_KEY = "AIzaSyCQHb0oEx22LCrbnfWVgC_m0rdnS0_COy8";
+      const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: newEmail.trim(), password: newPassword, returnSecureToken: false }),
+      });
+      const data = await res.json();
+      if (data.error) { setError(data.error.message || "Kullanıcı oluşturulamadı."); setCreating(false); return; }
+      const db = firebase.firestore();
+      await db.collection("users").doc(data.localId).set({
+        name: newName.trim(), email: newEmail.trim().toLowerCase(), role: newRole,
+        createdAt: new Date().toISOString(),
+      });
+      setSuccess(`${newName} başarıyla oluşturuldu!`);
+      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("teacher");
+      setShowAdd(false);
+      setTimeout(() => setSuccess(""), 5000);
+      await loadUsers();
+    } catch (e) { setError("Hata: " + e.message); }
+    setCreating(false);
+  };
+
+  const uRoleLabel = r => r === "admin" ? "Admin" : r === "manager" ? "Yönetici" : "Öğretmen";
+  const uRoleColor = r => r === "admin" ? C.orange : r === "manager" ? "#7c3aed" : C.blue;
+  const uRoleIcon  = r => r === "admin" ? "👑" : r === "manager" ? "🔑" : "👩‍🏫";
+
+  const adminCount  = users.filter(u => u.role === "admin").length;
+  const managerCount = users.filter(u => u.role === "manager").length;
+  const teacherCount = users.filter(u => u.role === "teacher").length;
+
+  return (
+    <div className="fade-in">
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:20 }}>
+        <div>
+          <div className="ks-page-title" style={{ color:C.text }}>👤 Kullanıcı Yönetimi</div>
+          <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>Sistem kullanıcıları ve rol atamaları</div>
+        </div>
+        <button onClick={() => { setShowAdd(!showAdd); setError(""); }} style={{ ...btnStyle(C.blue), display:"flex", alignItems:"center", gap:7 }}>
+          {showAdd ? "✕ Kapat" : "➕ Yeni Kullanıcı"}
+        </button>
+      </div>
+
+      {/* Özet Kartlar */}
+      <div className="stat-cards" style={{ marginBottom:18 }}>
+        <StatCard label="Admin" value={adminCount} sub="Tam yetkili" color={C.orange} icon="👑" />
+        <StatCard label="Yönetici" value={managerCount} sub="Görüntüleme" color="#7c3aed" icon="🔑" />
+        <StatCard label="Öğretmen" value={teacherCount} sub="Kendi alanı" color={C.blue} icon="👩‍🏫" />
+        <StatCard label="Toplam" value={users.length} sub="Kayıtlı kullanıcı" color={C.green} icon="👥" />
+      </div>
+
+      {success && (
+        <div style={{ background:C.green+"14", border:`1.5px solid ${C.green}44`, borderRadius:12, padding:"12px 18px", marginBottom:16, fontWeight:800, color:C.green, fontSize:14 }}>
+          ✅ {success}
+        </div>
+      )}
+
+      {showAdd && (
+        <Card style={{ marginBottom:20 }}>
+          <CardTitle color={C.blue} icon="➕">Yeni Kullanıcı Oluştur</CardTitle>
+          <div style={{ background:"#fef3c7", border:"1.5px solid #fbbf24", borderRadius:10, padding:"10px 14px", marginTop:12, fontSize:12, fontWeight:700, color:"#92400e" }}>
+            ⚠️ Admin hesabı bu ekrandan oluşturulamaz. Yönetici hesabı yalnızca görüntüleme yetkisine sahip olacak.
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:14, marginTop:16 }}>
+            <div>
+              <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Ad Soyad *</div>
+              <input style={inputStyle} placeholder="Ad Soyad" value={newName} onChange={e => { setNewName(e.target.value); setError(""); }} />
+            </div>
+            <div>
+              <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>E-posta *</div>
+              <input style={inputStyle} type="email" placeholder="kullanici@example.com" value={newEmail} onChange={e => { setNewEmail(e.target.value); setError(""); }} />
+            </div>
+            <div>
+              <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Şifre *</div>
+              <input style={inputStyle} type="password" placeholder="En az 6 karakter" value={newPassword} onChange={e => { setNewPassword(e.target.value); setError(""); }} />
+            </div>
+            <div>
+              <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol *</div>
+              <select style={inputStyle} value={newRole} onChange={e => setNewRole(e.target.value)}>
+                <option value="manager">🔑 Yönetici (görüntüleme)</option>
+                <option value="teacher">👩‍🏫 Öğretmen</option>
+              </select>
+            </div>
+          </div>
+          {error && (
+            <div style={{ background:C.red+"14", border:`1.5px solid ${C.red}33`, borderRadius:10, padding:"10px 14px", marginTop:14, color:C.red, fontWeight:700, fontSize:13 }}>⚠️ {error}</div>
+          )}
+          <div style={{ display:"flex", gap:10, marginTop:16 }}>
+            <button onClick={handleCreate} disabled={creating} style={{ ...btnStyle(C.blue), flex:1, opacity:creating ? 0.6 : 1 }}>
+              {creating ? "⏳ Oluşturuluyor..." : "✅ Kullanıcı Oluştur"}
+            </button>
+            <button onClick={() => { setShowAdd(false); setError(""); }} style={{ flex:1, padding:"9px 18px", background:"#f1f5f9", border:`1.5px solid ${C.border}`, borderRadius:12, color:C.textMid, fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              İptal
+            </button>
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <CardTitle color={C.blue} icon="👥">Kullanıcı Listesi</CardTitle>
+        {loading ? (
+          <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>⏳ Yükleniyor...</div>
+        ) : users.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>Kullanıcı bulunamadı</div>
+        ) : users.sort((a, b) => {
+          const order = { admin: 0, manager: 1, teacher: 2 };
+          return (order[a.role] ?? 3) - (order[b.role] ?? 3);
+        }).map(u => (
+          <div key={u.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 0", borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg, ${uRoleColor(u.role)} 0%, ${uRoleColor(u.role)}88 100%)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+              {uRoleIcon(u.role)}
+            </div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontWeight:900, fontSize:14, color:C.text }}>{u.name || "—"}</div>
+              <div style={{ fontSize:12, color:C.textDim, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}</div>
+              {u.createdAt && <div style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>Oluşturulma: {new Date(u.createdAt).toLocaleDateString("tr-TR")}</div>}
+            </div>
+            <Badge color={uRoleColor(u.role)}>{uRoleLabel(u.role)}</Badge>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
+}
+
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
 function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, onUpdatePhoto }) {
   const isMobile = useIsMobile(600);
@@ -3904,6 +4296,11 @@ function App() {
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
   }
 
+  if (user.role === "manager") {
+    return <ManagerPanel user={user} members={members} staff={staff} finance={finance}
+      schedule={schedule} onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
+  }
+
   const adminNav = [
     { key: "dashboard", label: "Anasayfa", icon: "🏠" },
     { key: "members", label: "Üyeler", icon: "👥" },
@@ -3915,8 +4312,9 @@ function App() {
     { key: "advanced", label: "Analiz", icon: "📈" },
     { key: "messages", label: "Mesajlar", icon: "💬" },
     { key: "rewards", label: "Ödüller", icon: "🏆" },
+    { key: "users", label: "Kullanıcılar", icon: "👤" },
   ];
-  const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow];
+  const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed"];
 
   const alertCount = useNotifications(members, finance, staff).filter(a=>a.type==="danger"||a.type==="warning").length;
 
@@ -3931,6 +4329,7 @@ function App() {
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={true} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
+    users: <UserManagementPage />,
   };
 
   return (
