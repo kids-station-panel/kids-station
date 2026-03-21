@@ -160,6 +160,8 @@
       .stat-cards { gap: 6px; }
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -334,6 +336,25 @@ const initAnnouncements = [
   { id: 1, title: "Bayram Tatili", content: "23 Nisan haftası salon kapalıdır.", date: "2026-03-08", author: "Yönetim", important: true },
   { id: 2, title: "Yeni Ders Programı", content: "Nisan ayından itibaren Cuma günleri saat 16:00'da yeni grup dersi başlıyor.", date: "2026-03-05", author: "Yönetim", important: false },
 ];
+
+const initSchedule = [
+  { id: 1, title: "Futbol Grup Dersi", branch: "Futbol", day: "Pzt", time: "09:00", endTime: "10:00", teacher: "Kemal Aydın", type: "Grup", color: "#27a844", notes: "A Grubu" },
+  { id: 2, title: "Jimnastik Grup Dersi", branch: "Jimnastik", day: "Sal", time: "10:00", endTime: "11:30", teacher: "Burak Çelik", type: "Grup", color: "#f07b00", notes: "B Grubu" },
+  { id: 3, title: "Yüzme Dersi", branch: "Yüzme", day: "Çar", time: "14:00", endTime: "15:00", teacher: "Burak Çelik", type: "Bireysel", color: "#1e5cb3", notes: "" },
+];
+
+const initChannels = [
+  { id: 1, name: "📢 Genel Duyurular", desc: "Tüm ekibe yönelik resmi duyurular", createdAt: "2026-03-01", color: "#1e5cb3" },
+  { id: 2, name: "⚽ Antrenör Kanalı", desc: "Antrenör bildirimleri ve program güncellemeleri", createdAt: "2026-03-01", color: "#27a844" },
+];
+
+const initChannelMessages = [
+  { id: 1, channelId: 1, text: "Nisan ayı tatil programı paylaşılacaktır. Lütfen takip edin.", author: "Salon Yöneticisi", ts: 1741427400000, date: "2026-03-08" },
+  { id: 2, channelId: 2, text: "Program güncellemesi yapılmıştır. Yeni ders saatlerine bakınız.", author: "Salon Yöneticisi", ts: 1741600200000, date: "2026-03-10" },
+];
+
+const initDismissedNotifs = [];
+const initReadNotifs = [];
 
 // ── RENKLER ───────────────────────────────────────────────
 const C = {
@@ -2167,7 +2188,7 @@ function ReportsPage({ members, finance, staff }) {
 }
 
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
-function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents }) {
+function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule }) {
   const isMobile = useIsMobile(600);
   const [page, setPage] = useState("individual");
   const [showAddAnn, setShowAddAnn] = useState(false);
@@ -2187,6 +2208,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     { key: "students", label: "Öğrenciler", icon: "👨‍🎓" },
     { key: "attendance", label: "Devamsızlık", icon: "📅" },
     { key: "announcements", label: "Duyurular", icon: "📢" },
+    { key: "channels", label: "Kanallar", icon: "📢" },
+    { key: "calendar", label: "Program", icon: "📅" },
   ];
 
   const addAnnouncement = () => {
@@ -2508,6 +2531,49 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
             </Card>
           </div>
         )}
+        {page === "channels" && (
+          <div className="fade-in">
+            <div style={{ fontSize:22, fontWeight:900, color:C.text, marginBottom:4 }}>📢 Duyuru Kanalları</div>
+            <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>Admin tarafından paylaşılan duyurular</div>
+            {(channels||[]).length === 0 ? (
+              <Card>
+                <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
+                  <div style={{ fontSize:40, marginBottom:8 }}>📢</div>
+                  <div style={{ fontWeight:700 }}>Henüz kanal oluşturulmamış.</div>
+                </div>
+              </Card>
+            ) : (channels||[]).map(ch => {
+              const msgs = (channelMessages||[]).filter(m => m.channelId===ch.id).sort((a,b)=>b.ts-a.ts);
+              return (
+                <Card key={ch.id} style={{ marginBottom:12 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                    <div style={{ width:36, height:36, borderRadius:"50%", background:ch.color, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>📢</div>
+                    <div>
+                      <div style={{ fontWeight:900, fontSize:15, color:ch.color }}>{ch.name}</div>
+                      {ch.desc && <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{ch.desc}</div>}
+                    </div>
+                    <Badge color={ch.color} style={{ marginLeft:"auto" }}>{msgs.length} mesaj</Badge>
+                  </div>
+                  {msgs.length === 0 ? (
+                    <div style={{ color:C.textDim, fontSize:13, fontWeight:600, padding:"8px 0" }}>Bu kanalda henüz mesaj yok.</div>
+                  ) : msgs.slice(0,5).map(m => (
+                    <div key={m.id} style={{ padding:"10px 12px", marginBottom:8, borderRadius:10, background:ch.color+"0d", border:`1px solid ${ch.color}22` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+                        <span style={{ fontWeight:800, fontSize:12, color:ch.color }}>👤 {m.author}</span>
+                        <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{m.date}</span>
+                      </div>
+                      <div style={{ fontSize:14, color:C.text, lineHeight:1.5 }}>{m.text}</div>
+                    </div>
+                  ))}
+                </Card>
+              );
+            })}
+          </div>
+        )}
+
+        {page === "calendar" && (
+          <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff} schedule={schedule} setSchedule={() => {}} isAdmin={false} />
+        )}
       </div>
     </div>
   );
@@ -2569,25 +2635,50 @@ function useNotifications(members, finance, staff) {
   return alerts;
 }
 
-function NotificationsPage({ members, finance, staff }) {
-  const alerts = useNotifications(members, finance, staff);
+function NotificationsPage({ members, finance, staff, dismissedNotifs, setDismissedNotifs, readNotifs, setReadNotifs }) {
+  const allAlerts = useNotifications(members, finance, staff);
+  const isMobile = useIsMobile(600);
   const [filter, setFilter] = useState("Tümü");
+  const [showDismissed, setShowDismissed] = useState(false);
 
   const typeLabel = { danger:"Kritik", warning:"Uyarı", info:"Bilgi" };
   const typeColor = { danger:C.red, warning:C.orange, info:C.blue };
 
-  const filtered = filter === "Tümü" ? alerts : alerts.filter(a => typeLabel[a.type] === filter);
+  const dismissed = dismissedNotifs||[];
+  const read = readNotifs||[];
 
-  const danger  = alerts.filter(a => a.type==="danger").length;
-  const warning = alerts.filter(a => a.type==="warning").length;
-  const info    = alerts.filter(a => a.type==="info").length;
+  const dismiss = (id) => setDismissedNotifs([...dismissed, id]);
+  const restore = (id) => setDismissedNotifs(dismissed.filter(x => x !== id));
+  const markRead = (id) => setReadNotifs([...new Set([...read, id])]);
+  const markUnread = (id) => setReadNotifs(read.filter(x => x !== id));
+  const markAllRead = () => setReadNotifs(allAlerts.map(a => a.id));
+  const hideAll = () => setDismissedNotifs(allAlerts.map(a => a.id));
+  const restoreAll = () => setDismissedNotifs([]);
+
+  const activeAlerts = allAlerts.filter(a => !dismissed.includes(a.id));
+  const dismissedList = allAlerts.filter(a => dismissed.includes(a.id));
+  const filtered = filter === "Tümü" ? activeAlerts : activeAlerts.filter(a => typeLabel[a.type] === filter);
+  const unreadCount = activeAlerts.filter(a => !read.includes(a.id)).length;
+
+  const danger  = activeAlerts.filter(a => a.type==="danger").length;
+  const warning = activeAlerts.filter(a => a.type==="warning").length;
+  const info    = activeAlerts.filter(a => a.type==="info").length;
 
   return (
     <div className="fade-in">
-      <div className="ks-page-title" style={{ marginBottom:4, color:C.text }}>🔔 Bildirimler & Uyarılar</div>
-      <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>Sistemdeki kritik durumlar ve hatırlatmalar</div>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4, flexWrap:"wrap", gap:8 }}>
+        <div className="ks-page-title" style={{ color:C.text }}>🔔 Bildirimler & Uyarılar</div>
+        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+          <button onClick={markAllRead} style={{ ...btnOutlineStyle(C.green), fontSize:isMobile?11:13 }}>✅ {isMobile?"Okundu":"Tümünü Okundu"}</button>
+          <button onClick={hideAll} style={{ ...btnOutlineStyle(C.red), fontSize:isMobile?11:13 }}>🗑️ {isMobile?"Gizle":"Tümünü Gizle"}</button>
+          {dismissed.length > 0 && <button onClick={restoreAll} style={{ ...btnOutlineStyle(C.blue), fontSize:isMobile?11:13 }}>↩️ Geri Al</button>}
+        </div>
+      </div>
+      <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>
+        Sistemdeki kritik durumlar · <span style={{ color:C.orange, fontWeight:800 }}>{unreadCount} okunmadı</span>
+      </div>
 
-      <div style={{ display:"flex", gap:14, marginBottom:18, flexWrap:"wrap" }}>
+      <div className="stat-cards">
         <StatCard label="Kritik" value={danger} sub="Hemen işlem gerekli" color={C.red} icon="🚨" />
         <StatCard label="Uyarı" value={warning} sub="Yakında işlem yapın" color={C.orange} icon="⚠️" />
         <StatCard label="Bilgi" value={info} sub="Takip edilmeli" color={C.blue} icon="ℹ️" />
@@ -2597,10 +2688,7 @@ function NotificationsPage({ members, finance, staff }) {
         <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
           {["Tümü","Kritik","Uyarı","Bilgi"].map((f,i) => {
             const col = [C.blue,C.red,C.orange,C.blue][i];
-            return (
-              <button key={f} onClick={() => setFilter(f)}
-                style={filter===f ? btnStyle(col) : btnOutlineStyle(col)}>{f}</button>
-            );
+            return <button key={f} onClick={() => setFilter(f)} style={filter===f ? btnStyle(col) : btnOutlineStyle(col)}>{f}</button>;
           })}
         </div>
 
@@ -2610,60 +2698,191 @@ function NotificationsPage({ members, finance, staff }) {
             <div style={{ fontWeight:800, fontSize:16, color:C.green }}>Her şey yolunda!</div>
             <div style={{ fontSize:14, color:C.textDim, marginTop:4, fontWeight:600 }}>Gösterilecek bildirim yok.</div>
           </div>
-        ) : (
-          filtered.map(a => (
+        ) : filtered.map(a => {
+          const isRead = read.includes(a.id);
+          return (
             <div key={a.id} style={{
-              display:"flex", alignItems:"flex-start", gap:14, padding:"14px 16px", marginBottom:10,
-              borderRadius:14, background: typeColor[a.type]+"0e",
-              border:`1.5px solid ${typeColor[a.type]}33`
+              display:"flex", alignItems:"flex-start", gap:12, padding:"14px 16px", marginBottom:10,
+              borderRadius:14, background: isRead ? "#f8faff" : typeColor[a.type]+"0e",
+              border:`1.5px solid ${isRead ? C.border : typeColor[a.type]+"44"}`,
+              transition:"all 0.2s"
             }}>
-              <span style={{ fontSize:26, flexShrink:0 }}>{a.icon}</span>
-              <div style={{ flex:1 }}>
-                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-                  <span style={{ fontWeight:900, fontSize:15, color:C.text }}>{a.title}</span>
+              <span style={{ fontSize:24, flexShrink:0 }}>{a.icon}</span>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
+                  <span style={{ fontWeight:900, fontSize:15, color: isRead ? C.textMid : C.text }}>{a.title}</span>
                   <Badge color={typeColor[a.type]}>{typeLabel[a.type]}</Badge>
+                  {isRead && <Badge color={C.textDim}>✓ Okundu</Badge>}
                 </div>
-                <div style={{ fontSize:13, color:C.textMid, fontWeight:600, lineHeight:1.5 }}>{a.desc}</div>
+                <div style={{ fontSize:13, color:C.textMid, fontWeight:600, lineHeight:1.5, marginBottom:10 }}>{a.desc}</div>
+                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {isRead ? (
+                    <button onClick={() => markUnread(a.id)} style={{ ...btnOutlineStyle(C.textDim), fontSize:12, padding:"5px 12px" }}>↩️ Okunmadı</button>
+                  ) : (
+                    <button onClick={() => markRead(a.id)} style={{ ...btnOutlineStyle(C.green), fontSize:12, padding:"5px 12px" }}>✅ Okundu</button>
+                  )}
+                  <button onClick={() => dismiss(a.id)} style={{ ...btnOutlineStyle(C.red), fontSize:12, padding:"5px 12px" }}>🗑️ Gizle</button>
+                </div>
               </div>
             </div>
-          ))
-        )}
+          );
+        })}
       </Card>
+
+      {dismissedList.length > 0 && (
+        <Card style={{ marginTop:4 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", cursor:"pointer", marginBottom: showDismissed ? 16 : 0 }}
+            onClick={() => setShowDismissed(v => !v)}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontSize:18 }}>🗑️</span>
+              <span style={{ fontWeight:800, fontSize:15, color:C.textMid }}>Gizlenen Bildirimler ({dismissedList.length})</span>
+            </div>
+            <span style={{ color:C.textDim, fontSize:16 }}>{showDismissed ? "▲" : "▼"}</span>
+          </div>
+          {showDismissed && dismissedList.map(a => (
+            <div key={a.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 14px", marginBottom:8, borderRadius:12, background:"#f5f7fb", border:`1.5px solid ${C.border}` }}>
+              <span style={{ fontSize:20, opacity:0.6 }}>{a.icon}</span>
+              <div style={{ flex:1 }}>
+                <div style={{ fontWeight:800, fontSize:13, color:C.textMid }}>{a.title}</div>
+                <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{a.desc.slice(0,80)}{a.desc.length>80?"...":""}</div>
+              </div>
+              <button onClick={() => restore(a.id)} style={{ ...btnOutlineStyle(C.blue), fontSize:12, padding:"5px 10px" }}>↩️ Geri Al</button>
+            </div>
+          ))}
+        </Card>
+      )}
     </div>
   );
 }
 
 // ── TAKVİM / HAFTALIK PROGRAM ────────────────────────────────
-function CalendarPage({ members, staff }) {
+function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
   const allChildren = (members||[]).flatMap(p => p.children||[]);
   const days = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"];
   const dayShort = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
   const hours = ["08:00","09:00","10:00","11:00","12:00","13:00","14:00","15:00","16:00","17:00","18:00","19:00","20:00"];
   const branchColors = { "Futbol":C.green, "Jimnastik":C.orange, "Yüzme":C.blue, "Basketbol":C.red, "default":C.blue };
+  const isMobile = useIsMobile(600);
 
-  // Collect all individual lesson schedules
-  const slots = [];
+  // Bireysel ders slotları (personelden)
+  const autoSlots = [];
   (staff||[]).forEach(s => {
     (s.individualStudents||[]).forEach(assign => {
       const child = allChildren.find(c => c.id === Number(assign.childId));
       if (!child) return;
       (assign.days||[]).forEach(d => {
-        slots.push({ day:d, time:assign.time||"09:00", child, teacher:s, branch:assign.branch||child.branch||"-", type:"Bireysel" });
+        autoSlots.push({ id:"auto_"+s.id+"_"+assign.childId+"_"+d, day:d, time:assign.time||"09:00", endTime:"", title:child.name, branch:assign.branch||child.branch||"-", teacher:s.name, type:"Bireysel", notes:"", isAuto:true });
       });
     });
   });
 
-  const [view, setView] = useState("hafta");
+  // Manuel eklenen + auto slotlar birleşik
+  const allSlots = [...autoSlots, ...(schedule||[])];
+
+  const [view, setView] = useState("liste");
+  const [showModal, setShowModal] = useState(false);
+  const [editItem, setEditItem] = useState(null);
+  const [form, setForm] = useState({ title:"", branch:"Futbol", day:"Pzt", time:"09:00", endTime:"10:00", teacher:"", type:"Grup", notes:"" });
+
+  const openAdd = () => {
+    setEditItem(null);
+    setForm({ title:"", branch:"Futbol", day:"Pzt", time:"09:00", endTime:"10:00", teacher:"", type:"Grup", notes:"" });
+    setShowModal(true);
+  };
+  const openEdit = (item) => {
+    setEditItem(item);
+    setForm({ title:item.title, branch:item.branch, day:item.day, time:item.time, endTime:item.endTime||"", teacher:item.teacher, type:item.type||"Grup", notes:item.notes||"" });
+    setShowModal(true);
+  };
+  const saveItem = () => {
+    if (!form.title.trim()) return;
+    if (editItem) {
+      setSchedule(prev => (prev||[]).map(s => s.id===editItem.id ? {...s,...form} : s));
+    } else {
+      const newItem = { id: Date.now(), ...form };
+      setSchedule(prev => [...(prev||[]), newItem]);
+    }
+    setShowModal(false);
+  };
+  const deleteItem = (id) => {
+    setSchedule(prev => (prev||[]).filter(s => s.id !== id));
+  };
 
   return (
     <div className="fade-in">
-      <div className="ks-page-title" style={{ marginBottom:4, color:C.text }}>📅 Haftalık Program</div>
-      <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>Tüm bireysel ders programı</div>
+      {showModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+          onClick={() => setShowModal(false)}>
+          <div style={{ background:"#fff", borderRadius:20, padding:24, maxWidth:440, width:"100%", maxHeight:"90vh", overflowY:"auto" }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight:900, fontSize:18, color:C.text, marginBottom:18 }}>{editItem ? "✏️ Düzenle" : "➕ Yeni Etkinlik"}</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Başlık *</label>
+                <input style={inputStyle} value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="Ders/Etkinlik adı" />
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Branş</label>
+                  <select style={inputStyle} value={form.branch} onChange={e => setForm(f=>({...f,branch:e.target.value}))}>
+                    {["Futbol","Jimnastik","Yüzme","Basketbol","Tenis","Diğer"].map(b => <option key={b}>{b}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Gün</label>
+                  <select style={inputStyle} value={form.day} onChange={e => setForm(f=>({...f,day:e.target.value}))}>
+                    {dayShort.map(d => <option key={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Başlangıç</label>
+                  <input type="time" style={inputStyle} value={form.time} onChange={e => setForm(f=>({...f,time:e.target.value}))} />
+                </div>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Bitiş</label>
+                  <input type="time" style={inputStyle} value={form.endTime} onChange={e => setForm(f=>({...f,endTime:e.target.value}))} />
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Eğitmen</label>
+                <input style={inputStyle} value={form.teacher} onChange={e => setForm(f=>({...f,teacher:e.target.value}))} placeholder="Eğitmen adı" list="cal-teacher-list" />
+                <datalist id="cal-teacher-list">{(staff||[]).map(s=><option key={s.id} value={s.name}/>)}</datalist>
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Tür</label>
+                <select style={inputStyle} value={form.type} onChange={e => setForm(f=>({...f,type:e.target.value}))}>
+                  {["Grup","Bireysel","Etkinlik","Toplantı","Diğer"].map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Notlar</label>
+                <textarea style={{...inputStyle, height:60, resize:"none"}} value={form.notes} onChange={e => setForm(f=>({...f,notes:e.target.value}))} placeholder="Opsiyonel not..." />
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:18 }}>
+              <button style={{ ...btnStyle(C.blue), flex:1 }} onClick={saveItem}>💾 Kaydet</button>
+              <button style={{ ...btnOutlineStyle(C.textDim), flex:1 }} onClick={() => setShowModal(false)}>İptal</button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      <div style={{ display:"flex", gap:8, marginBottom:18 }}>
-        {["hafta","liste"].map(v => (
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4, flexWrap:"wrap", gap:8 }}>
+        <div>
+          <div className="ks-page-title" style={{ marginBottom:2, color:C.text }}>📅 Haftalık Program</div>
+          <div style={{ fontSize:14, color:C.textDim, fontWeight:600 }}>
+            {isAdmin ? "Tüm ders ve etkinlik programı" : "Ders programınız (salt okunur)"}
+          </div>
+        </div>
+        {isAdmin && (
+          <button style={btnStyle(C.green)} onClick={openAdd}>➕ Ekle</button>
+        )}
+      </div>
+
+      <div style={{ display:"flex", gap:8, margin:"14px 0" }}>
+        {["liste","hafta"].map(v => (
           <button key={v} onClick={() => setView(v)} style={view===v ? btnStyle(C.blue) : btnOutlineStyle(C.blue)}>
-            {v==="hafta"?"📅 Hafta Görünümü":"📋 Liste Görünümü"}
+            {v==="liste"?"📋 Liste":"📅 Hafta"}
           </button>
         ))}
       </div>
@@ -2680,13 +2899,14 @@ function CalendarPage({ members, staff }) {
               <React.Fragment key={h}>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:8, fontSize:11, color:C.textDim, fontWeight:700 }}>{h}</div>
                 {dayShort.map(d => {
-                  const slotItems = slots.filter(s => s.day===d && (s.time||"").startsWith(h.slice(0,2)));
+                  const slotItems = allSlots.filter(s => s.day===d && (s.time||"").startsWith(h.slice(0,2)));
                   return (
                     <div key={d} style={{ minHeight:48, background:slotItems.length?"transparent":"#f9faff", borderRadius:6, border:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
                       {slotItems.map((s,i) => (
-                        <div key={i} style={{ background:(branchColors[s.branch]||C.blue)+"22", border:`1.5px solid ${branchColors[s.branch]||C.blue}44`, borderRadius:6, padding:"4px 6px", margin:2 }}>
-                          <div style={{ fontSize:10, fontWeight:900, color:branchColors[s.branch]||C.blue, lineHeight:1.3 }}>{s.child.name}</div>
-                          <div style={{ fontSize:9, color:C.textDim, fontWeight:600 }}>{s.branch} · {s.teacher.name.split(" ")[0]}</div>
+                        <div key={i} onClick={() => isAdmin && !s.isAuto && openEdit(s)}
+                          style={{ background:(branchColors[s.branch]||C.blue)+"22", border:`1.5px solid ${branchColors[s.branch]||C.blue}44`, borderRadius:6, padding:"4px 6px", margin:2, cursor: isAdmin&&!s.isAuto?"pointer":"default" }}>
+                          <div style={{ fontSize:10, fontWeight:900, color:branchColors[s.branch]||C.blue, lineHeight:1.3 }}>{s.title}</div>
+                          <div style={{ fontSize:9, color:C.textDim, fontWeight:600 }}>{s.branch} · {(s.teacher||"").split(" ")[0]}</div>
                         </div>
                       ))}
                     </div>
@@ -2698,35 +2918,48 @@ function CalendarPage({ members, staff }) {
           </div>
         </Card>
       ) : (
-        <Card>
-          {slots.length === 0 ? (
-            <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
-              <div style={{ fontSize:40, marginBottom:8 }}>📅</div>
-              <div style={{ fontWeight:700 }}>Henüz ders programı girilmemiş.</div>
-              <div style={{ fontSize:13, marginTop:4 }}>Personel profilinden bireysel ders atayın.</div>
-            </div>
-          ) : days.map(day => {
-            const daySlots = slots.filter(s => s.day===dayShort[days.indexOf(day)]);
+        <div>
+          {days.map((day,di) => {
+            const dShort = dayShort[di];
+            const daySlots = allSlots.filter(s => s.day===dShort).sort((a,b)=>a.time.localeCompare(b.time));
             if (!daySlots.length) return null;
             return (
-              <div key={day} style={{ marginBottom:18 }}>
+              <Card key={day} style={{ marginBottom:12 }}>
                 <div style={{ fontWeight:900, fontSize:15, color:C.text, marginBottom:10, paddingBottom:6, borderBottom:`2px solid ${C.border}` }}>{day}</div>
-                {daySlots.sort((a,b)=>a.time.localeCompare(b.time)).map((s,i) => (
-                  <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", marginBottom:8, borderRadius:12, background:(branchColors[s.branch]||C.blue)+"0e", border:`1.5px solid ${branchColors[s.branch]||C.blue}22` }}>
+                {daySlots.map((s) => (
+                  <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", marginBottom:8, borderRadius:12, background:(branchColors[s.branch]||C.blue)+"0e", border:`1.5px solid ${branchColors[s.branch]||C.blue}22` }}>
                     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      <div style={{ fontWeight:900, fontSize:14, color:branchColors[s.branch]||C.blue, minWidth:45 }}>{s.time}</div>
+                      <div style={{ fontWeight:900, fontSize:14, color:branchColors[s.branch]||C.blue, minWidth:45 }}>{s.time}{s.endTime?" - "+s.endTime:""}</div>
                       <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{s.child.name}</div>
-                        <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.branch} · {s.teacher.name}</div>
+                        <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{s.title}</div>
+                        <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.branch} · {s.teacher}</div>
+                        {s.notes && <div style={{ fontSize:11, color:C.textDim, fontStyle:"italic" }}>{s.notes}</div>}
                       </div>
                     </div>
-                    <Badge color={branchColors[s.branch]||C.blue}>Bireysel</Badge>
+                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                      <Badge color={branchColors[s.branch]||C.blue}>{s.type||"Ders"}</Badge>
+                      {isAdmin && !s.isAuto && (
+                        <>
+                          <button onClick={() => openEdit(s)} style={{ ...btnOutlineStyle(C.blue), padding:"4px 10px", fontSize:12 }}>✏️</button>
+                          <button onClick={() => deleteItem(s.id)} style={{ ...btnOutlineStyle(C.red), padding:"4px 10px", fontSize:12 }}>🗑️</button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 ))}
-              </div>
+              </Card>
             );
           })}
-        </Card>
+          {allSlots.length === 0 && (
+            <Card>
+              <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
+                <div style={{ fontSize:40, marginBottom:8 }}>📅</div>
+                <div style={{ fontWeight:700 }}>Henüz program girilmemiş.</div>
+                {isAdmin && <div style={{ fontSize:13, marginTop:4 }}>➕ Ekle butonuyla ders/etkinlik ekleyebilirsiniz.</div>}
+              </div>
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );
@@ -2758,10 +2991,41 @@ function AdvancedReportsPage({ members, finance, staff }) {
 
   const barColors = [C.blue,C.green,C.orange,C.red,C.yellow+"cc","#8b5cf6"];
 
+  const reportRef = React.useRef(null);
+  const exportPDF = async () => {
+    const el = reportRef.current;
+    if (!el) return;
+    const btn = document.getElementById("pdf-export-btn");
+    if (btn) btn.style.display = "none";
+    try {
+      const canvas = await html2canvas(el, { scale:2, useCORS:true, backgroundColor:"#f4f7ff" });
+      const imgData = canvas.toDataURL("image/png");
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = (canvas.height * pdfW) / canvas.width;
+      let y = 0;
+      const pageH = pdf.internal.pageSize.getHeight();
+      while (y < pdfH) {
+        if (y > 0) pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, -y, pdfW, pdfH);
+        y += pageH;
+      }
+      pdf.save("kids-station-analiz.pdf");
+    } finally {
+      if (btn) btn.style.display = "";
+    }
+  };
+
   return (
-    <div className="fade-in">
-      <div className="ks-page-title" style={{ marginBottom:4, color:C.text }}>📊 Gelişmiş Raporlar</div>
-      <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>İşletme performans analizi</div>
+    <div className="fade-in" ref={reportRef}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:4, flexWrap:"wrap", gap:8 }}>
+        <div>
+          <div className="ks-page-title" style={{ marginBottom:2, color:C.text }}>📊 Gelişmiş Raporlar</div>
+          <div style={{ fontSize:14, color:C.textDim, fontWeight:600 }}>İşletme performans analizi</div>
+        </div>
+        <button id="pdf-export-btn" onClick={exportPDF} style={btnStyle(C.red)}>📄 PDF İndir</button>
+      </div>
 
       <div className="stat-cards">
         <StatCard label="Toplam Gelir" value={`₺${totalIncome.toLocaleString()}`} color={C.green} icon="📈" />
@@ -2839,15 +3103,25 @@ function AdvancedReportsPage({ members, finance, staff }) {
   );
 }
 
-// ── VELİYE MESAJ ──────────────────────────────────────────────
-function MessagesPage({ members }) {
+// ── MESAJLAR & KANAL SİSTEMİ ─────────────────────────────────
+function MessagesPage({ members, channels, setChannels, channelMessages, setChannelMessages, isAdmin, currentUser }) {
   const allParents = members||[];
   const allChildren = allParents.flatMap(p => p.children||[]);
+  const isMobile = useIsMobile(600);
+  const [tab, setTab] = useState("kanallar");
+
+  // WhatsApp tab state
   const [selected, setSelected] = useState([]);
   const [template, setTemplate] = useState("paket");
   const [customMsg, setCustomMsg] = useState("");
   const [sent, setSent] = useState([]);
   const [waLinks, setWaLinks] = useState(null);
+
+  // Kanal tab state
+  const [selectedChannel, setSelectedChannel] = useState(null);
+  const [newMsg, setNewMsg] = useState("");
+  const [showAddChannel, setShowAddChannel] = useState(false);
+  const [channelForm, setChannelForm] = useState({ name:"", desc:"", color:C.blue });
 
   const templates = {
     paket: (child, parent) => `Sayın ${parent.parent1Name}, ${child.name} adlı öğrencinizin paketi yakında dolacak. Yenileme için lütfen bizimle iletişime geçin. Kids Station`,
@@ -2862,7 +3136,6 @@ function MessagesPage({ members }) {
 
   const formatPhone = (phone) => {
     if (!phone) return "";
-    // Turkish phone: 0532 111 2233 -> 90532111223
     return "90" + phone.replace(/\D/g, "").slice(-10);
   };
 
@@ -2874,27 +3147,57 @@ function MessagesPage({ members }) {
       return { id:Date.now()+childId, childName:child?.name, phone:parent?.parent1Phone, msg, date:new Date().toISOString().slice(0,10), template };
     });
     setSent(prev=>[...newSent,...prev]);
-    // Open WhatsApp for first recipient, others queued
     if (newSent.length === 1) {
       const s = newSent[0];
-      const waUrl = `https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(s.msg)}`;
-      window.open(waUrl, "_blank");
+      window.open(`https://wa.me/${formatPhone(s.phone)}?text=${encodeURIComponent(s.msg)}`, "_blank");
     } else if (newSent.length > 1) {
-      // Show WhatsApp links modal by storing in state
       setWaLinks(newSent);
     }
     setSelected([]);
   };
 
-  const unpaidChildren   = allChildren.filter(c=>(c.enrollments||[]).some(e=>e.activePackage&&!e.activePackage.paid));
+  const unpaidChildren = allChildren.filter(c=>(c.enrollments||[]).some(e=>e.activePackage&&!e.activePackage.paid));
   const lowLessonChildren = allChildren.filter(c=>(c.enrollments||[]).some(e=>{ const pkg=e.activePackage; return pkg&&(pkg.totalLessons-pkg.usedLessons)<=3; }));
+
+  // Channel actions
+  const activeChannel = (channels||[]).find(ch => ch.id === selectedChannel);
+  const activeMessages = (channelMessages||[]).filter(m => m.channelId === selectedChannel).sort((a,b)=>a.ts-b.ts);
+
+  const sendChannelMsg = () => {
+    if (!newMsg.trim() || !selectedChannel) return;
+    const msg = {
+      id: Date.now(),
+      channelId: selectedChannel,
+      text: newMsg.trim(),
+      author: currentUser?.name || "Admin",
+      ts: Date.now(),
+      date: new Date().toISOString().slice(0,10),
+    };
+    setChannelMessages(prev => [...(prev||[]), msg]);
+    setNewMsg("");
+  };
+
+  const createChannel = () => {
+    if (!channelForm.name.trim()) return;
+    const ch = { id: Date.now(), name: channelForm.name.trim(), desc: channelForm.desc.trim(), color: channelForm.color, createdAt: new Date().toISOString().slice(0,10) };
+    setChannels(prev => [...(prev||[]), ch]);
+    setShowAddChannel(false);
+    setChannelForm({ name:"", desc:"", color:C.blue });
+    setSelectedChannel(ch.id);
+  };
+
+  const deleteChannel = (id) => {
+    setChannels(prev => (prev||[]).filter(ch => ch.id !== id));
+    setChannelMessages(prev => (prev||[]).filter(m => m.channelId !== id));
+    if (selectedChannel === id) setSelectedChannel(null);
+  };
 
   return (
     <div className="fade-in">
       {waLinks && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}
           onClick={() => setWaLinks(null)}>
-          <div className="ks-modal-inner" style={{ background:"#fff", borderRadius:20, padding:28, maxWidth:420, width:"100%", maxHeight:"85vh", overflowY:"auto" }}
+          <div style={{ background:"#fff", borderRadius:20, padding:28, maxWidth:420, width:"100%", maxHeight:"85vh", overflowY:"auto" }}
             onClick={e=>e.stopPropagation()}>
             <div style={{ fontWeight:900, fontSize:18, color:"#075e54", marginBottom:6 }}>📱 WhatsApp Mesajları</div>
             <div style={{ fontSize:13, color:"#666", marginBottom:18, fontWeight:600 }}>Her veliye tıklayarak WhatsApp'ta mesaj açın:</div>
@@ -2917,86 +3220,201 @@ function MessagesPage({ members }) {
           </div>
         </div>
       )}
-      <div className="ks-page-title" style={{ marginBottom:4, color:C.text }}>💬 Veliye Mesaj Gönder</div>
-      <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>Toplu veya bireysel mesaj gönderimi</div>
 
-      {/* Hızlı Seçim */}
-      <Card>
-        <CardTitle color={C.orange} icon="⚡">Hızlı Seçim</CardTitle>
-        <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-          <button style={btnOutlineStyle(C.orange)} onClick={() => setSelected(unpaidChildren.map(c=>c.id))}>
-            ⏳ Ödeme Bekleyenler ({unpaidChildren.length})
-          </button>
-          <button style={btnOutlineStyle(C.red)} onClick={() => setSelected(lowLessonChildren.map(c=>c.id))}>
-            📦 Az Ders Kalanlar ({lowLessonChildren.length})
-          </button>
-          <button style={btnOutlineStyle(C.blue)} onClick={selectAll}>Tümünü Seç</button>
-          <button style={btnOutlineStyle(C.textDim)} onClick={clearAll}>Temizle</button>
-        </div>
-      </Card>
-
-      {/* Şablon Seç */}
-      <Card>
-        <CardTitle color={C.blue} icon="📝">Mesaj Şablonu</CardTitle>
-        <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
-          {[["paket","📦 Paket Yenileme"],["odeme","💳 Ödeme Hatırlatma"],["gecikme","👤 Devamsızlık"],["ozel","✏️ Özel Mesaj"]].map(([key,label]) => (
-            <button key={key} onClick={() => setTemplate(key)} style={template===key?btnStyle(C.blue):btnOutlineStyle(C.blue)}>{label}</button>
-          ))}
-        </div>
-        {template==="ozel" && (
-          <textarea style={{ ...inputStyle, height:100, resize:"vertical" }} value={customMsg} onChange={e=>setCustomMsg(e.target.value)} placeholder="Özel mesajınızı yazın..." />
-        )}
-        {template!=="ozel" && selected.length>0 && (
-          <div style={{ background:"#f0f4ff", borderRadius:10, padding:"12px 14px", fontSize:13, color:C.blue, fontWeight:600, lineHeight:1.6 }}>
-            Örnek: {templates[template]?.(allChildren.find(c=>c.id===selected[0]), allParents.find(p=>p.children.some(c=>c.id===selected[0])))||""}
+      {showAddChannel && isAdmin && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+          onClick={() => setShowAddChannel(false)}>
+          <div style={{ background:"#fff", borderRadius:20, padding:24, maxWidth:400, width:"100%", maxHeight:"85vh", overflowY:"auto" }}
+            onClick={e=>e.stopPropagation()}>
+            <div style={{ fontWeight:900, fontSize:18, color:C.text, marginBottom:16 }}>📢 Yeni Kanal Oluştur</div>
+            <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Kanal Adı *</label>
+                <input style={inputStyle} value={channelForm.name} onChange={e=>setChannelForm(f=>({...f,name:e.target.value}))} placeholder="Örn: 📢 Genel Duyurular" />
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Açıklama</label>
+                <input style={inputStyle} value={channelForm.desc} onChange={e=>setChannelForm(f=>({...f,desc:e.target.value}))} placeholder="Kanal açıklaması" />
+              </div>
+              <div>
+                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Renk</label>
+                <div style={{ display:"flex", gap:8 }}>
+                  {[C.blue, C.green, C.orange, C.red, "#8b5cf6", "#0891b2"].map(col => (
+                    <div key={col} onClick={() => setChannelForm(f=>({...f,color:col}))}
+                      style={{ width:30, height:30, borderRadius:"50%", background:col, cursor:"pointer", border:channelForm.color===col?"3px solid #222":"3px solid transparent" }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:18 }}>
+              <button style={{ ...btnStyle(C.blue), flex:1 }} onClick={createChannel}>✅ Oluştur</button>
+              <button style={{ ...btnOutlineStyle(C.textDim), flex:1 }} onClick={() => setShowAddChannel(false)}>İptal</button>
+            </div>
           </div>
-        )}
-      </Card>
-
-      {/* Öğrenci Listesi */}
-      <Card>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-          <CardTitle color={C.green} icon="👥">Alıcılar</CardTitle>
-          <Badge color={C.blue}>{selected.length} seçili</Badge>
         </div>
-        {allChildren.map(child => {
-          const parent = allParents.find(p=>p.children.some(c=>c.id===child.id));
-          const isSelected = selected.includes(child.id);
-          return (
-            <div key={child.id} onClick={() => toggleSelect(child.id)}
-              style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 10px", borderRadius:10, marginBottom:4, cursor:"pointer", background:isSelected?C.blue+"0e":"transparent", border:`1.5px solid ${isSelected?C.blue+"44":C.border}` }}>
-              <div style={{ width:22, height:22, borderRadius:6, border:`2px solid ${isSelected?C.blue:C.border}`, background:isSelected?C.blue:"transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                {isSelected && <span style={{ color:"#fff", fontSize:13, fontWeight:900 }}>✓</span>}
-              </div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
-                <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{parent?.parent1Name} · {parent?.parent1Phone}</div>
-              </div>
-              {(child.enrollments||[]).some(e=>e.activePackage&&!e.activePackage.paid) && <Badge color={C.orange}>Ödeme Bekliyor</Badge>}
-            </div>
-          );
-        })}
-        {selected.length > 0 && (
-          <button style={{ ...btnStyle(C.green), width:"100%", marginTop:14, fontSize:15 }} onClick={sendMessages}>
-            📱 {selected.length} Veliye WhatsApp Gönder
-          </button>
-        )}
-      </Card>
+      )}
 
-      {/* Gönderilen Mesajlar */}
-      {sent.length > 0 && (
-        <Card>
-          <CardTitle color={C.textDim} icon="📋">Gönderilen Mesajlar</CardTitle>
-          {sent.slice(0,10).map(s => (
-            <div key={s.id} style={{ padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
-                <span style={{ fontWeight:800, fontSize:14, color:C.text }}>{s.childName}</span>
-                <span style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.date}</span>
+      <div className="ks-page-title" style={{ marginBottom:4, color:C.text }}>💬 Mesajlar</div>
+      <div style={{ fontSize:14, color:C.textDim, marginBottom:14, fontWeight:600 }}>WhatsApp iletişimi ve duyuru kanalları</div>
+
+      <div style={{ display:"flex", gap:8, marginBottom:18 }}>
+        {[["kanallar","📢 Kanallar"],["whatsapp","📱 WhatsApp"]].map(([k,l]) => (
+          <button key={k} onClick={() => setTab(k)} style={tab===k ? btnStyle(C.blue) : btnOutlineStyle(C.blue)}>{l}</button>
+        ))}
+      </div>
+
+      {tab === "kanallar" && (
+        <div style={{ display:"flex", gap:12, height:isMobile?"auto":"500px", flexDirection:isMobile?"column":"row" }}>
+          {/* Channel list */}
+          <div style={{ width:isMobile?"100%":220, flexShrink:0 }}>
+            {isAdmin && (
+              <button style={{ ...btnStyle(C.green), width:"100%", marginBottom:10 }} onClick={() => setShowAddChannel(true)}>➕ Kanal Ekle</button>
+            )}
+            {(channels||[]).length === 0 && (
+              <div style={{ textAlign:"center", padding:"20px 10px", color:C.textDim, fontSize:13, fontWeight:600 }}>
+                Henüz kanal yok{isAdmin ? "\nYukarıdan ekleyin." : ""}
               </div>
-              <div style={{ fontSize:12, color:C.textMid, fontWeight:600 }}>{s.phone} · {s.msg.slice(0,60)}...</div>
+            )}
+            {(channels||[]).map(ch => (
+              <div key={ch.id} onClick={() => setSelectedChannel(ch.id)}
+                style={{ padding:"12px 14px", borderRadius:12, marginBottom:6, cursor:"pointer", background:selectedChannel===ch.id ? ch.color+"18" : "#f8faff", border:`1.5px solid ${selectedChannel===ch.id ? ch.color+"66" : C.border}`, transition:"all 0.15s" }}>
+                <div style={{ fontWeight:800, fontSize:13, color:selectedChannel===ch.id ? ch.color : C.text }}>{ch.name}</div>
+                {ch.desc && <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2, lineHeight:1.3 }}>{ch.desc}</div>}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+                  <div style={{ fontSize:10, color:C.textDim }}>{(channelMessages||[]).filter(m=>m.channelId===ch.id).length} mesaj</div>
+                  {isAdmin && (
+                    <button onClick={e => { e.stopPropagation(); deleteChannel(ch.id); }}
+                      style={{ background:"transparent", border:"none", cursor:"pointer", color:C.red, fontSize:14, padding:"0 4px" }}>🗑️</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Message area */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", background:"#f8faff", borderRadius:16, border:`1.5px solid ${C.border}`, overflow:"hidden", minHeight:isMobile?300:0 }}>
+            {!selectedChannel ? (
+              <div style={{ flex:1, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:10, color:C.textDim }}>
+                <div style={{ fontSize:40 }}>📢</div>
+                <div style={{ fontWeight:700, fontSize:15 }}>Bir kanal seçin</div>
+                <div style={{ fontSize:13 }}>Soldaki listeden bir kanal seçerek mesajları görün</div>
+              </div>
+            ) : (
+              <>
+                <div style={{ padding:"14px 16px", background:activeChannel?.color||C.blue, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <div>
+                    <div style={{ fontWeight:900, fontSize:15, color:"#fff" }}>{activeChannel?.name}</div>
+                    {activeChannel?.desc && <div style={{ fontSize:12, color:"rgba(255,255,255,0.8)", fontWeight:600 }}>{activeChannel.desc}</div>}
+                  </div>
+                  <Badge color="rgba(255,255,255,0.25)">{activeMessages.length} mesaj</Badge>
+                </div>
+                <div style={{ flex:1, overflowY:"auto", padding:"14px 16px", display:"flex", flexDirection:"column", gap:10 }}>
+                  {activeMessages.length === 0 && (
+                    <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
+                      <div style={{ fontSize:32, marginBottom:8 }}>💬</div>
+                      <div style={{ fontWeight:700 }}>Henüz mesaj yok</div>
+                      {isAdmin && <div style={{ fontSize:13, marginTop:4 }}>Aşağıdan ilk mesajı gönderin</div>}
+                    </div>
+                  )}
+                  {activeMessages.map(m => (
+                    <div key={m.id} style={{ background:"#fff", borderRadius:12, padding:"12px 14px", boxShadow:"0 1px 6px rgba(0,0,0,0.06)", border:`1px solid ${C.border}` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                        <span style={{ fontWeight:800, fontSize:13, color:activeChannel?.color||C.blue }}>👤 {m.author}</span>
+                        <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{m.date}</span>
+                      </div>
+                      <div style={{ fontSize:14, color:C.text, lineHeight:1.5 }}>{m.text}</div>
+                    </div>
+                  ))}
+                </div>
+                {isAdmin && (
+                  <div style={{ padding:"12px 16px", borderTop:`1.5px solid ${C.border}`, display:"flex", gap:8 }}>
+                    <textarea style={{ ...inputStyle, flex:1, height:52, resize:"none", margin:0 }} value={newMsg} onChange={e=>setNewMsg(e.target.value)}
+                      placeholder="Duyurunuzu yazın..." onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendChannelMsg();}}} />
+                    <button style={{ ...btnStyle(activeChannel?.color||C.blue), padding:"10px 16px", flexShrink:0 }} onClick={sendChannelMsg}>Gönder</button>
+                  </div>
+                )}
+                {!isAdmin && (
+                  <div style={{ padding:"10px 16px", borderTop:`1.5px solid ${C.border}`, background:"#f0f4ff" }}>
+                    <div style={{ fontSize:12, color:C.textDim, fontWeight:600, textAlign:"center" }}>📖 Bu kanal salt okunurdur. Duyurular admin tarafından paylaşılır.</div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === "whatsapp" && (
+        <div>
+          <Card>
+            <CardTitle color={C.orange} icon="⚡">Hızlı Seçim</CardTitle>
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+              <button style={btnOutlineStyle(C.orange)} onClick={() => setSelected(unpaidChildren.map(c=>c.id))}>⏳ Ödeme Bekleyenler ({unpaidChildren.length})</button>
+              <button style={btnOutlineStyle(C.red)} onClick={() => setSelected(lowLessonChildren.map(c=>c.id))}>📦 Az Ders Kalanlar ({lowLessonChildren.length})</button>
+              <button style={btnOutlineStyle(C.blue)} onClick={selectAll}>Tümünü Seç</button>
+              <button style={btnOutlineStyle(C.textDim)} onClick={clearAll}>Temizle</button>
             </div>
-          ))}
-        </Card>
+          </Card>
+
+          <Card>
+            <CardTitle color={C.blue} icon="📝">Mesaj Şablonu</CardTitle>
+            <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:14 }}>
+              {[["paket","📦 Paket Yenileme"],["odeme","💳 Ödeme Hatırlatma"],["gecikme","👤 Devamsızlık"],["ozel","✏️ Özel Mesaj"]].map(([key,label]) => (
+                <button key={key} onClick={() => setTemplate(key)} style={template===key?btnStyle(C.blue):btnOutlineStyle(C.blue)}>{label}</button>
+              ))}
+            </div>
+            {template==="ozel" && (
+              <textarea style={{ ...inputStyle, height:100, resize:"vertical" }} value={customMsg} onChange={e=>setCustomMsg(e.target.value)} placeholder="Özel mesajınızı yazın..." />
+            )}
+            {template!=="ozel" && selected.length>0 && (
+              <div style={{ background:"#f0f4ff", borderRadius:10, padding:"12px 14px", fontSize:13, color:C.blue, fontWeight:600, lineHeight:1.6 }}>
+                Örnek: {templates[template]?.(allChildren.find(c=>c.id===selected[0]), allParents.find(p=>p.children.some(c=>c.id===selected[0])))||""}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+              <CardTitle color={C.green} icon="👥">Alıcılar</CardTitle>
+              <Badge color={C.blue}>{selected.length} seçili</Badge>
+            </div>
+            {allChildren.map(child => {
+              const parent = allParents.find(p=>p.children.some(c=>c.id===child.id));
+              const isSelected = selected.includes(child.id);
+              return (
+                <div key={child.id} onClick={() => toggleSelect(child.id)}
+                  style={{ display:"flex", alignItems:"center", gap:12, padding:"12px 10px", borderRadius:10, marginBottom:4, cursor:"pointer", background:isSelected?C.blue+"0e":"transparent", border:`1.5px solid ${isSelected?C.blue+"44":C.border}` }}>
+                  <div style={{ width:22, height:22, borderRadius:6, border:`2px solid ${isSelected?C.blue:C.border}`, background:isSelected?C.blue:"transparent", display:"flex", alignItems:"center", justifyContent:"center" }}>
+                    {isSelected && <span style={{ color:"#fff", fontSize:13, fontWeight:900 }}>✓</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
+                    <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{parent?.parent1Name} · {parent?.parent1Phone}</div>
+                  </div>
+                  <Badge color={child.status==="Aktif"?C.green:C.textDim}>{child.status}</Badge>
+                </div>
+              );
+            })}
+            <button style={{ ...btnStyle("#25d366"), width:"100%", marginTop:14 }} disabled={selected.length===0} onClick={sendMessages}>
+              📱 {selected.length} Kişiye WhatsApp Gönder
+            </button>
+          </Card>
+
+          {sent.length > 0 && (
+            <Card>
+              <CardTitle color={C.green} icon="✅">Gönderim Geçmişi</CardTitle>
+              {sent.slice(0,10).map(s => (
+                <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{s.childName}</div>
+                    <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.phone} · {s.date}</div>
+                  </div>
+                  <Badge color={C.green}>Gönderildi</Badge>
+                </div>
+              ))}
+            </Card>
+          )}
+        </div>
       )}
     </div>
   );
@@ -3149,6 +3567,11 @@ function App() {
   const [staff, setStaffRaw] = useState(initStaff);
   const [finance, setFinanceRaw] = useState(initFinance);
   const [announcements, setAnnouncementsRaw] = useState(initAnnouncements);
+  const [schedule, setScheduleRaw] = useState(initSchedule);
+  const [channels, setChannelsRaw] = useState(initChannels);
+  const [channelMessages, setChannelMessagesRaw] = useState(initChannelMessages);
+  const [dismissedNotifs, setDismissedNotifsRaw] = useState(initDismissedNotifs);
+  const [readNotifs, setReadNotifsRaw] = useState(initReadNotifs);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showChangePwd, setShowChangePwd] = useState(false);
@@ -3179,16 +3602,26 @@ function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [m, s, f, a] = await Promise.all([
+        const [m, s, f, a, sc, ch, chm, dn, rn] = await Promise.all([
           fsLoad("members", initParents),
           fsLoad("staff", initStaff),
           fsLoad("finance", initFinance),
           fsLoad("announcements", initAnnouncements),
+          fsLoad("schedule", initSchedule),
+          fsLoad("channels", initChannels),
+          fsLoad("channelMessages", initChannelMessages),
+          fsLoad("dismissedNotifs", initDismissedNotifs),
+          fsLoad("readNotifs", initReadNotifs),
         ]);
         setMembersRaw(m);
         setStaffRaw(s);
         setFinanceRaw(f);
         setAnnouncementsRaw(a);
+        setScheduleRaw(sc);
+        setChannelsRaw(ch);
+        setChannelMessagesRaw(chm);
+        setDismissedNotifsRaw(dn);
+        setReadNotifsRaw(rn);
         setDbStatus("✅ Bağlandı");
       } catch(e) {
         setDbStatus("⚠️ Çevrimdışı");
@@ -3218,6 +3651,31 @@ function App() {
     setAnnouncementsRaw(next);
     fsSave("announcements", next);
   };
+  const setSchedule = (val) => {
+    const next = typeof val === "function" ? val(schedule) : val;
+    setScheduleRaw(next);
+    fsSave("schedule", next);
+  };
+  const setChannels = (val) => {
+    const next = typeof val === "function" ? val(channels) : val;
+    setChannelsRaw(next);
+    fsSave("channels", next);
+  };
+  const setChannelMessages = (val) => {
+    const next = typeof val === "function" ? val(channelMessages) : val;
+    setChannelMessagesRaw(next);
+    fsSave("channelMessages", next);
+  };
+  const setDismissedNotifs = (val) => {
+    const next = typeof val === "function" ? val(dismissedNotifs) : val;
+    setDismissedNotifsRaw(next);
+    fsSave("dismissedNotifs", next);
+  };
+  const setReadNotifs = (val) => {
+    const next = typeof val === "function" ? val(readNotifs) : val;
+    setReadNotifsRaw(next);
+    fsSave("readNotifs", next);
+  };
 
   if (!dbReady) return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#1a3a6b,#1e5cb3)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16 }}>
@@ -3234,7 +3692,8 @@ function App() {
     const flatAttendance = allChildrenForTeacher.flatMap(c => (c.attendance||[]).map(a => ({ ...a, memberId: c.id, memberName: c.name, class: c.class })));
     return <TeacherPanel user={user} members={allChildrenForTeacher} announcements={announcements}
       setAnnouncements={setAnnouncements} attendance={flatAttendance} setAttendance={() => {}}
-      staff={staff} setStaff={setStaff} allParents={members} setAllParents={setMembers} />;
+      staff={staff} setStaff={setStaff} allParents={members} setAllParents={setMembers}
+      channels={channels} channelMessages={channelMessages} schedule={schedule} />;
   }
 
   const adminNav = [
@@ -3259,10 +3718,10 @@ function App() {
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} />,
     reports: <ReportsPage members={members} finance={finance} staff={staff} />,
-    notifications: <NotificationsPage members={members} finance={finance} staff={staff} />,
-    calendar: <CalendarPage members={members} staff={staff} />,
+    notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
+    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
-    messages: <MessagesPage members={members} />,
+    messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={true} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
   };
 
