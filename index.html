@@ -742,6 +742,16 @@ function LoginPage({ onLogin, dbStatus }) {
       let userInfo;
       if (doc.exists) {
         const data = doc.data();
+        // Hesap durumu kontrolü
+        if (data.status && data.status !== "active") {
+          await firebase.auth().signOut();
+          const msgs = { disabled:"Hesabınız pasife alınmıştır. Lütfen yöneticinize başvurun.", suspended:"Hesabınız askıya alınmıştır.", archived:"Hesabınız arşivlenmiştir.", deleted:"Hesabınız silinmiştir." };
+          setError(msgs[data.status] || "Hesabınıza erişim kısıtlanmıştır.");
+          setLoading(false);
+          return;
+        }
+        // Son giriş güncelle
+        db.collection("users").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
         userInfo = { role: data.role || "teacher", name: data.name || email, photoURL: data.photoURL || null };
       } else {
         // Firestore'da kayıt yoksa öğretmen olarak gir
@@ -2629,17 +2639,27 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto }
 }
 
 // ── KULLANICI YÖNETİMİ (ADMIN) ────────────────────────────
-function UserManagementPage() {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newEmail, setNewEmail] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [newRole, setNewRole] = useState("teacher");
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
+  const [users, setUsers]               = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [searchQ, setSearchQ]           = useState("");
+  const [filterRole, setFilterRole]     = useState("Tümü");
+  const [filterStatus, setFilterStatus] = useState("Tümü");
+  const [showCreate, setShowCreate]     = useState(false);
+  const [form, setForm]                 = useState({ name:"", email:"", password:"", confirmPwd:"", role:"teacher", phone:"" });
+  const [creating, setCreating]         = useState(false);
+  const [createError, setCreateError]   = useState("");
+  const [editUser, setEditUser]         = useState(null);
+  const [editForm, setEditForm]         = useState({});
+  const [editLoading, setEditLoading]   = useState(false);
+  const [editError, setEditError]       = useState("");
+  const [confirmAction, setConfirmAction] = useState(null);
+  const [toast, setToast]               = useState(null);
+
+  const showToast = (msg, color = C.green) => {
+    setToast({ msg, color });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   const loadUsers = async () => {
     setLoading(true);
@@ -2647,138 +2667,369 @@ function UserManagementPage() {
       const db = firebase.firestore();
       const snap = await db.collection("users").get();
       setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-    } catch (e) {
-      setError("Kullanıcılar yüklenirken hata: " + e.message);
-    }
+    } catch (e) { showToast("Kullanıcılar yüklenemedi: " + e.message, C.red); }
     setLoading(false);
   };
-
   useEffect(() => { loadUsers(); }, []);
 
+  const addAudit = async (targetId, action, details = "") => {
+    try {
+      await firebase.firestore().collection("auditLog").add({
+        targetUserId: targetId, actorUid: firebase.auth().currentUser?.uid || "system",
+        action, details, timestamp: new Date().toISOString(),
+      });
+    } catch (e) {}
+  };
+
   const handleCreate = async () => {
-    if (!newName.trim()) { setError("Ad Soyad zorunludur."); return; }
-    if (!newEmail.trim()) { setError("E-posta zorunludur."); return; }
-    if (newPassword.length < 6) { setError("Şifre en az 6 karakter olmalı."); return; }
-    setCreating(true);
-    setError("");
+    if (!form.name.trim())                  { setCreateError("Ad soyad zorunludur."); return; }
+    if (!form.email.trim())                 { setCreateError("E-posta zorunludur."); return; }
+    if (form.password.length < 6)           { setCreateError("Şifre en az 6 karakter olmalı."); return; }
+    if (form.password !== form.confirmPwd)  { setCreateError("Şifreler eşleşmiyor."); return; }
+    setCreating(true); setCreateError("");
     try {
       const API_KEY = "AIzaSyCQHb0oEx22LCrbnfWVgC_m0rdnS0_COy8";
       const res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${API_KEY}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newEmail.trim(), password: newPassword, returnSecureToken: false }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email.trim(), password: form.password, returnSecureToken: false }),
       });
       const data = await res.json();
-      if (data.error) { setError(data.error.message || "Kullanıcı oluşturulamadı."); setCreating(false); return; }
-      const db = firebase.firestore();
-      await db.collection("users").doc(data.localId).set({
-        name: newName.trim(), email: newEmail.trim().toLowerCase(), role: newRole,
-        createdAt: new Date().toISOString(),
+      if (data.error) { setCreateError(data.error.message || "Hesap oluşturulamadı."); setCreating(false); return; }
+      const now = new Date().toISOString();
+      await firebase.firestore().collection("users").doc(data.localId).set({
+        name: form.name.trim(), email: form.email.trim().toLowerCase(),
+        role: form.role, phone: form.phone.trim() || "",
+        status: "active", createdAt: now, lastLogin: null, photoURL: null,
       });
-      setSuccess(`${newName} başarıyla oluşturuldu!`);
-      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("teacher");
-      setShowAdd(false);
-      setTimeout(() => setSuccess(""), 5000);
+      await addAudit(data.localId, "create", "Rol: " + form.role);
+      // Öğretmen ise staff kaydı otomatik oluştur
+      if (form.role === "teacher" && onTeacherCreated) {
+        onTeacherCreated(data.localId, form.name.trim(), form.email.trim().toLowerCase(), form.phone.trim());
+      }
+      showToast("Hesap oluşturuldu: " + form.name);
+      setForm({ name:"", email:"", password:"", confirmPwd:"", role:"teacher", phone:"" });
+      setShowCreate(false);
       await loadUsers();
-    } catch (e) { setError("Hata: " + e.message); }
+    } catch (e) { setCreateError("Hata: " + e.message); }
     setCreating(false);
   };
 
-  const uRoleLabel = r => r === "admin" ? "Admin" : r === "manager" ? "Yönetici" : "Öğretmen";
-  const uRoleColor = r => r === "admin" ? C.orange : r === "manager" ? "#7c3aed" : C.blue;
-  const uRoleIcon  = r => r === "admin" ? "👑" : r === "manager" ? "🔑" : "👩‍🏫";
+  const handleEdit = async () => {
+    if (!editForm.name?.trim()) { setEditError("Ad soyad zorunludur."); return; }
+    setEditLoading(true); setEditError("");
+    try {
+      await firebase.firestore().collection("users").doc(editUser.id).update({
+        name: editForm.name.trim(), phone: editForm.phone?.trim() || "", role: editForm.role,
+      });
+      await addAudit(editUser.id, "edit", "Isim: " + editForm.name + ", Rol: " + editForm.role);
+      showToast("Kullanıcı bilgileri güncellendi.");
+      setEditUser(null);
+      await loadUsers();
+    } catch (e) { setEditError("Güncelleme hatası: " + e.message); }
+    setEditLoading(false);
+  };
 
-  const adminCount  = users.filter(u => u.role === "admin").length;
-  const managerCount = users.filter(u => u.role === "manager").length;
-  const teacherCount = users.filter(u => u.role === "teacher").length;
+  const handleStatus = async (u, newStatus) => {
+    try {
+      await firebase.firestore().collection("users").doc(u.id).update({ status: newStatus });
+      await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
+      const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi", deleted:"Silindi" };
+      showToast(u.name + " — " + (lbls[newStatus] || newStatus));
+      if (editUser && editUser.id === u.id) setEditUser(prev => ({ ...prev, status: newStatus }));
+      // Öğretmense staff kaydını da güncelle
+      if (u.role === "teacher" && onTeacherStatusChange) {
+        onTeacherStatusChange(u.id, newStatus);
+      }
+      await loadUsers();
+    } catch (e) { showToast("Durum güncellenemedi: " + e.message, C.red); }
+    setConfirmAction(null);
+  };
+
+  const handlePasswordReset = async (u) => {
+    try {
+      await firebase.auth().sendPasswordResetEmail(u.email);
+      await addAudit(u.id, "password_reset", "E-posta: " + u.email);
+      showToast("Sifre sifirlama e-postasi gonderildi: " + u.email);
+    } catch (e) { showToast("E-posta gönderilemedi: " + e.message, C.red); }
+  };
+
+  const statusLabel = s => ({ active:"Aktif", disabled:"Pasif", suspended:"Askıda", archived:"Arşiv", deleted:"Silindi" })[s] || (s || "Aktif");
+  const statusColor = s => ({ active:C.green, disabled:C.textDim, suspended:C.orange, archived:"#64748b", deleted:C.red })[s] || C.green;
+  const roleLabel   = r => r === "admin" ? "Admin" : r === "manager" ? "Yönetici" : "Öğretmen";
+  const roleColor   = r => r === "admin" ? C.orange : r === "manager" ? "#7c3aed" : C.blue;
+  const roleIcon    = r => r === "admin" ? "👑" : r === "manager" ? "🔑" : "👩‍🏫";
+  const fmtDate     = iso => iso ? new Date(iso).toLocaleDateString("tr-TR") : null;
+  const fmtDT       = iso => iso ? new Date(iso).toLocaleString("tr-TR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }) : null;
+
+  const nonAdmin = users.filter(u => u.role !== "admin");
+  const filtered = nonAdmin.filter(u => {
+    const matchRole   = filterRole   === "Tümü" || u.role === filterRole;
+    const matchStatus = filterStatus === "Tümü" || (u.status || "active") === filterStatus;
+    const q = searchQ.toLowerCase();
+    const matchSearch = !q || (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q);
+    return matchRole && matchStatus && matchSearch;
+  }).sort((a, b) => { const o = { manager:0, teacher:1 }; return (o[a.role]??2) - (o[b.role]??2); });
+
+  const counts = {
+    total:   nonAdmin.length,
+    active:  nonAdmin.filter(u => !u.status || u.status === "active").length,
+    manager: nonAdmin.filter(u => u.role === "manager").length,
+    teacher: nonAdmin.filter(u => u.role === "teacher").length,
+    passive: nonAdmin.filter(u => u.status && u.status !== "active").length,
+  };
 
   return (
-    <div className="fade-in">
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:20 }}>
-        <div>
-          <div className="ks-page-title" style={{ color:C.text }}>👤 Kullanıcı Yönetimi</div>
-          <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>Sistem kullanıcıları ve rol atamaları</div>
-        </div>
-        <button onClick={() => { setShowAdd(!showAdd); setError(""); }} style={{ ...btnStyle(C.blue), display:"flex", alignItems:"center", gap:7 }}>
-          {showAdd ? "✕ Kapat" : "➕ Yeni Kullanıcı"}
-        </button>
-      </div>
+    <div className="fade-in" style={{ position:"relative" }}>
 
-      {/* Özet Kartlar */}
-      <div className="stat-cards" style={{ marginBottom:18 }}>
-        <StatCard label="Admin" value={adminCount} sub="Tam yetkili" color={C.orange} icon="👑" />
-        <StatCard label="Yönetici" value={managerCount} sub="Görüntüleme" color="#7c3aed" icon="🔑" />
-        <StatCard label="Öğretmen" value={teacherCount} sub="Kendi alanı" color={C.blue} icon="👩‍🏫" />
-        <StatCard label="Toplam" value={users.length} sub="Kayıtlı kullanıcı" color={C.green} icon="👥" />
-      </div>
-
-      {success && (
-        <div style={{ background:C.green+"14", border:`1.5px solid ${C.green}44`, borderRadius:12, padding:"12px 18px", marginBottom:16, fontWeight:800, color:C.green, fontSize:14 }}>
-          ✅ {success}
+      {/* Toast */}
+      {toast && (
+        <div style={{ position:"fixed", top:18, right:18, zIndex:9999, background:toast.color, color:"#fff", borderRadius:14, padding:"12px 22px", fontWeight:800, fontSize:14, boxShadow:"0 4px 24px rgba(0,0,0,0.22)", maxWidth:380, animation:"fadeIn 0.25s ease" }}>
+          {toast.msg}
         </div>
       )}
 
-      {showAdd && (
-        <Card style={{ marginBottom:20 }}>
+      {/* Confirm Dialog */}
+      {confirmAction && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:3000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+          onClick={e => { if (e.target === e.currentTarget) setConfirmAction(null); }}>
+          <div style={{ background:"#fff", borderRadius:20, padding:"28px 24px", maxWidth:380, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.28)" }}>
+            <div style={{ fontSize:36, textAlign:"center", marginBottom:12 }}>⚠️</div>
+            <div style={{ fontSize:16, fontWeight:900, color:C.text, textAlign:"center", marginBottom:8 }}>Emin misiniz?</div>
+            <div style={{ fontSize:13, color:C.textMid, textAlign:"center", marginBottom:24, fontWeight:600, lineHeight:1.6 }}>{confirmAction.label}</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => handleStatus(confirmAction.user, confirmAction.action)}
+                style={{ flex:1, padding:"12px", background:confirmAction.color, border:"none", borderRadius:12, color:"#fff", fontWeight:900, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                Evet, Onayla
+              </button>
+              <button onClick={() => setConfirmAction(null)}
+                style={{ flex:1, padding:"12px", background:"#f1f5f9", border:`1.5px solid ${C.border}`, borderRadius:12, color:C.textMid, fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                Iptal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editUser && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:2500, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
+          onClick={e => { if (e.target === e.currentTarget) { setEditUser(null); setEditError(""); } }}>
+          <div style={{ background:"#fff", borderRadius:22, width:"100%", maxWidth:460, maxHeight:"92vh", display:"flex", flexDirection:"column", boxShadow:"0 20px 60px rgba(0,0,0,0.28)" }}>
+            <div style={{ background:`linear-gradient(135deg, ${C.sidebar} 0%, #2563eb 100%)`, padding:"18px 22px", display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ width:40, height:40, borderRadius:"50%", background:`linear-gradient(135deg, ${roleColor(editUser.role)} 0%, ${roleColor(editUser.role)}88 100%)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20 }}>
+                  {roleIcon(editUser.role)}
+                </div>
+                <div>
+                  <div style={{ fontSize:15, fontWeight:900, color:"#fff" }}>{editUser.name}</div>
+                  <div style={{ fontSize:11, color:"rgba(255,255,255,0.65)" }}>{editUser.email}</div>
+                </div>
+              </div>
+              <button onClick={() => { setEditUser(null); setEditError(""); }}
+                style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:"50%", width:30, height:30, color:"#fff", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"inherit" }}>✕</button>
+            </div>
+            <div style={{ padding:"20px 22px", overflowY:"auto" }}>
+              <div style={{ display:"flex", gap:14, flexWrap:"wrap", marginBottom:18, padding:"12px 16px", background:"#f8fafc", borderRadius:12, fontSize:12, fontWeight:700, color:C.textMid }}>
+                <span>Olusturuldu: {fmtDate(editUser.createdAt) || "—"}</span>
+                <span>Son Giris: {fmtDT(editUser.lastLogin) || "Henüz yok"}</span>
+                <span style={{ color:statusColor(editUser.status||"active") }}>● {statusLabel(editUser.status||"active")}</span>
+              </div>
+              {[
+                { label:"Ad Soyad", key:"name", type:"text", ph:"Ad Soyad" },
+                { label:"Telefon",  key:"phone", type:"tel",  ph:"0500 000 00 00" },
+              ].map(f => (
+                <div key={f.key} style={{ marginBottom:14 }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>{f.label}</div>
+                  <input style={inputStyle} type={f.type} placeholder={f.ph} value={editForm[f.key]||""} onChange={e => setEditForm(p => ({...p, [f.key]: e.target.value}))} />
+                </div>
+              ))}
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol</div>
+                <select style={inputStyle} value={editForm.role||"teacher"} onChange={e => setEditForm(p => ({...p, role: e.target.value}))}>
+                  <option value="manager">🔑 Yönetici (görüntüleme)</option>
+                  <option value="teacher">👩‍🏫 Öğretmen</option>
+                </select>
+              </div>
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:10, textTransform:"uppercase", letterSpacing:0.8 }}>Hesap Durumu</div>
+                <div style={{ display:"flex", gap:7, flexWrap:"wrap" }}>
+                  {[
+                    { s:"active",    label:"Aktif etik",  color:C.green },
+                    { s:"disabled",  label:"Pasif yap",   color:C.textDim },
+                    { s:"suspended", label:"Askıya al",   color:C.orange },
+                    { s:"archived",  label:"Arşivle",     color:"#64748b" },
+                  ].map(item => {
+                    const cur = editUser.status || "active";
+                    const isActive = cur === item.s;
+                    return (
+                      <button key={item.s} onClick={() => {
+                        if (isActive) return;
+                        setConfirmAction({ user:editUser, action:item.s, label:`"${editUser.name}" hesabı "${statusLabel(item.s)}" yapılacak.`, color:item.color });
+                      }} style={{ padding:"7px 13px", borderRadius:20, border:`1.5px solid ${isActive ? item.color : C.border}`, background:isActive ? item.color+"18" : "transparent", color:isActive ? item.color : C.textMid, fontWeight:800, fontSize:11, cursor:isActive ? "default" : "pointer", fontFamily:"inherit" }}>
+                        {item.label} {isActive && "(mevcut)"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {editError && (
+                <div style={{ background:"#fee2e2", border:"1.5px solid #fca5a5", borderRadius:10, padding:"10px 14px", marginBottom:14, color:"#b91c1c", fontWeight:700, fontSize:13 }}>Hata: {editError}</div>
+              )}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                <button onClick={handleEdit} disabled={editLoading}
+                  style={{ ...btnStyle(C.blue), opacity:editLoading ? 0.6 : 1, padding:"11px" }}>
+                  {editLoading ? "Kaydediliyor..." : "Degisiklikleri Kaydet"}
+                </button>
+                <button onClick={() => handlePasswordReset(editUser)}
+                  style={{ padding:"11px", background:"#fef3c7", border:"1.5px solid #fbbf24", borderRadius:12, color:"#92400e", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+                  Sifre Sifirlama Maili Gonder
+                </button>
+              </div>
+              <button onClick={() => setConfirmAction({ user:editUser, action:"deleted", label:`"${editUser.name}" hesabı silinecek. Bir daha giriş yapamayacak!`, color:C.red })}
+                style={{ width:"100%", padding:"11px", background:"#fee2e2", border:"1.5px solid #fca5a5", borderRadius:12, color:"#b91c1c", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                Hesabi Sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Page Header */}
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:12, marginBottom:20 }}>
+        <div>
+          <div className="ks-page-title" style={{ color:C.text }}>👤 Kullanıcı Yönetimi</div>
+          <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>Tüm sistem kullanıcıları — oluştur, düzenle, yönet</div>
+        </div>
+        <button onClick={() => { setShowCreate(!showCreate); setCreateError(""); }}
+          style={{ ...btnStyle(C.blue), display:"flex", alignItems:"center", gap:7 }}>
+          {showCreate ? "Kapat" : "Yeni Kullanıcı Oluştur"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      <div className="stat-cards" style={{ marginBottom:20 }}>
+        <StatCard label="Toplam"       value={counts.total}   sub="Admin hariç"     color={C.blue}   icon="👥" />
+        <StatCard label="Aktif"        value={counts.active}  sub="Giriş yapabilir" color={C.green}  icon="✅" />
+        <StatCard label="Yönetici"     value={counts.manager} sub="Görüntüleme"      color="#7c3aed"  icon="🔑" />
+        <StatCard label="Öğretmen"     value={counts.teacher} sub="Kendi alanı"      color={C.orange} icon="👩‍🏫" />
+        <StatCard label="Pasif/Diğer"  value={counts.passive} sub="Erişim yok"       color={C.red}    icon="⛔" />
+      </div>
+
+      {/* Create Form */}
+      {showCreate && (
+        <Card style={{ marginBottom:22 }}>
           <CardTitle color={C.blue} icon="➕">Yeni Kullanıcı Oluştur</CardTitle>
           <div style={{ background:"#fef3c7", border:"1.5px solid #fbbf24", borderRadius:10, padding:"10px 14px", marginTop:12, fontSize:12, fontWeight:700, color:"#92400e" }}>
-            ⚠️ Admin hesabı bu ekrandan oluşturulamaz. Yönetici hesabı yalnızca görüntüleme yetkisine sahip olacak.
+            ⚠️ Admin hesabı bu ekrandan oluşturulamaz. Yönetici yalnızca görüntüleme yetkisine sahip olacak.
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(200px, 1fr))", gap:14, marginTop:16 }}>
-            <div>
-              <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Ad Soyad *</div>
-              <input style={inputStyle} placeholder="Ad Soyad" value={newName} onChange={e => { setNewName(e.target.value); setError(""); }} />
-            </div>
-            <div>
-              <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>E-posta *</div>
-              <input style={inputStyle} type="email" placeholder="kullanici@example.com" value={newEmail} onChange={e => { setNewEmail(e.target.value); setError(""); }} />
-            </div>
-            <div>
-              <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Şifre *</div>
-              <input style={inputStyle} type="password" placeholder="En az 6 karakter" value={newPassword} onChange={e => { setNewPassword(e.target.value); setError(""); }} />
-            </div>
+            {[
+              { label:"Ad Soyad *",     key:"name",       type:"text",     ph:"Ad Soyad" },
+              { label:"E-posta *",      key:"email",      type:"email",    ph:"kullanici@example.com" },
+              { label:"Şifre *",        key:"password",   type:"password", ph:"En az 6 karakter" },
+              { label:"Şifre Tekrar *", key:"confirmPwd", type:"password", ph:"Şifrenizi tekrar girin" },
+              { label:"Telefon",        key:"phone",      type:"tel",      ph:"0500 000 00 00 (opsiyonel)" },
+            ].map(f => (
+              <div key={f.key}>
+                <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>{f.label}</div>
+                <input style={inputStyle} type={f.type} placeholder={f.ph} value={form[f.key]} onChange={e => { setForm(p => ({...p, [f.key]: e.target.value})); setCreateError(""); }} />
+              </div>
+            ))}
             <div>
               <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol *</div>
-              <select style={inputStyle} value={newRole} onChange={e => setNewRole(e.target.value)}>
+              <select style={inputStyle} value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
                 <option value="manager">🔑 Yönetici (görüntüleme)</option>
                 <option value="teacher">👩‍🏫 Öğretmen</option>
               </select>
             </div>
           </div>
-          {error && (
-            <div style={{ background:C.red+"14", border:`1.5px solid ${C.red}33`, borderRadius:10, padding:"10px 14px", marginTop:14, color:C.red, fontWeight:700, fontSize:13 }}>⚠️ {error}</div>
+          {createError && (
+            <div style={{ background:"#fee2e2", border:"1.5px solid #fca5a5", borderRadius:10, padding:"10px 14px", marginTop:14, color:"#b91c1c", fontWeight:700, fontSize:13 }}>⚠️ {createError}</div>
           )}
           <div style={{ display:"flex", gap:10, marginTop:16 }}>
             <button onClick={handleCreate} disabled={creating} style={{ ...btnStyle(C.blue), flex:1, opacity:creating ? 0.6 : 1 }}>
-              {creating ? "⏳ Oluşturuluyor..." : "✅ Kullanıcı Oluştur"}
+              {creating ? "Oluşturuluyor..." : "Hesap Oluştur"}
             </button>
-            <button onClick={() => { setShowAdd(false); setError(""); }} style={{ flex:1, padding:"9px 18px", background:"#f1f5f9", border:`1.5px solid ${C.border}`, borderRadius:12, color:C.textMid, fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
-              İptal
+            <button onClick={() => { setShowCreate(false); setCreateError(""); }}
+              style={{ padding:"9px 18px", background:"#f1f5f9", border:`1.5px solid ${C.border}`, borderRadius:12, color:C.textMid, fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
+              Iptal
             </button>
           </div>
         </Card>
       )}
 
+      {/* Filters */}
+      <Card style={{ marginBottom:8 }}>
+        <div style={{ display:"flex", flexWrap:"wrap", gap:10, alignItems:"center" }}>
+          <input style={{ ...inputStyle, flex:1, minWidth:180, margin:0 }} placeholder="Ad veya e-posta ara..." value={searchQ} onChange={e => setSearchQ(e.target.value)} />
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {["Tümü","manager","teacher"].map(r => (
+              <button key={r} onClick={() => setFilterRole(r)} style={{ padding:"7px 13px", borderRadius:20, border:`1.5px solid ${filterRole===r ? C.blue : C.border}`, background:filterRole===r ? C.blue : "transparent", color:filterRole===r ? "#fff" : C.textMid, fontWeight:800, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+                {r==="Tümü" ? "Tüm Roller" : roleLabel(r)}
+              </button>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {["Tümü","active","disabled","suspended","archived","deleted"].map(s => (
+              <button key={s} onClick={() => setFilterStatus(s)} style={{ padding:"7px 13px", borderRadius:20, border:`1.5px solid ${filterStatus===s ? (s==="Tümü" ? C.blue : statusColor(s)) : C.border}`, background:filterStatus===s ? (s==="Tümü" ? C.blue+"18" : statusColor(s)+"18") : "transparent", color:filterStatus===s ? (s==="Tümü" ? C.blue : statusColor(s)) : C.textMid, fontWeight:800, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
+                {s==="Tümü" ? "Tüm Durumlar" : statusLabel(s)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Card>
+
+      {/* List */}
       <Card>
-        <CardTitle color={C.blue} icon="👥">Kullanıcı Listesi</CardTitle>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:14 }}>
+          <CardTitle color={C.blue} icon="👥">Kullanıcı Listesi</CardTitle>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <span style={{ fontSize:12, color:C.textDim, fontWeight:700 }}>{filtered.length} kullanıcı</span>
+            <button onClick={loadUsers} title="Yenile" style={{ width:30, height:30, borderRadius:8, background:C.blue+"14", border:`1px solid ${C.blue}33`, color:C.blue, fontSize:14, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>🔄</button>
+          </div>
+        </div>
         {loading ? (
-          <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>⏳ Yükleniyor...</div>
-        ) : users.length === 0 ? (
-          <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>Kullanıcı bulunamadı</div>
-        ) : users.sort((a, b) => {
-          const order = { admin: 0, manager: 1, teacher: 2 };
-          return (order[a.role] ?? 3) - (order[b.role] ?? 3);
-        }).map(u => (
-          <div key={u.id} style={{ display:"flex", alignItems:"center", gap:14, padding:"14px 0", borderBottom:`1px solid ${C.border}` }}>
-            <div style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg, ${uRoleColor(u.role)} 0%, ${uRoleColor(u.role)}88 100%)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
-              {uRoleIcon(u.role)}
+          <div style={{ textAlign:"center", padding:"40px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>Yükleniyor...</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"40px 0", color:C.textDim, fontSize:14, fontWeight:700 }}>
+            {nonAdmin.length === 0 ? "Henüz kullanıcı oluşturulmamış." : "Arama sonucu bulunamadı."}
+          </div>
+        ) : filtered.map(u => (
+          <div key={u.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 0", borderBottom:`1px solid ${C.border}` }}>
+            <div style={{ width:46, height:46, borderRadius:"50%", background:`linear-gradient(135deg, ${roleColor(u.role)} 0%, ${roleColor(u.role)}66 100%)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0, overflow:"hidden", opacity:(u.status && u.status !== "active") ? 0.45 : 1 }}>
+              {u.photoURL ? <img src={u.photoURL} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} /> : roleIcon(u.role)}
             </div>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontWeight:900, fontSize:14, color:C.text }}>{u.name || "—"}</div>
-              <div style={{ fontSize:12, color:C.textDim, fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.email}</div>
-              {u.createdAt && <div style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>Oluşturulma: {new Date(u.createdAt).toLocaleDateString("tr-TR")}</div>}
+              <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
+                <span style={{ fontWeight:900, fontSize:14, color:C.text }}>{u.name || "—"}</span>
+                <Badge color={roleColor(u.role)}>{roleLabel(u.role)}</Badge>
+                <Badge color={statusColor(u.status||"active")}>{statusLabel(u.status||"active")}</Badge>
+              </div>
+              <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>{u.email}</div>
+              <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2, display:"flex", gap:12, flexWrap:"wrap" }}>
+                {u.phone && <span>Tel: {u.phone}</span>}
+                {fmtDate(u.createdAt) && <span>Olusturuldu: {fmtDate(u.createdAt)}</span>}
+                {fmtDT(u.lastLogin)
+                  ? <span style={{ color:C.green }}>Son giris: {fmtDT(u.lastLogin)}</span>
+                  : <span>Giris yok</span>
+                }
+              </div>
             </div>
-            <Badge color={uRoleColor(u.role)}>{uRoleLabel(u.role)}</Badge>
+            <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
+              <button onClick={() => { setEditUser(u); setEditForm({ name:u.name, phone:u.phone||"", role:u.role }); setEditError(""); }}
+                title="Düzenle" style={{ width:34, height:34, borderRadius:10, background:C.blue+"14", border:`1.5px solid ${C.blue}22`, color:C.blue, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✏️</button>
+              <button onClick={() => handlePasswordReset(u)}
+                title="Şifre Sıfırla" style={{ width:34, height:34, borderRadius:10, background:"#fef3c7", border:"1.5px solid #fbbf24", color:"#92400e", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>📧</button>
+              {(!u.status || u.status === "active") ? (
+                <button onClick={() => setConfirmAction({ user:u, action:"disabled", label:`"${u.name}" hesabı pasife alınacak.`, color:C.textDim })}
+                  title="Pasife Al" style={{ width:34, height:34, borderRadius:10, background:C.orange+"14", border:`1.5px solid ${C.orange}33`, color:C.orange, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>⛔</button>
+              ) : (
+                <button onClick={() => setConfirmAction({ user:u, action:"active", label:`"${u.name}" hesabı yeniden aktif edilecek.`, color:C.green })}
+                  title="Aktif Et" style={{ width:34, height:34, borderRadius:10, background:C.green+"14", border:`1.5px solid ${C.green}33`, color:C.green, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✅</button>
+              )}
+              <button onClick={() => setConfirmAction({ user:u, action:"deleted", label:`"${u.name}" silinecek. Giriş yapamayacak!`, color:C.red })}
+                title="Sil" style={{ width:34, height:34, borderRadius:10, background:"#fee2e2", border:"1.5px solid #fca5a5", color:"#b91c1c", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>
+            </div>
           </div>
         ))}
       </Card>
@@ -2798,7 +3049,13 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
   const myClasses = [...new Set(members.map(m => m.class))];
 
-  const myStaff = (staff||[]).find(s => s.username === user.username);
+  // Öğretmen hesabını staff kaydıyla eşleştir: userId (yeni) veya email veya username (eski)
+  const myStaff = (staff||[]).find(s =>
+    s.userId === user.id ||
+    s.email === user.email ||
+    s.username === user.id ||
+    s.username === user.username
+  );
   const myStudents = (myStaff?.individualStudents||[]);
   const allChildren = (allParents||[]).flatMap(p => p.children||[]);
   const [qrModal, setQrModal] = useState(null);
@@ -3445,7 +3702,7 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
               <div>
                 <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Eğitmen</label>
                 <input style={inputStyle} value={form.teacher} onChange={e => setForm(f=>({...f,teacher:e.target.value}))} placeholder="Eğitmen adı" list="cal-teacher-list" />
-                <datalist id="cal-teacher-list">{(staff||[]).map(s=><option key={s.id} value={s.name}/>)}</datalist>
+                <datalist id="cal-teacher-list">{(staff||[]).filter(s => !s.userStatus || s.userStatus === "active").map(s=><option key={s.id} value={s.name}/>)}</datalist>
               </div>
               <div>
                 <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Tür</label>
@@ -4186,6 +4443,13 @@ function App() {
           let userInfo;
           if (doc.exists) {
             const data = doc.data();
+            // Hesap durumu kontrolü (auto-login sırasında)
+            if (data.status && data.status !== "active") {
+              await firebase.auth().signOut();
+              return;
+            }
+            // Son giriş güncelle
+            db.collection("users").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
             userInfo = { role: data.role || "teacher", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
           } else {
             userInfo = { role: "teacher", name: firebaseUser.email, photoURL: null };
@@ -4329,7 +4593,27 @@ function App() {
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={true} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
-    users: <UserManagementPage />,
+    users: <UserManagementPage
+      onTeacherCreated={(uid, name, email, phone) => {
+        const newStaffRecord = {
+          id: uid, name, email, phone: phone || "",
+          role: "Antrenör", employmentType: "Tam Zamanlı", shift: "Sabah",
+          emergencyContact: "", address: "", birthDate: "",
+          startDate: new Date().toISOString().slice(0, 10),
+          branches: [], salary: 0, salaryHistory: [], notes: "",
+          username: uid, userId: uid, photo: null, individualStudents: [],
+          isTeacherAccount: true, userStatus: "active",
+        };
+        setStaff(prev => [...prev, newStaffRecord]);
+      }}
+      onTeacherStatusChange={(uid, newStatus) => {
+        setStaff(prev => prev.map(s =>
+          (s.userId === uid || s.id === uid || s.username === uid)
+            ? { ...s, userStatus: newStatus }
+            : s
+        ));
+      }}
+    />,
   };
 
   return (
