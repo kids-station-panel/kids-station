@@ -2735,7 +2735,10 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
       await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
       const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi", deleted:"Silindi" };
       showToast(u.name + " — " + (lbls[newStatus] || newStatus));
-      if (editUser && editUser.id === u.id) setEditUser(prev => ({ ...prev, status: newStatus }));
+      if (editUser && editUser.id === u.id) {
+        if (newStatus === "deleted" || newStatus === "archived") setEditUser(null);
+        else setEditUser(prev => ({ ...prev, status: newStatus }));
+      }
       // Öğretmense staff kaydını da güncelle
       if (u.role === "teacher" && onTeacherStatusChange) {
         onTeacherStatusChange(u.id, newStatus);
@@ -2764,18 +2767,22 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
   const nonAdmin = users.filter(u => u.role !== "admin");
   const filtered = nonAdmin.filter(u => {
     const matchRole   = filterRole   === "Tümü" || u.role === filterRole;
-    const matchStatus = filterStatus === "Tümü" || (u.status || "active") === filterStatus;
+    const uStatus = u.status || "active";
+    const matchStatus = filterStatus === "Tümü"
+      ? !["deleted", "archived"].includes(uStatus)
+      : uStatus === filterStatus;
     const q = searchQ.toLowerCase();
     const matchSearch = !q || (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q);
     return matchRole && matchStatus && matchSearch;
   }).sort((a, b) => { const o = { manager:0, teacher:1 }; return (o[a.role]??2) - (o[b.role]??2); });
 
+  const visibleUsers = nonAdmin.filter(u => !["deleted","archived"].includes(u.status || "active"));
   const counts = {
-    total:   nonAdmin.length,
-    active:  nonAdmin.filter(u => !u.status || u.status === "active").length,
-    manager: nonAdmin.filter(u => u.role === "manager").length,
-    teacher: nonAdmin.filter(u => u.role === "teacher").length,
-    passive: nonAdmin.filter(u => u.status && u.status !== "active").length,
+    total:   visibleUsers.length,
+    active:  visibleUsers.filter(u => !u.status || u.status === "active").length,
+    manager: visibleUsers.filter(u => u.role === "manager").length,
+    teacher: visibleUsers.filter(u => u.role === "teacher").length,
+    passive: visibleUsers.filter(u => u.status && !["active","deleted","archived"].includes(u.status)).length,
   };
 
   return (
@@ -2793,11 +2800,18 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:3000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
           onClick={e => { if (e.target === e.currentTarget) setConfirmAction(null); }}>
           <div style={{ background:"#fff", borderRadius:20, padding:"28px 24px", maxWidth:380, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.28)" }}>
-            <div style={{ fontSize:36, textAlign:"center", marginBottom:12 }}>⚠️</div>
-            <div style={{ fontSize:16, fontWeight:900, color:C.text, textAlign:"center", marginBottom:8 }}>Emin misiniz?</div>
+            <div style={{ fontSize:36, textAlign:"center", marginBottom:12 }}>{confirmAction.action === "password_reset" ? "📧" : "⚠️"}</div>
+            <div style={{ fontSize:16, fontWeight:900, color:C.text, textAlign:"center", marginBottom:8 }}>{confirmAction.action === "password_reset" ? "Şifre Sıfırlama" : "Emin misiniz?"}</div>
             <div style={{ fontSize:13, color:C.textMid, textAlign:"center", marginBottom:24, fontWeight:600, lineHeight:1.6 }}>{confirmAction.label}</div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => handleStatus(confirmAction.user, confirmAction.action)}
+              <button onClick={() => {
+                if (confirmAction.action === "password_reset") {
+                  handlePasswordReset(confirmAction.user);
+                } else {
+                  handleStatus(confirmAction.user, confirmAction.action);
+                }
+                setConfirmAction(null);
+              }}
                 style={{ flex:1, padding:"12px", background:confirmAction.color, border:"none", borderRadius:12, color:"#fff", fontWeight:900, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
                 Evet, Onayla
               </button>
@@ -2880,7 +2894,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
                   style={{ ...btnStyle(C.blue), opacity:editLoading ? 0.6 : 1, padding:"11px" }}>
                   {editLoading ? "Kaydediliyor..." : "Degisiklikleri Kaydet"}
                 </button>
-                <button onClick={() => handlePasswordReset(editUser)}
+                <button onClick={() => setConfirmAction({ user:editUser, action:"password_reset", label:`"${editUser.name}" kullanıcısına şifre sıfırlama bağlantısı gönderilecek (${editUser.email}).`, color:"#92400e" })}
                   style={{ padding:"11px", background:"#fef3c7", border:"1.5px solid #fbbf24", borderRadius:12, color:"#92400e", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
                   Sifre Sifirlama Maili Gonder
                 </button>
@@ -3018,7 +3032,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
             <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
               <button onClick={() => { setEditUser(u); setEditForm({ name:u.name, phone:u.phone||"", role:u.role }); setEditError(""); }}
                 title="Düzenle" style={{ width:34, height:34, borderRadius:10, background:C.blue+"14", border:`1.5px solid ${C.blue}22`, color:C.blue, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✏️</button>
-              <button onClick={() => handlePasswordReset(u)}
+              <button onClick={() => setConfirmAction({ user:u, action:"password_reset", label:`"${u.name}" kullanıcısına şifre sıfırlama bağlantısı gönderilecek (${u.email}).`, color:"#92400e" })}
                 title="Şifre Sıfırla" style={{ width:34, height:34, borderRadius:10, background:"#fef3c7", border:"1.5px solid #fbbf24", color:"#92400e", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>📧</button>
               {(!u.status || u.status === "active") ? (
                 <button onClick={() => setConfirmAction({ user:u, action:"disabled", label:`"${u.name}" hesabı pasife alınacak.`, color:C.textDim })}
