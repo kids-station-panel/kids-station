@@ -2731,23 +2731,24 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
 
   const handleStatus = async (u, newStatus) => {
     try {
-      await firebase.firestore().collection("users").doc(u.id).update({ status: newStatus });
-      await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
-      const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi", deleted:"Silindi" };
-      showToast(u.name + " — " + (lbls[newStatus] || newStatus));
-      // Öğretmense staff kaydını da güncelle
-      if (u.role === "teacher" && onTeacherStatusChange) {
-        onTeacherStatusChange(u.id, newStatus);
-      }
       if (newStatus === "deleted") {
-        // Silinen kullanıcıyı state'den anında kaldır, cache sorununu önler
+        // Hard delete: kaydı Firestore'dan tamamen kaldır
+        await firebase.firestore().collection("users").doc(u.id).delete();
+        await addAudit(u.id, "user_deleted", u.name + " kalıcı olarak silindi");
+        showToast(u.name + " silindi");
+        if (u.role === "teacher" && onTeacherStatusChange) onTeacherStatusChange(u.id, "deleted");
         setUsers(prev => prev.filter(u2 => u2.id !== u.id));
         if (editUser && editUser.id === u.id) setEditUser(null);
       } else {
+        await firebase.firestore().collection("users").doc(u.id).update({ status: newStatus });
+        await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
+        const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi" };
+        showToast(u.name + " — " + (lbls[newStatus] || newStatus));
+        if (u.role === "teacher" && onTeacherStatusChange) onTeacherStatusChange(u.id, newStatus);
         if (editUser && editUser.id === u.id) setEditUser(prev => ({ ...prev, status: newStatus }));
         await loadUsers();
       }
-    } catch (e) { showToast("Durum güncellenemedi: " + e.message, C.red); }
+    } catch (e) { showToast("İşlem başarısız: " + e.message, C.red); }
     setConfirmAction(null);
   };
 
