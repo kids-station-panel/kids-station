@@ -2761,7 +2761,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
   const fmtDate     = iso => iso ? new Date(iso).toLocaleDateString("tr-TR") : null;
   const fmtDT       = iso => iso ? new Date(iso).toLocaleString("tr-TR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }) : null;
 
-  const nonAdmin = users.filter(u => u.role !== "admin");
+  const nonAdmin = users.filter(u => u.role !== "admin" && u.status !== "deleted");
   const filtered = nonAdmin.filter(u => {
     const matchRole   = filterRole   === "Tümü" || u.role === filterRole;
     const matchStatus = filterStatus === "Tümü" || (u.status || "active") === filterStatus;
@@ -2970,7 +2970,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
             ))}
           </div>
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-            {["Tümü","active","disabled","suspended","archived","deleted"].map(s => (
+            {["Tümü","active","disabled","suspended","archived"].map(s => (
               <button key={s} onClick={() => setFilterStatus(s)} style={{ padding:"7px 13px", borderRadius:20, border:`1.5px solid ${filterStatus===s ? (s==="Tümü" ? C.blue : statusColor(s)) : C.border}`, background:filterStatus===s ? (s==="Tümü" ? C.blue+"18" : statusColor(s)+"18") : "transparent", color:filterStatus===s ? (s==="Tümü" ? C.blue : statusColor(s)) : C.textMid, fontWeight:800, fontSize:11, cursor:"pointer", fontFamily:"inherit" }}>
                 {s==="Tümü" ? "Tüm Durumlar" : statusLabel(s)}
               </button>
