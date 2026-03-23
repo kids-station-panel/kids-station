@@ -2665,8 +2665,8 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
     setLoading(true);
     try {
       const db = firebase.firestore();
-      const snap = await db.collection("users").get();
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const snap = await db.collection("users").get({ source: "server" });
+      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => u.status !== "deleted"));
     } catch (e) { showToast("Kullanıcılar yüklenemedi: " + e.message, C.red); }
     setLoading(false);
   };
@@ -2735,12 +2735,18 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
       await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
       const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi", deleted:"Silindi" };
       showToast(u.name + " — " + (lbls[newStatus] || newStatus));
-      if (editUser && editUser.id === u.id) setEditUser(prev => ({ ...prev, status: newStatus }));
       // Öğretmense staff kaydını da güncelle
       if (u.role === "teacher" && onTeacherStatusChange) {
         onTeacherStatusChange(u.id, newStatus);
       }
-      await loadUsers();
+      if (newStatus === "deleted") {
+        // Silinen kullanıcıyı state'den anında kaldır, cache sorununu önler
+        setUsers(prev => prev.filter(u2 => u2.id !== u.id));
+        if (editUser && editUser.id === u.id) setEditUser(null);
+      } else {
+        if (editUser && editUser.id === u.id) setEditUser(prev => ({ ...prev, status: newStatus }));
+        await loadUsers();
+      }
     } catch (e) { showToast("Durum güncellenemedi: " + e.message, C.red); }
     setConfirmAction(null);
   };
