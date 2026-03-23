@@ -2644,7 +2644,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
   const [loading, setLoading]           = useState(true);
   const [searchQ, setSearchQ]           = useState("");
   const [filterRole, setFilterRole]     = useState("Tümü");
-  const [filterStatus, setFilterStatus] = useState("Tümü");
+  const [filterStatus, setFilterStatus] = useState("active");
   const [showCreate, setShowCreate]     = useState(false);
   const [form, setForm]                 = useState({ name:"", email:"", password:"", confirmPwd:"", role:"teacher", phone:"" });
   const [creating, setCreating]         = useState(false);
