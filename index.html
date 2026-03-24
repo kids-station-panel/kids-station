@@ -3466,7 +3466,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         )}
 
         {page === "calendar" && (
-          <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff} schedule={schedule} setSchedule={() => {}} isAdmin={false} />
+          <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={myStaff ? [myStaff] : []} schedule={schedule} setSchedule={() => {}} isAdmin={false} />
         )}
       </div>
     </div>
@@ -4438,34 +4438,36 @@ async function fsLoad(col, fallback) {
   return fallback;
 }
 
+const _fsWriting = {}; // onSnapshot'ın fsSave sırasında state'i sıfırlamasını engeller
+
 async function fsSave(col, items) {
+  _fsWriting[col] = true;
   try {
     const batch = db.batch();
-    // Önce koleksiyondaki tüm dökümanları sil
     const existing = await db.collection(col).get();
     existing.docs.forEach(d => batch.delete(d.ref));
-    // Yeni verileri yaz
     items.forEach((item, idx) => {
       const ref = item.id ? db.collection(col).doc(String(item.id)) : db.collection(col).doc();
       batch.set(ref, { ...item, _order: idx });
     });
     await batch.commit();
   } catch(e) { console.warn("Firestore kayıt hatası:", e); }
+  finally { setTimeout(() => { delete _fsWriting[col]; }, 2500); }
 }
 
 function App() {
   const isMobile = useIsMobile(600);
   const [user, setUser] = useState(null);
   const [page, setPage] = useState("dashboard");
-  const [members, setMembersRaw] = useState(initParents);
-  const [staff, setStaffRaw] = useState(initStaff);
-  const [finance, setFinanceRaw] = useState(initFinance);
-  const [announcements, setAnnouncementsRaw] = useState(initAnnouncements);
-  const [schedule, setScheduleRaw] = useState(initSchedule);
-  const [channels, setChannelsRaw] = useState(initChannels);
-  const [channelMessages, setChannelMessagesRaw] = useState(initChannelMessages);
-  const [dismissedNotifs, setDismissedNotifsRaw] = useState(initDismissedNotifs);
-  const [readNotifs, setReadNotifsRaw] = useState(initReadNotifs);
+  const [members, setMembersRaw] = useState([]);
+  const [staff, setStaffRaw] = useState([]);
+  const [finance, setFinanceRaw] = useState([]);
+  const [announcements, setAnnouncementsRaw] = useState([]);
+  const [schedule, setScheduleRaw] = useState([]);
+  const [channels, setChannelsRaw] = useState([]);
+  const [channelMessages, setChannelMessagesRaw] = useState([]);
+  const [dismissedNotifs, setDismissedNotifsRaw] = useState([]);
+  const [readNotifs, setReadNotifsRaw] = useState([]);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showProfile, setShowProfile] = useState(false);
@@ -4498,36 +4500,33 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  // Firestore'dan ilk yükle
+  // Firestore gerçek zamanlı veri dinleme (onSnapshot — admin/teacher anlık senkronize)
   useEffect(() => {
-    (async () => {
-      try {
-        const [m, s, f, a, sc, ch, chm, dn, rn] = await Promise.all([
-          fsLoad("members", initParents),
-          fsLoad("staff", initStaff),
-          fsLoad("finance", initFinance),
-          fsLoad("announcements", initAnnouncements),
-          fsLoad("schedule", initSchedule),
-          fsLoad("channels", initChannels),
-          fsLoad("channelMessages", initChannelMessages),
-          fsLoad("dismissedNotifs", initDismissedNotifs),
-          fsLoad("readNotifs", initReadNotifs),
-        ]);
-        setMembersRaw(m);
-        setStaffRaw(s);
-        setFinanceRaw(f);
-        setAnnouncementsRaw(a);
-        setScheduleRaw(sc);
-        setChannelsRaw(ch);
-        setChannelMessagesRaw(chm);
-        setDismissedNotifsRaw(dn);
-        setReadNotifsRaw(rn);
-        setDbStatus("✅ Bağlandı");
-      } catch(e) {
-        setDbStatus("⚠️ Çevrimdışı");
-      }
-      setDbReady(true);
-    })();
+    const unsubs = [];
+    const loaded = new Set();
+    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs"];
+    const setters = {
+      members: setMembersRaw, staff: setStaffRaw, finance: setFinanceRaw,
+      announcements: setAnnouncementsRaw, schedule: setScheduleRaw,
+      channels: setChannelsRaw, channelMessages: setChannelMessagesRaw,
+      dismissedNotifs: setDismissedNotifsRaw, readNotifs: setReadNotifsRaw,
+    };
+    const snap2arr = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
+    const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
+
+    COLS.forEach(col => {
+      unsubs.push(
+        db.collection(col).onSnapshot(
+          snap => {
+            if (!_fsWriting[col]) setters[col](snap2arr(snap));
+            if (!loaded.has(col)) { loaded.add(col); markLoaded(); }
+          },
+          () => { if (!loaded.has(col)) { loaded.add(col); markLoaded(); } }
+        )
+      );
+    });
+
+    return () => unsubs.forEach(u => u());
   }, []);
 
   // Wrapper setter'lar — state güncelle + Firestore'a kaydet
@@ -4609,12 +4608,21 @@ function App() {
   if (user.role === "yönetici" || user.role === "admin") {
     // Admin paneline düş (aşağıdaki adminNav bloğuna geç)
   } else if (user.role === "teacher") {
-    const allChildrenForTeacher = members.flatMap(p => p.children || []);
-    const flatAttendance = allChildrenForTeacher.flatMap(c => (c.attendance||[]).map(a => ({ ...a, memberId: c.id, memberName: c.name, class: c.class })));
-    return <TeacherPanel user={user} members={allChildrenForTeacher} announcements={announcements}
-      setAnnouncements={setAnnouncements} attendance={flatAttendance} setAttendance={() => {}}
-      staff={staff} setStaff={setStaff} allParents={members} setAllParents={setMembers}
-      channels={channels} channelMessages={channelMessages} schedule={schedule}
+    // Bu öğretmenin staff kaydını bul
+    const myStaff = staff.find(s => s.userId === user.id || s.email === user.email);
+    // Sadece bu öğretmene atanmış öğrenciler
+    const assignedIds = new Set((myStaff?.individualStudents || []).map(a => Number(a.childId)));
+    const allChildren = members.flatMap(p => p.children || []);
+    const myChildren = assignedIds.size > 0 ? allChildren.filter(c => assignedIds.has(Number(c.id))) : [];
+    // Sadece bu öğretmene ait çizelge girişleri
+    const mySchedule = schedule.filter(sl => !sl.teacher || sl.teacher === myStaff?.name);
+    return <TeacherPanel user={user} members={myChildren}
+      announcements={announcements} setAnnouncements={setAnnouncements}
+      attendance={[]} setAttendance={() => {}}
+      staff={staff} setStaff={setStaff}
+      allParents={members} setAllParents={setMembers}
+      channels={channels} channelMessages={channelMessages}
+      schedule={mySchedule}
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
   }
 
