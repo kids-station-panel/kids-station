@@ -752,10 +752,8 @@ function LoginPage({ onLogin, dbStatus }) {
         }
         // Son giriş güncelle
         db.collection("users").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-        console.log("[KS DEBUG] Firestore data:", JSON.stringify(data));
-        console.log("[KS DEBUG] data.role:", data.role, "| data.rol:", data.rol);
-        userInfo = { role: data.role || data.rol || "teacher", name: data.name || email, photoURL: data.photoURL || null };
-        console.log("[KS DEBUG] userInfo.role:", userInfo.role);
+        const rawRole = (data.role || data.rol || "teacher").toString().trim();
+        userInfo = { role: rawRole, name: data.name || email, photoURL: data.photoURL || null };
       } else {
         // Firestore'da kayıt yoksa öğretmen olarak gir
         userInfo = { role: "teacher", name: email, photoURL: null };
@@ -4467,7 +4465,8 @@ function App() {
             }
             // Son giriş güncelle
             db.collection("users").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-            userInfo = { role: data.role || data.rol || "teacher", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
+            const rawRole = (data.role || data.rol || "teacher").toString().trim();
+            userInfo = { role: rawRole, name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
           } else {
             userInfo = { role: "teacher", name: firebaseUser.email, photoURL: null };
           }
@@ -4567,7 +4566,9 @@ function App() {
 
   if (!user) return <LoginPage onLogin={setUser} dbStatus={dbStatus} />;
 
-  if (user.role === "teacher") {
+  if (user.role === "yönetici" || user.role === "admin") {
+    // Admin paneline düş (aşağıdaki adminNav bloğuna geç)
+  } else if (user.role === "teacher") {
     const allChildrenForTeacher = members.flatMap(p => p.children || []);
     const flatAttendance = allChildrenForTeacher.flatMap(c => (c.attendance||[]).map(a => ({ ...a, memberId: c.id, memberName: c.name, class: c.class })));
     return <TeacherPanel user={user} members={allChildrenForTeacher} announcements={announcements}
