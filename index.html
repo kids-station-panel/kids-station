@@ -3082,8 +3082,12 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [showProfile, setShowProfile] = useState(false);
   const [showAddAnn, setShowAddAnn] = useState(false);
   const [annForm, setAnnForm] = useState({ title: "", content: "", important: false });
-  const [selectedDate, setSelectedDate] = useState("2026-03-10");
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0,10));
   const [attForm, setAttForm] = useState({});
+  const [selectedStudent, setSelectedStudent] = useState("");
+  const [noteText, setNoteText] = useState("");
+  const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [devForm, setDevForm] = useState({});
 
   const myClasses = [...new Set(members.map(m => m.class))];
 
@@ -3102,6 +3106,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     { key: "individual", label: "Bireysel Dersler", icon: "📚" },
     { key: "students", label: "Öğrenciler", icon: "👨‍🎓" },
     { key: "attendance", label: "Devamsızlık", icon: "📅" },
+    { key: "notes", label: "Seans Notları", icon: "📝" },
+    { key: "development", label: "Gelişim", icon: "📈" },
     { key: "announcements", label: "Duyurular", icon: "📢" },
     { key: "channels", label: "Kanallar", icon: "📢" },
     { key: "calendar", label: "Program", icon: "📅" },
@@ -3127,6 +3133,30 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   };
 
   const todayAtt = attendance.filter(a => a.date === selectedDate);
+
+  const saveSessionNote = () => {
+    if (!selectedStudent || !noteText.trim()) return;
+    const cid = Number(selectedStudent);
+    const parent = (allParents||[]).find(p => (p.children||[]).some(c => c.id === cid));
+    if (!parent) return;
+    const newNote = { id: Date.now(), date: noteDate, staffId: myStaff?.id || user.id, staffName: user.name, note: noteText.trim(), createdAt: new Date().toISOString() };
+    setAllParents((allParents||[]).map(p => p.id === parent.id
+      ? { ...p, children: p.children.map(c => c.id === cid ? { ...c, sessionNotes: [...(c.sessionNotes||[]), newNote] } : c) }
+      : p
+    ));
+    setNoteText("");
+  };
+
+  const saveDevelopment = (childId) => {
+    const cid = Number(childId);
+    const parent = (allParents||[]).find(p => (p.children||[]).some(c => c.id === cid));
+    if (!parent) return;
+    const development = { ...(devForm[childId]||{}), lastUpdated: new Date().toISOString().slice(0,10), updatedBy: user.name };
+    setAllParents((allParents||[]).map(p => p.id === parent.id
+      ? { ...p, children: p.children.map(c => c.id === cid ? { ...c, development } : c) }
+      : p
+    ));
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: C.bg, maxWidth: "100vw", overflow: "hidden" }}>
@@ -3341,12 +3371,12 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600 }}>{m.class}</div>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      {["Geldi", "Gelmedi", "İzinli"].map(s => (
+                      {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange],["Telafi",C.blue],["İptal","#94a3b8"]].map(([s,col]) => (
                         <button key={s} onClick={() => setAttForm({ ...attForm, [m.id]: s })}
                           style={{
-                            padding: "7px 14px", borderRadius: 10, fontWeight: 800, fontSize: 12,
+                            padding: "7px 10px", borderRadius: 10, fontWeight: 800, fontSize: 11,
                             cursor: "pointer", fontFamily: "inherit",
-                            background: val === s ? (s === "Geldi" ? C.green : s === "Gelmedi" ? C.red : C.orange) : "#eef2ff",
+                            background: val === s ? col : "#eef2ff",
                             color: val === s ? "#fff" : C.textDim,
                             border: "none",
                           }}>{s}</button>
@@ -3361,15 +3391,122 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
               <Card>
                 <CardTitle color={C.orange} icon="📋">Bugünün Özeti</CardTitle>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  {[["Geldi", C.green], ["Gelmedi", C.red], ["İzinli", C.orange]].map(([s, col]) => (
-                    <div key={s} style={{ background: col + "14", border: `1.5px solid ${col}33`, borderRadius: 12, padding: "12px 18px", textAlign: "center" }}>
-                      <div style={{ fontSize: 22, fontWeight: 900, color: col }}>{todayAtt.filter(a => a.status === s).length}</div>
-                      <div style={{ fontSize: 12, color: C.textDim, fontWeight: 700 }}>{s}</div>
+                  {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange],["Telafi",C.blue],["İptal","#94a3b8"]].map(([s, col]) => (
+                    <div key={s} style={{ background: col + "14", border: `1.5px solid ${col}33`, borderRadius: 12, padding: "10px 14px", textAlign: "center" }}>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: col }}>{todayAtt.filter(a => a.status === s).length}</div>
+                      <div style={{ fontSize: 11, color: C.textDim, fontWeight: 700 }}>{s}</div>
                     </div>
                   ))}
                 </div>
               </Card>
             )}
+          </div>
+        )}
+
+        {page === "notes" && (
+          <div className="fade-in">
+            <div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 4 }}>📝 Seans Notları</div>
+            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Ders sonrası öğrenci gözlem notları</div>
+            <Card>
+              <CardTitle color={C.blue} icon="📝">Not Ekle</CardTitle>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Öğrenci</div>
+                  <select style={inputStyle} value={selectedStudent} onChange={e => setSelectedStudent(e.target.value)}>
+                    <option value="">Öğrenci seçin...</option>
+                    {members.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Tarih</div>
+                  <input style={inputStyle} type="date" value={noteDate} onChange={e => setNoteDate(e.target.value)} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Gözlem / Not</div>
+                  <textarea style={{ ...inputStyle, height: 100, resize: "vertical" }} placeholder="Bu derste neler gözlemlediniz? Öğrencinin performansı, davranışı, gelişimi..." value={noteText} onChange={e => setNoteText(e.target.value)} />
+                </div>
+                <button style={btnStyle(C.blue)} onClick={saveSessionNote}>💾 Notu Kaydet</button>
+              </div>
+            </Card>
+            {members.map(child => {
+              const fullChild = allChildren.find(c => c.id === child.id) || child;
+              const notes = (fullChild.sessionNotes||[]).slice().sort((a,b) => b.date.localeCompare(a.date));
+              if (notes.length === 0) return null;
+              return (
+                <Card key={child.id} style={{ marginTop: 16 }}>
+                  <CardTitle color={C.orange} icon="👤">{child.name}</CardTitle>
+                  {notes.slice(0,6).map(n => (
+                    <div key={n.id} style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: C.textMid }}>{n.date}</span>
+                        <span style={{ fontSize: 11, color: C.textDim, fontWeight: 600 }}>{n.staffName}</span>
+                      </div>
+                      <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>{n.note}</div>
+                    </div>
+                  ))}
+                </Card>
+              );
+            })}
+            {members.length === 0 && (
+              <Card><div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
+                <div style={{ fontSize:40, marginBottom:10 }}>📝</div>
+                <div style={{ fontWeight:700 }}>Atanmış öğrenci yok.</div>
+              </div></Card>
+            )}
+          </div>
+        )}
+
+        {page === "development" && (
+          <div className="fade-in">
+            <div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 4 }}>📈 Gelişim Takibi</div>
+            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Öğrenci gelişim alanları değerlendirmesi (1-5)</div>
+            {members.length === 0 ? (
+              <Card><div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
+                <div style={{ fontSize:40, marginBottom:10 }}>📈</div>
+                <div style={{ fontWeight:700 }}>Atanmış öğrenci yok.</div>
+              </div></Card>
+            ) : members.map(child => {
+              const fullChild = allChildren.find(c => c.id === child.id) || child;
+              const saved = fullChild.development || {};
+              const current = devForm[child.id] !== undefined ? devForm[child.id] : saved;
+              const areas = [
+                ["denge","⚖️ Denge"],["koordinasyon","🎯 Koordinasyon"],["dikkat","🧠 Dikkat"],
+                ["yonergealma","📋 Yönerge Alma"],["kabamoto","🦵 Kaba Motor"],["incemotor","✋ İnce Motor"]
+              ];
+              return (
+                <Card key={child.id}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+                    <div style={{ fontWeight:900, fontSize:17, color:C.text }}>{child.name}</div>
+                    {saved.lastUpdated && <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>Son: {saved.lastUpdated}</span>}
+                  </div>
+                  <div style={{ display:"grid", gap:14 }}>
+                    {areas.map(([key,label]) => {
+                      const val = Number((current||{})[key]||0);
+                      return (
+                        <div key={key}>
+                          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
+                            <span style={{ fontSize:13, fontWeight:800, color:C.text }}>{label}</span>
+                            <span style={{ fontSize:13, fontWeight:900, color:val>0?C.blue:C.textDim }}>{val>0?val+"/5":"—"}</span>
+                          </div>
+                          <div style={{ display:"flex", gap:6 }}>
+                            {[1,2,3,4,5].map(score => (
+                              <button key={score}
+                                onClick={() => setDevForm(prev => ({ ...prev, [child.id]: { ...(prev[child.id]!==undefined?prev[child.id]:saved), [key]: score } }))}
+                                style={{ flex:1, padding:"9px 4px", borderRadius:8, border:"none", cursor:"pointer", fontWeight:900, fontSize:13, fontFamily:"inherit",
+                                  background: val >= score ? C.blue : "#eef2ff",
+                                  color: val >= score ? "#fff" : C.textDim }}>
+                                {score}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button style={{ ...btnStyle(C.green), marginTop:16, width:"100%" }} onClick={() => saveDevelopment(child.id)}>💾 Gelişimi Kaydet</button>
+                </Card>
+              );
+            })}
           </div>
         )}
 
