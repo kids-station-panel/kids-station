@@ -752,7 +752,7 @@ function LoginPage({ onLogin, dbStatus }) {
         }
         // Son giriş güncelle
         db.collection("users").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-        userInfo = { role: data.role || "teacher", name: data.name || email, photoURL: data.photoURL || null };
+        userInfo = { role: data.role || data.rol || "teacher", name: data.name || email, photoURL: data.photoURL || null };
       } else {
         // Firestore'da kayıt yoksa öğretmen olarak gir
         userInfo = { role: "teacher", name: email, photoURL: null };
@@ -4464,7 +4464,7 @@ function App() {
             }
             // Son giriş güncelle
             db.collection("users").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-            userInfo = { role: data.role || "teacher", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
+            userInfo = { role: data.role || data.rol || "teacher", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
           } else {
             userInfo = { role: "teacher", name: firebaseUser.email, photoURL: null };
           }
