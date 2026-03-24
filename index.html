@@ -570,7 +570,7 @@ function ProfileModal({ user, onClose, onLogout, onUpdatePhoto }) {
       const snapshot = await storageRef.put(file);
       const downloadURL = await snapshot.ref.getDownloadURL();
       const db = firebase.firestore();
-      await db.collection("users").doc(user.id).set({ photoURL: downloadURL }, { merge: true });
+      await db.collection("kullanicilar").doc(user.id).set({ photoURL: downloadURL }, { merge: true });
       onUpdatePhoto(downloadURL);
     } catch (err) {
       setPhotoError("Fotoğraf yüklenemedi: " + (err.message || "Bilinmeyen hata"));
@@ -738,7 +738,7 @@ function LoginPage({ onLogin, dbStatus }) {
       const email = result.user.email;
       // Firestore'dan kullanıcı bilgisini çek
       const db = firebase.firestore();
-      const doc = await db.collection("users").doc(uid).get();
+      const doc = await db.collection("kullanicilar").doc(uid).get();
       let userInfo;
       if (doc.exists) {
         const data = doc.data();
@@ -751,12 +751,14 @@ function LoginPage({ onLogin, dbStatus }) {
           return;
         }
         // Son giriş güncelle
-        db.collection("users").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-        const rawRole = (data.role || data.rol || "teacher").toString().trim();
-        userInfo = { role: rawRole, name: data.name || email, photoURL: data.photoURL || null };
+        db.collection("kullanicilar").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
+        const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
+        console.log("[KS] LOGIN uid:", uid, "| Firestore data:", JSON.stringify(data), "| normalizedRole:", normalizedRole);
+        userInfo = { role: normalizedRole || "unknown", name: data.name || email, photoURL: data.photoURL || null };
       } else {
-        // Firestore'da kayıt yoksa öğretmen olarak gir
-        userInfo = { role: "teacher", name: email, photoURL: null };
+        // Firestore'da kayıt bulunamadı
+        console.warn("[KS] LOGIN: Firestore'da kullanıcı bulunamadı. uid:", uid);
+        userInfo = { role: "unknown", name: email, photoURL: null };
       }
       onLogin({ ...userInfo, email, id: uid });
     } catch (err) {
@@ -2666,7 +2668,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
     setLoading(true);
     try {
       const db = firebase.firestore();
-      const snap = await db.collection("users").get();
+      const snap = await db.collection("kullanicilar").get();
       setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) { showToast("Kullanıcılar yüklenemedi: " + e.message, C.red); }
     setLoading(false);
@@ -2697,7 +2699,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
       const data = await res.json();
       if (data.error) { setCreateError(data.error.message || "Hesap oluşturulamadı."); setCreating(false); return; }
       const now = new Date().toISOString();
-      await firebase.firestore().collection("users").doc(data.localId).set({
+      await firebase.firestore().collection("kullanicilar").doc(data.localId).set({
         name: form.name.trim(), email: form.email.trim().toLowerCase(),
         role: form.role, phone: form.phone.trim() || "",
         status: "active", createdAt: now, lastLogin: null, photoURL: null,
@@ -2719,7 +2721,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
     if (!editForm.name?.trim()) { setEditError("Ad soyad zorunludur."); return; }
     setEditLoading(true); setEditError("");
     try {
-      await firebase.firestore().collection("users").doc(editUser.id).update({
+      await firebase.firestore().collection("kullanicilar").doc(editUser.id).update({
         name: editForm.name.trim(), phone: editForm.phone?.trim() || "", role: editForm.role,
       });
       await addAudit(editUser.id, "edit", "Isim: " + editForm.name + ", Rol: " + editForm.role);
@@ -2732,7 +2734,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
 
   const handleStatus = async (u, newStatus) => {
     try {
-      await firebase.firestore().collection("users").doc(u.id).update({ status: newStatus });
+      await firebase.firestore().collection("kullanicilar").doc(u.id).update({ status: newStatus });
       await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
       const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi", deleted:"Silindi" };
       showToast(u.name + " — " + (lbls[newStatus] || newStatus));
@@ -4456,7 +4458,7 @@ function App() {
       if (firebaseUser && !user) {
         try {
           const db = firebase.firestore();
-          const doc = await db.collection("users").doc(firebaseUser.uid).get();
+          const doc = await db.collection("kullanicilar").doc(firebaseUser.uid).get();
           let userInfo;
           if (doc.exists) {
             const data = doc.data();
@@ -4466,11 +4468,13 @@ function App() {
               return;
             }
             // Son giriş güncelle
-            db.collection("users").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-            const rawRole = (data.role || data.rol || "teacher").toString().trim();
-            userInfo = { role: rawRole, name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
+            db.collection("kullanicilar").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
+            const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
+            console.log("[KS] AUTO-LOGIN uid:", firebaseUser.uid, "| Firestore data:", JSON.stringify(data), "| normalizedRole:", normalizedRole);
+            userInfo = { role: normalizedRole || "unknown", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
           } else {
-            userInfo = { role: "teacher", name: firebaseUser.email, photoURL: null };
+            console.warn("[KS] AUTO-LOGIN: Firestore'da kullanıcı bulunamadı. uid:", firebaseUser.uid);
+            userInfo = { role: "unknown", name: firebaseUser.email, photoURL: null };
           }
           setUser({ ...userInfo, email: firebaseUser.email, id: firebaseUser.uid });
         } catch (e) {}
@@ -4567,6 +4571,25 @@ function App() {
   );
 
   if (!user) return <LoginPage onLogin={setUser} dbStatus={dbStatus} />;
+
+  console.log("[KS] RENDER panel için user.role:", user.role, "| user:", JSON.stringify(user));
+
+  if (user.role === "unknown") {
+    return (
+      <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#0f172a", flexDirection:"column", gap:16 }}>
+        <div style={{ fontSize:48 }}>⚠️</div>
+        <div style={{ color:"#f87171", fontSize:18, fontWeight:800 }}>Erişim Reddedildi</div>
+        <div style={{ color:"rgba(255,255,255,0.6)", fontSize:14, textAlign:"center", maxWidth:320 }}>
+          Hesabınız Firestore'da bulunamadı veya rol tanımlı değil.<br/>
+          UID: {user.id}
+        </div>
+        <button onClick={() => { firebase.auth().signOut(); setUser(null); }}
+          style={{ marginTop:8, padding:"10px 24px", background:"#ef4444", border:"none", borderRadius:8, color:"#fff", fontWeight:700, cursor:"pointer" }}>
+          Çıkış Yap
+        </button>
+      </div>
+    );
+  }
 
   if (user.role === "yönetici" || user.role === "admin") {
     // Admin paneline düş (aşağıdaki adminNav bloğuna geç)
