@@ -2861,6 +2861,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
               <div style={{ marginBottom:18 }}>
                 <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol</div>
                 <select style={inputStyle} value={editForm.role||"teacher"} onChange={e => setEditForm(p => ({...p, role: e.target.value}))}>
+                  <option value="yönetici">👑 Admin (tam yetki)</option>
                   <option value="manager">🔑 Yönetici (görüntüleme)</option>
                   <option value="teacher">👩‍🏫 Öğretmen</option>
                 </select>
@@ -2953,6 +2954,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
             <div>
               <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol *</div>
               <select style={inputStyle} value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
+                <option value="yönetici">👑 Admin (tam yetki)</option>
                 <option value="manager">🔑 Yönetici (görüntüleme)</option>
                 <option value="teacher">👩‍🏫 Öğretmen</option>
               </select>
