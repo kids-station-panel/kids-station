@@ -752,7 +752,10 @@ function LoginPage({ onLogin, dbStatus }) {
         }
         // Son giriş güncelle
         db.collection("users").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
+        console.log("[KS DEBUG] Firestore data:", JSON.stringify(data));
+        console.log("[KS DEBUG] data.role:", data.role, "| data.rol:", data.rol);
         userInfo = { role: data.role || data.rol || "teacher", name: data.name || email, photoURL: data.photoURL || null };
+        console.log("[KS DEBUG] userInfo.role:", userInfo.role);
       } else {
         // Firestore'da kayıt yoksa öğretmen olarak gir
         userInfo = { role: "teacher", name: email, photoURL: null };
