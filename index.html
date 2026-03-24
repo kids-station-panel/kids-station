@@ -182,7 +182,7 @@ function useIsMobile(bp = 600) {
 
 // ── KULLANICILAR ──────────────────────────────────────────
 const USERS = [
-  { id: 1, username: "admin", password: "admin123", role: "admin", name: "Salon Yöneticisi" },
+  { id: 1, username: "admin", password: "admin123", role: "yönetici", name: "Salon Yöneticisi" },
   { id: 2, username: "ogretmen1", password: "ogr123", role: "teacher", name: "Kemal Aydın" },
   { id: 3, username: "ogretmen2", password: "ogr456", role: "teacher", name: "Zeynep Şahin" },
 ];
@@ -579,9 +579,9 @@ function ProfileModal({ user, onClose, onLogout, onUpdatePhoto }) {
     e.target.value = "";
   };
 
-  const roleLabel = user.role === "admin" ? "Admin" : user.role === "manager" ? "Yönetici" : "Öğretmen";
-  const roleIcon = user.role === "admin" ? "👑" : user.role === "manager" ? "🔑" : "👩‍🏫";
-  const roleColor = user.role === "admin" ? C.orange : user.role === "manager" ? "#7c3aed" : C.blue;
+  const roleLabel = user.role === "yönetici" ? "Admin" : user.role === "manager" ? "Yönetici" : "Öğretmen";
+  const roleIcon = user.role === "yönetici" ? "👑" : user.role === "manager" ? "🔑" : "👩‍🏫";
+  const roleColor = user.role === "yönetici" ? C.orange : user.role === "manager" ? "#7c3aed" : C.blue;
   const initials = (user.name || "U").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   const tabBtn = (key, label) => (
@@ -752,7 +752,8 @@ function LoginPage({ onLogin, dbStatus }) {
         }
         // Son giriş güncelle
         db.collection("users").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-        userInfo = { role: data.role || "teacher", name: data.name || email, photoURL: data.photoURL || null };
+        const rawRole = (data.role || data.rol || "teacher").toString().trim();
+        userInfo = { role: rawRole, name: data.name || email, photoURL: data.photoURL || null };
       } else {
         // Firestore'da kayıt yoksa öğretmen olarak gir
         userInfo = { role: "teacher", name: email, photoURL: null };
@@ -2735,7 +2736,10 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
       await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
       const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi", deleted:"Silindi" };
       showToast(u.name + " — " + (lbls[newStatus] || newStatus));
-      if (editUser && editUser.id === u.id) setEditUser(prev => ({ ...prev, status: newStatus }));
+      if (editUser && editUser.id === u.id) {
+        if (newStatus === "deleted" || newStatus === "archived") setEditUser(null);
+        else setEditUser(prev => ({ ...prev, status: newStatus }));
+      }
       // Öğretmense staff kaydını da güncelle
       if (u.role === "teacher" && onTeacherStatusChange) {
         onTeacherStatusChange(u.id, newStatus);
@@ -2755,27 +2759,31 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
 
   const statusLabel = s => ({ active:"Aktif", disabled:"Pasif", suspended:"Askıda", archived:"Arşiv", deleted:"Silindi" })[s] || (s || "Aktif");
   const statusColor = s => ({ active:C.green, disabled:C.textDim, suspended:C.orange, archived:"#64748b", deleted:C.red })[s] || C.green;
-  const roleLabel   = r => r === "admin" ? "Admin" : r === "manager" ? "Yönetici" : "Öğretmen";
-  const roleColor   = r => r === "admin" ? C.orange : r === "manager" ? "#7c3aed" : C.blue;
-  const roleIcon    = r => r === "admin" ? "👑" : r === "manager" ? "🔑" : "👩‍🏫";
+  const roleLabel   = r => r === "yönetici" ? "Admin" : r === "manager" ? "Yönetici" : "Öğretmen";
+  const roleColor   = r => r === "yönetici" ? C.orange : r === "manager" ? "#7c3aed" : C.blue;
+  const roleIcon    = r => r === "yönetici" ? "👑" : r === "manager" ? "🔑" : "👩‍🏫";
   const fmtDate     = iso => iso ? new Date(iso).toLocaleDateString("tr-TR") : null;
   const fmtDT       = iso => iso ? new Date(iso).toLocaleString("tr-TR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }) : null;
 
-  const nonAdmin = users.filter(u => u.role !== "admin");
+  const nonAdmin = users.filter(u => u.role !== "yönetici");
   const filtered = nonAdmin.filter(u => {
     const matchRole   = filterRole   === "Tümü" || u.role === filterRole;
-    const matchStatus = filterStatus === "Tümü" || (u.status || "active") === filterStatus;
+    const uStatus = u.status || "active";
+    const matchStatus = filterStatus === "Tümü"
+      ? !["deleted", "archived"].includes(uStatus)
+      : uStatus === filterStatus;
     const q = searchQ.toLowerCase();
     const matchSearch = !q || (u.name||"").toLowerCase().includes(q) || (u.email||"").toLowerCase().includes(q);
     return matchRole && matchStatus && matchSearch;
   }).sort((a, b) => { const o = { manager:0, teacher:1 }; return (o[a.role]??2) - (o[b.role]??2); });
 
+  const visibleUsers = nonAdmin.filter(u => !["deleted","archived"].includes(u.status || "active"));
   const counts = {
-    total:   nonAdmin.length,
-    active:  nonAdmin.filter(u => !u.status || u.status === "active").length,
-    manager: nonAdmin.filter(u => u.role === "manager").length,
-    teacher: nonAdmin.filter(u => u.role === "teacher").length,
-    passive: nonAdmin.filter(u => u.status && u.status !== "active").length,
+    total:   visibleUsers.length,
+    active:  visibleUsers.filter(u => !u.status || u.status === "active").length,
+    manager: visibleUsers.filter(u => u.role === "manager").length,
+    teacher: visibleUsers.filter(u => u.role === "teacher").length,
+    passive: visibleUsers.filter(u => u.status && !["active","deleted","archived"].includes(u.status)).length,
   };
 
   return (
@@ -2793,11 +2801,18 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:3000, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
           onClick={e => { if (e.target === e.currentTarget) setConfirmAction(null); }}>
           <div style={{ background:"#fff", borderRadius:20, padding:"28px 24px", maxWidth:380, width:"100%", boxShadow:"0 20px 60px rgba(0,0,0,0.28)" }}>
-            <div style={{ fontSize:36, textAlign:"center", marginBottom:12 }}>⚠️</div>
-            <div style={{ fontSize:16, fontWeight:900, color:C.text, textAlign:"center", marginBottom:8 }}>Emin misiniz?</div>
+            <div style={{ fontSize:36, textAlign:"center", marginBottom:12 }}>{confirmAction.action === "password_reset" ? "📧" : "⚠️"}</div>
+            <div style={{ fontSize:16, fontWeight:900, color:C.text, textAlign:"center", marginBottom:8 }}>{confirmAction.action === "password_reset" ? "Şifre Sıfırlama" : "Emin misiniz?"}</div>
             <div style={{ fontSize:13, color:C.textMid, textAlign:"center", marginBottom:24, fontWeight:600, lineHeight:1.6 }}>{confirmAction.label}</div>
             <div style={{ display:"flex", gap:10 }}>
-              <button onClick={() => handleStatus(confirmAction.user, confirmAction.action)}
+              <button onClick={() => {
+                if (confirmAction.action === "password_reset") {
+                  handlePasswordReset(confirmAction.user);
+                } else {
+                  handleStatus(confirmAction.user, confirmAction.action);
+                }
+                setConfirmAction(null);
+              }}
                 style={{ flex:1, padding:"12px", background:confirmAction.color, border:"none", borderRadius:12, color:"#fff", fontWeight:900, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
                 Evet, Onayla
               </button>
@@ -2846,6 +2861,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
               <div style={{ marginBottom:18 }}>
                 <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol</div>
                 <select style={inputStyle} value={editForm.role||"teacher"} onChange={e => setEditForm(p => ({...p, role: e.target.value}))}>
+                  <option value="yönetici">👑 Admin (tam yetki)</option>
                   <option value="manager">🔑 Yönetici (görüntüleme)</option>
                   <option value="teacher">👩‍🏫 Öğretmen</option>
                 </select>
@@ -2880,7 +2896,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
                   style={{ ...btnStyle(C.blue), opacity:editLoading ? 0.6 : 1, padding:"11px" }}>
                   {editLoading ? "Kaydediliyor..." : "Degisiklikleri Kaydet"}
                 </button>
-                <button onClick={() => handlePasswordReset(editUser)}
+                <button onClick={() => setConfirmAction({ user:editUser, action:"password_reset", label:`"${editUser.name}" kullanıcısına şifre sıfırlama bağlantısı gönderilecek (${editUser.email}).`, color:"#92400e" })}
                   style={{ padding:"11px", background:"#fef3c7", border:"1.5px solid #fbbf24", borderRadius:12, color:"#92400e", fontWeight:800, fontSize:13, cursor:"pointer", fontFamily:"inherit" }}>
                   Sifre Sifirlama Maili Gonder
                 </button>
@@ -2938,6 +2954,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
             <div>
               <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol *</div>
               <select style={inputStyle} value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
+                <option value="yönetici">👑 Admin (tam yetki)</option>
                 <option value="manager">🔑 Yönetici (görüntüleme)</option>
                 <option value="teacher">👩‍🏫 Öğretmen</option>
               </select>
@@ -3018,7 +3035,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
             <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
               <button onClick={() => { setEditUser(u); setEditForm({ name:u.name, phone:u.phone||"", role:u.role }); setEditError(""); }}
                 title="Düzenle" style={{ width:34, height:34, borderRadius:10, background:C.blue+"14", border:`1.5px solid ${C.blue}22`, color:C.blue, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✏️</button>
-              <button onClick={() => handlePasswordReset(u)}
+              <button onClick={() => setConfirmAction({ user:u, action:"password_reset", label:`"${u.name}" kullanıcısına şifre sıfırlama bağlantısı gönderilecek (${u.email}).`, color:"#92400e" })}
                 title="Şifre Sıfırla" style={{ width:34, height:34, borderRadius:10, background:"#fef3c7", border:"1.5px solid #fbbf24", color:"#92400e", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>📧</button>
               {(!u.status || u.status === "active") ? (
                 <button onClick={() => setConfirmAction({ user:u, action:"disabled", label:`"${u.name}" hesabı pasife alınacak.`, color:C.textDim })}
@@ -4450,7 +4467,8 @@ function App() {
             }
             // Son giriş güncelle
             db.collection("users").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-            userInfo = { role: data.role || "teacher", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
+            const rawRole = (data.role || data.rol || "teacher").toString().trim();
+            userInfo = { role: rawRole, name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
           } else {
             userInfo = { role: "teacher", name: firebaseUser.email, photoURL: null };
           }
@@ -4550,7 +4568,9 @@ function App() {
 
   if (!user) return <LoginPage onLogin={setUser} dbStatus={dbStatus} />;
 
-  if (user.role === "teacher") {
+  if (user.role === "yönetici" || user.role === "admin") {
+    // Admin paneline düş (aşağıdaki adminNav bloğuna geç)
+  } else if (user.role === "teacher") {
     const allChildrenForTeacher = members.flatMap(p => p.children || []);
     const flatAttendance = allChildrenForTeacher.flatMap(c => (c.attendance||[]).map(a => ({ ...a, memberId: c.id, memberName: c.name, class: c.class })));
     return <TeacherPanel user={user} members={allChildrenForTeacher} announcements={announcements}
