@@ -182,7 +182,7 @@ function useIsMobile(bp = 600) {
 
 // ── KULLANICILAR ──────────────────────────────────────────
 const USERS = [
-  { id: 1, username: "admin", password: "admin123", role: "admin", name: "Salon Yöneticisi" },
+  { id: 1, username: "admin", password: "admin123", role: "yönetici", name: "Salon Yöneticisi" },
   { id: 2, username: "ogretmen1", password: "ogr123", role: "teacher", name: "Kemal Aydın" },
   { id: 3, username: "ogretmen2", password: "ogr456", role: "teacher", name: "Zeynep Şahin" },
 ];
@@ -579,9 +579,9 @@ function ProfileModal({ user, onClose, onLogout, onUpdatePhoto }) {
     e.target.value = "";
   };
 
-  const roleLabel = user.role === "admin" ? "Admin" : user.role === "manager" ? "Yönetici" : "Öğretmen";
-  const roleIcon = user.role === "admin" ? "👑" : user.role === "manager" ? "🔑" : "👩‍🏫";
-  const roleColor = user.role === "admin" ? C.orange : user.role === "manager" ? "#7c3aed" : C.blue;
+  const roleLabel = user.role === "yönetici" ? "Admin" : user.role === "manager" ? "Yönetici" : "Öğretmen";
+  const roleIcon = user.role === "yönetici" ? "👑" : user.role === "manager" ? "🔑" : "👩‍🏫";
+  const roleColor = user.role === "yönetici" ? C.orange : user.role === "manager" ? "#7c3aed" : C.blue;
   const initials = (user.name || "U").split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
 
   const tabBtn = (key, label) => (
@@ -2758,13 +2758,13 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
 
   const statusLabel = s => ({ active:"Aktif", disabled:"Pasif", suspended:"Askıda", archived:"Arşiv", deleted:"Silindi" })[s] || (s || "Aktif");
   const statusColor = s => ({ active:C.green, disabled:C.textDim, suspended:C.orange, archived:"#64748b", deleted:C.red })[s] || C.green;
-  const roleLabel   = r => r === "admin" ? "Admin" : r === "manager" ? "Yönetici" : "Öğretmen";
-  const roleColor   = r => r === "admin" ? C.orange : r === "manager" ? "#7c3aed" : C.blue;
-  const roleIcon    = r => r === "admin" ? "👑" : r === "manager" ? "🔑" : "👩‍🏫";
+  const roleLabel   = r => r === "yönetici" ? "Admin" : r === "manager" ? "Yönetici" : "Öğretmen";
+  const roleColor   = r => r === "yönetici" ? C.orange : r === "manager" ? "#7c3aed" : C.blue;
+  const roleIcon    = r => r === "yönetici" ? "👑" : r === "manager" ? "🔑" : "👩‍🏫";
   const fmtDate     = iso => iso ? new Date(iso).toLocaleDateString("tr-TR") : null;
   const fmtDT       = iso => iso ? new Date(iso).toLocaleString("tr-TR", { day:"2-digit", month:"2-digit", year:"2-digit", hour:"2-digit", minute:"2-digit" }) : null;
 
-  const nonAdmin = users.filter(u => u.role !== "admin");
+  const nonAdmin = users.filter(u => u.role !== "yönetici");
   const filtered = nonAdmin.filter(u => {
     const matchRole   = filterRole   === "Tümü" || u.role === filterRole;
     const uStatus = u.status || "active";
