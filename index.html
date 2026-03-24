@@ -4456,19 +4456,29 @@ function App() {
       if (firebaseUser && !user) {
         try {
           const db = firebase.firestore();
-          const doc = await db.collection("users").doc(firebaseUser.uid).get();
-          let userInfo;
-          if (doc.exists) {
-            const data = doc.data();
+const doc = await db.collection("kullanicilar").doc(firebaseUser.uid).get();
+let userInfo;
+
+console.log("Giriş yapan UID:", firebaseUser.uid);
+
+if (doc.exists) {
+  const data = doc.data();
+  console.log("Firestore kullanıcı verisi:", data);
+  console.log("Rol:", data?.role);
+
+  const normalizedRole = String(data?.role || "").trim().toLowerCase();
             // Hesap durumu kontrolü (auto-login sırasında)
             if (data.status && data.status !== "active") {
               await firebase.auth().signOut();
               return;
             }
             // Son giriş güncelle
-            db.collection("users").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-            const rawRole = (data.role || data.rol || "teacher").toString().trim();
-            userInfo = { role: rawRole, name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
+            db.collection("kullanicilar").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
+           userInfo = {
+  role: normalizedRole,
+  name: data.name || firebaseUser.email,
+  photoURL: data.photoURL || null
+};
           } else {
             userInfo = { role: "teacher", name: firebaseUser.email, photoURL: null };
           }
