@@ -738,10 +738,17 @@ function LoginPage({ onLogin, dbStatus }) {
       const email = result.user.email;
       // Firestore'dan kullanıcı bilgisini çek
       const db = firebase.firestore();
-      const doc = await db.collection("kullanicilar").doc(uid).get();
+      // Önce UID ile dene, bulamazsa email ile sorgula
+      let docSnap = await db.collection("kullanicilar").doc(uid).get();
+      let docRef = null;
+      if (!docSnap.exists) {
+        console.warn("[KS] LOGIN: UID ile bulunamadı, email ile deneniyor:", email);
+        const q = await db.collection("kullanicilar").where("email", "==", email).limit(1).get();
+        if (!q.empty) { docSnap = q.docs[0]; docRef = q.docs[0].id; }
+      }
       let userInfo;
-      if (doc.exists) {
-        const data = doc.data();
+      if (docSnap.exists) {
+        const data = docSnap.data();
         // Hesap durumu kontrolü
         if (data.status && data.status !== "active") {
           await firebase.auth().signOut();
@@ -751,13 +758,12 @@ function LoginPage({ onLogin, dbStatus }) {
           return;
         }
         // Son giriş güncelle
-        db.collection("kullanicilar").doc(uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
+        db.collection("kullanicilar").doc(docRef || uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
         const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
-        console.log("[KS] LOGIN uid:", uid, "| Firestore data:", JSON.stringify(data), "| normalizedRole:", normalizedRole);
+        console.log("[KS] LOGIN uid:", uid, "| docId:", docRef||uid, "| Firestore data:", JSON.stringify(data), "| normalizedRole:", normalizedRole);
         userInfo = { role: normalizedRole || "unknown", name: data.name || email, photoURL: data.photoURL || null };
       } else {
-        // Firestore'da kayıt bulunamadı
-        console.warn("[KS] LOGIN: Firestore'da kullanıcı bulunamadı. uid:", uid);
+        console.warn("[KS] LOGIN: Firestore'da kullanıcı bulunamadı. uid:", uid, "email:", email);
         userInfo = { role: "unknown", name: email, photoURL: null };
       }
       onLogin({ ...userInfo, email, id: uid });
@@ -4458,22 +4464,29 @@ function App() {
       if (firebaseUser && !user) {
         try {
           const db = firebase.firestore();
-          const doc = await db.collection("kullanicilar").doc(firebaseUser.uid).get();
+          // Önce UID ile dene, bulamazsa email ile sorgula
+          let docSnap2 = await db.collection("kullanicilar").doc(firebaseUser.uid).get();
+          let docRef2 = null;
+          if (!docSnap2.exists) {
+            console.warn("[KS] AUTO-LOGIN: UID ile bulunamadı, email ile deneniyor:", firebaseUser.email);
+            const q2 = await db.collection("kullanicilar").where("email", "==", firebaseUser.email).limit(1).get();
+            if (!q2.empty) { docSnap2 = q2.docs[0]; docRef2 = q2.docs[0].id; }
+          }
           let userInfo;
-          if (doc.exists) {
-            const data = doc.data();
+          if (docSnap2.exists) {
+            const data = docSnap2.data();
             // Hesap durumu kontrolü (auto-login sırasında)
             if (data.status && data.status !== "active") {
               await firebase.auth().signOut();
               return;
             }
             // Son giriş güncelle
-            db.collection("kullanicilar").doc(firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
+            db.collection("kullanicilar").doc(docRef2 || firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
             const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
-            console.log("[KS] AUTO-LOGIN uid:", firebaseUser.uid, "| Firestore data:", JSON.stringify(data), "| normalizedRole:", normalizedRole);
+            console.log("[KS] AUTO-LOGIN uid:", firebaseUser.uid, "| docId:", docRef2||firebaseUser.uid, "| normalizedRole:", normalizedRole);
             userInfo = { role: normalizedRole || "unknown", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
           } else {
-            console.warn("[KS] AUTO-LOGIN: Firestore'da kullanıcı bulunamadı. uid:", firebaseUser.uid);
+            console.warn("[KS] AUTO-LOGIN: Firestore'da kullanıcı bulunamadı. uid:", firebaseUser.uid, "email:", firebaseUser.email);
             userInfo = { role: "unknown", name: firebaseUser.email, photoURL: null };
           }
           setUser({ ...userInfo, email: firebaseUser.email, id: firebaseUser.uid });
