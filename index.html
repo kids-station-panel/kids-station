@@ -570,7 +570,7 @@ function ProfileModal({ user, onClose, onLogout, onUpdatePhoto }) {
       const snapshot = await storageRef.put(file);
       const downloadURL = await snapshot.ref.getDownloadURL();
       const db = firebase.firestore();
-      await db.collection("kullanıcılar").doc(user.id).set({ photoURL: downloadURL }, { merge: true });
+      await db.collection(USER_COL).doc(user.id).set({ photoURL: downloadURL }, { merge: true });
       onUpdatePhoto(downloadURL);
     } catch (err) {
       setPhotoError("Fotoğraf yüklenemedi: " + (err.message || "Bilinmeyen hata"));
@@ -713,6 +713,23 @@ function ProfileModal({ user, onClose, onLogout, onUpdatePhoto }) {
   );
 }
 
+// ── KULLANICI KOLEKSİYON STANDARDI ────────────────────────
+const USER_COL = "users";
+// Eski koleksiyon adlarına da bakarak kullanıcıyı bulur (migration tolerant)
+async function findUserDoc(db, uid, email) {
+  for (const col of [USER_COL, "kullanıcılar", "kullanicilar"]) {
+    try {
+      const snap = await db.collection(col).doc(uid).get();
+      if (snap.exists) return { snap, col, docId: uid };
+      if (email) {
+        const q = await db.collection(col).where("email", "==", email).limit(1).get();
+        if (!q.empty) return { snap: q.docs[0], col, docId: q.docs[0].id };
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
 // ── GİRİŞ SAYFASI ─────────────────────────────────────────
 function LoginPage({ onLogin, dbStatus }) {
   const isMobile = useIsMobile(600);
@@ -725,65 +742,52 @@ function LoginPage({ onLogin, dbStatus }) {
   const handleLogin = async () => {
     setLoading(true);
     setError("");
+    const auth = firebase.auth();
     try {
-      const auth = firebase.auth();
       await auth.setPersistence(
         rememberMe
           ? firebase.auth.Auth.Persistence.LOCAL
           : firebase.auth.Auth.Persistence.SESSION
       );
       localStorage.setItem("ks_rememberMe", rememberMe ? "true" : "false");
-      let authResult;
-      try {
-        authResult = await auth.signInWithEmailAndPassword(username, password);
-      } catch (authErr) {
-        console.error("[KS] Auth hatası:", authErr.code, authErr.message);
-        setError("E-posta veya şifre hatalı!");
-        setLoading(false);
-        return;
-      }
-      const uid = authResult.user.uid;
-      const email = authResult.user.email;
-      // Firestore'dan kullanıcı bilgisini çek
-      const db = firebase.firestore();
-      let docSnap, docRef = null;
-      try {
-        // Önce UID ile dene, bulamazsa email ile sorgula
-        docSnap = await db.collection("kullanıcılar").doc(uid).get();
-        console.log("[KS] LOGIN UID araması — exists:", docSnap.exists, "uid:", uid);
-        if (!docSnap.exists) {
-          console.warn("[KS] LOGIN: UID ile bulunamadı, email ile deneniyor:", email);
-          const q = await db.collection("kullanıcılar").where("email", "==", email).limit(1).get();
-          if (!q.empty) { docSnap = q.docs[0]; docRef = q.docs[0].id; console.log("[KS] LOGIN email ile bulundu, docId:", docRef); }
-        }
-      } catch (fsErr) {
-        console.error("[KS] Firestore okuma hatası:", fsErr.code, fsErr.message);
-        setError("Firestore erişim hatası: " + (fsErr.code || fsErr.message) + " — Güvenlik kurallarınızı kontrol edin.");
-        await firebase.auth().signOut();
-        setLoading(false);
-        return;
-      }
-      let userInfo;
-      if (docSnap && docSnap.exists) {
-        const data = docSnap.data();
-        // Hesap durumu kontrolü
-        if (data.status && data.status !== "active") {
-          await firebase.auth().signOut();
-          const msgs = { disabled:"Hesabınız pasife alınmıştır. Lütfen yöneticinize başvurun.", suspended:"Hesabınız askıya alınmıştır.", archived:"Hesabınız arşivlenmiştir.", deleted:"Hesabınız silinmiştir." };
-          setError(msgs[data.status] || "Hesabınıza erişim kısıtlanmıştır.");
-          setLoading(false);
-          return;
-        }
-        // Son giriş güncelle
-        db.collection("kullanıcılar").doc(docRef || uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-        const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
-        console.log("[KS] LOGIN başarılı — uid:", uid, "| docId:", docRef||uid, "| rol:", normalizedRole, "| data:", JSON.stringify(data));
-        userInfo = { role: normalizedRole || "unknown", name: data.name || email, photoURL: data.photoURL || null };
-      } else {
-        console.warn("[KS] LOGIN: Firestore'da kullanıcı bulunamadı — uid:", uid, "| email:", email, "| Koleksiyon: kullanıcılar");
-        userInfo = { role: "unknown", name: email, photoURL: null };
-      }
-      onLogin({ ...userInfo, email, id: uid });
+    } catch (_) {}
+    let authResult;
+    try {
+      authResult = await auth.signInWithEmailAndPassword(username, password);
+    } catch (authErr) {
+      setError("E-posta veya şifre hatalı!");
+      setLoading(false);
+      return;
+    }
+    const uid = authResult.user.uid;
+    const email = authResult.user.email;
+    const db = firebase.firestore();
+    let found;
+    try {
+      found = await findUserDoc(db, uid, email);
+    } catch (fsErr) {
+      setError("Firestore erişim hatası: " + (fsErr.code || fsErr.message));
+      await auth.signOut();
+      setLoading(false);
+      return;
+    }
+    if (!found) {
+      console.warn("[KS] LOGIN: Kullanıcı bulunamadı — uid:", uid, "email:", email);
+      onLogin({ role: "unknown", name: email, email, id: uid, photoURL: null });
+      return;
+    }
+    const data = found.snap.data();
+    if (data.status && data.status !== "active") {
+      await auth.signOut();
+      const msgs = { disabled:"Hesabınız pasife alınmıştır.", suspended:"Hesabınız askıya alınmıştır.", archived:"Hesabınız arşivlenmiştir.", deleted:"Hesabınız silinmiştir." };
+      setError(msgs[data.status] || "Hesabınıza erişim kısıtlanmıştır.");
+      setLoading(false);
+      return;
+    }
+    db.collection(USER_COL).doc(found.docId).set({ lastLogin: new Date().toISOString() }, { merge: true }).catch(() => {});
+    const role = String(data.role || "").trim().toLowerCase();
+    console.log("[KS] LOGIN OK — uid:", uid, "col:", found.col, "role:", role);
+    onLogin({ role: role || "unknown", name: data.name || email, email, id: uid, photoURL: data.photoURL || null });
   };
 
   return (
@@ -2687,7 +2691,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
     setLoading(true);
     try {
       const db = firebase.firestore();
-      const snap = await db.collection("kullanıcılar").get();
+      const snap = await db.collection(USER_COL).get();
       setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (e) { showToast("Kullanıcılar yüklenemedi: " + e.message, C.red); }
     setLoading(false);
@@ -2718,7 +2722,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
       const data = await res.json();
       if (data.error) { setCreateError(data.error.message || "Hesap oluşturulamadı."); setCreating(false); return; }
       const now = new Date().toISOString();
-      await firebase.firestore().collection("kullanıcılar").doc(data.localId).set({
+      await firebase.firestore().collection(USER_COL).doc(data.localId).set({
         name: form.name.trim(), email: form.email.trim().toLowerCase(),
         role: form.role, phone: form.phone.trim() || "",
         status: "active", createdAt: now, lastLogin: null, photoURL: null,
@@ -2740,7 +2744,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
     if (!editForm.name?.trim()) { setEditError("Ad soyad zorunludur."); return; }
     setEditLoading(true); setEditError("");
     try {
-      await firebase.firestore().collection("kullanıcılar").doc(editUser.id).update({
+      await firebase.firestore().collection(USER_COL).doc(editUser.id).update({
         name: editForm.name.trim(), phone: editForm.phone?.trim() || "", role: editForm.role,
       });
       await addAudit(editUser.id, "edit", "Isim: " + editForm.name + ", Rol: " + editForm.role);
@@ -2753,7 +2757,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
 
   const handleStatus = async (u, newStatus) => {
     try {
-      await firebase.firestore().collection("kullanıcılar").doc(u.id).update({ status: newStatus });
+      await firebase.firestore().collection(USER_COL).doc(u.id).update({ status: newStatus });
       await addAudit(u.id, "status_change", "Yeni durum: " + newStatus);
       const lbls = { active:"Aktif", disabled:"Pasif", suspended:"Askıya Alındı", archived:"Arşivlendi", deleted:"Silindi" };
       showToast(u.name + " — " + (lbls[newStatus] || newStatus));
@@ -4477,40 +4481,22 @@ function App() {
       if (firebaseUser && !user) {
         try {
           const db = firebase.firestore();
-          // Önce UID ile dene, bulamazsa email ile sorgula
-          let docSnap2, docRef2 = null;
-          try {
-            docSnap2 = await db.collection("kullanıcılar").doc(firebaseUser.uid).get();
-            console.log("[KS] AUTO-LOGIN UID araması — exists:", docSnap2.exists, "uid:", firebaseUser.uid);
-            if (!docSnap2.exists) {
-              console.warn("[KS] AUTO-LOGIN: UID ile bulunamadı, email ile deneniyor:", firebaseUser.email);
-              const q2 = await db.collection("kullanıcılar").where("email", "==", firebaseUser.email).limit(1).get();
-              if (!q2.empty) { docSnap2 = q2.docs[0]; docRef2 = q2.docs[0].id; console.log("[KS] AUTO-LOGIN email ile bulundu, docId:", docRef2); }
-            }
-          } catch (fsErr) {
-            console.error("[KS] AUTO-LOGIN Firestore hatası:", fsErr.code, fsErr.message);
-            await firebase.auth().signOut();
+          const found = await findUserDoc(db, firebaseUser.uid, firebaseUser.email);
+          if (!found) {
+            console.warn("[KS] AUTO-LOGIN: Kullanıcı bulunamadı — uid:", firebaseUser.uid);
+            setUser({ role: "unknown", name: firebaseUser.email, email: firebaseUser.email, id: firebaseUser.uid, photoURL: null });
             return;
           }
-          let userInfo;
-          if (docSnap2 && docSnap2.exists) {
-            const data = docSnap2.data();
-            // Hesap durumu kontrolü (auto-login sırasında)
-            if (data.status && data.status !== "active") {
-              await firebase.auth().signOut();
-              return;
-            }
-            // Son giriş güncelle
-            db.collection("kullanıcılar").doc(docRef2 || firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
-            const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
-            console.log("[KS] AUTO-LOGIN başarılı — uid:", firebaseUser.uid, "| docId:", docRef2||firebaseUser.uid, "| rol:", normalizedRole);
-            userInfo = { role: normalizedRole || "unknown", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
-          } else {
-            console.warn("[KS] AUTO-LOGIN: Firestore'da kullanıcı bulunamadı — uid:", firebaseUser.uid, "| email:", firebaseUser.email, "| Koleksiyon: kullanıcılar");
-            userInfo = { role: "unknown", name: firebaseUser.email, photoURL: null };
+          const data = found.snap.data();
+          if (data.status && data.status !== "active") {
+            await auth.signOut();
+            return;
           }
-          setUser({ ...userInfo, email: firebaseUser.email, id: firebaseUser.uid });
-        } catch (e) { console.error("[KS] AUTO-LOGIN beklenmedik hata:", e); }
+          db.collection(USER_COL).doc(found.docId).set({ lastLogin: new Date().toISOString() }, { merge: true }).catch(() => {});
+          const role = String(data.role || "").trim().toLowerCase();
+          console.log("[KS] AUTO-LOGIN OK — uid:", firebaseUser.uid, "col:", found.col, "role:", role);
+          setUser({ role: role || "unknown", name: data.name || firebaseUser.email, email: firebaseUser.email, id: firebaseUser.uid, photoURL: data.photoURL || null });
+        } catch (e) { console.error("[KS] AUTO-LOGIN hatası:", e); }
       }
     });
     return () => unsubscribe();
