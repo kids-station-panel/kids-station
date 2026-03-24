@@ -733,21 +733,38 @@ function LoginPage({ onLogin, dbStatus }) {
           : firebase.auth.Auth.Persistence.SESSION
       );
       localStorage.setItem("ks_rememberMe", rememberMe ? "true" : "false");
-      const result = await auth.signInWithEmailAndPassword(username, password);
-      const uid = result.user.uid;
-      const email = result.user.email;
+      let authResult;
+      try {
+        authResult = await auth.signInWithEmailAndPassword(username, password);
+      } catch (authErr) {
+        console.error("[KS] Auth hatası:", authErr.code, authErr.message);
+        setError("E-posta veya şifre hatalı!");
+        setLoading(false);
+        return;
+      }
+      const uid = authResult.user.uid;
+      const email = authResult.user.email;
       // Firestore'dan kullanıcı bilgisini çek
       const db = firebase.firestore();
-      // Önce UID ile dene, bulamazsa email ile sorgula
-      let docSnap = await db.collection("kullanicilar").doc(uid).get();
-      let docRef = null;
-      if (!docSnap.exists) {
-        console.warn("[KS] LOGIN: UID ile bulunamadı, email ile deneniyor:", email);
-        const q = await db.collection("kullanicilar").where("email", "==", email).limit(1).get();
-        if (!q.empty) { docSnap = q.docs[0]; docRef = q.docs[0].id; }
+      let docSnap, docRef = null;
+      try {
+        // Önce UID ile dene, bulamazsa email ile sorgula
+        docSnap = await db.collection("kullanicilar").doc(uid).get();
+        console.log("[KS] LOGIN UID araması — exists:", docSnap.exists, "uid:", uid);
+        if (!docSnap.exists) {
+          console.warn("[KS] LOGIN: UID ile bulunamadı, email ile deneniyor:", email);
+          const q = await db.collection("kullanicilar").where("email", "==", email).limit(1).get();
+          if (!q.empty) { docSnap = q.docs[0]; docRef = q.docs[0].id; console.log("[KS] LOGIN email ile bulundu, docId:", docRef); }
+        }
+      } catch (fsErr) {
+        console.error("[KS] Firestore okuma hatası:", fsErr.code, fsErr.message);
+        setError("Firestore erişim hatası: " + (fsErr.code || fsErr.message) + " — Güvenlik kurallarınızı kontrol edin.");
+        await firebase.auth().signOut();
+        setLoading(false);
+        return;
       }
       let userInfo;
-      if (docSnap.exists) {
+      if (docSnap && docSnap.exists) {
         const data = docSnap.data();
         // Hesap durumu kontrolü
         if (data.status && data.status !== "active") {
@@ -760,17 +777,13 @@ function LoginPage({ onLogin, dbStatus }) {
         // Son giriş güncelle
         db.collection("kullanicilar").doc(docRef || uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
         const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
-        console.log("[KS] LOGIN uid:", uid, "| docId:", docRef||uid, "| Firestore data:", JSON.stringify(data), "| normalizedRole:", normalizedRole);
+        console.log("[KS] LOGIN başarılı — uid:", uid, "| docId:", docRef||uid, "| rol:", normalizedRole, "| data:", JSON.stringify(data));
         userInfo = { role: normalizedRole || "unknown", name: data.name || email, photoURL: data.photoURL || null };
       } else {
-        console.warn("[KS] LOGIN: Firestore'da kullanıcı bulunamadı. uid:", uid, "email:", email);
+        console.warn("[KS] LOGIN: Firestore'da kullanıcı bulunamadı — uid:", uid, "| email:", email, "| Koleksiyon: kullanicilar");
         userInfo = { role: "unknown", name: email, photoURL: null };
       }
       onLogin({ ...userInfo, email, id: uid });
-    } catch (err) {
-      setError("E-posta veya şifre hatalı!");
-      setLoading(false);
-    }
   };
 
   return (
@@ -4465,15 +4478,22 @@ function App() {
         try {
           const db = firebase.firestore();
           // Önce UID ile dene, bulamazsa email ile sorgula
-          let docSnap2 = await db.collection("kullanicilar").doc(firebaseUser.uid).get();
-          let docRef2 = null;
-          if (!docSnap2.exists) {
-            console.warn("[KS] AUTO-LOGIN: UID ile bulunamadı, email ile deneniyor:", firebaseUser.email);
-            const q2 = await db.collection("kullanicilar").where("email", "==", firebaseUser.email).limit(1).get();
-            if (!q2.empty) { docSnap2 = q2.docs[0]; docRef2 = q2.docs[0].id; }
+          let docSnap2, docRef2 = null;
+          try {
+            docSnap2 = await db.collection("kullanicilar").doc(firebaseUser.uid).get();
+            console.log("[KS] AUTO-LOGIN UID araması — exists:", docSnap2.exists, "uid:", firebaseUser.uid);
+            if (!docSnap2.exists) {
+              console.warn("[KS] AUTO-LOGIN: UID ile bulunamadı, email ile deneniyor:", firebaseUser.email);
+              const q2 = await db.collection("kullanicilar").where("email", "==", firebaseUser.email).limit(1).get();
+              if (!q2.empty) { docSnap2 = q2.docs[0]; docRef2 = q2.docs[0].id; console.log("[KS] AUTO-LOGIN email ile bulundu, docId:", docRef2); }
+            }
+          } catch (fsErr) {
+            console.error("[KS] AUTO-LOGIN Firestore hatası:", fsErr.code, fsErr.message);
+            await firebase.auth().signOut();
+            return;
           }
           let userInfo;
-          if (docSnap2.exists) {
+          if (docSnap2 && docSnap2.exists) {
             const data = docSnap2.data();
             // Hesap durumu kontrolü (auto-login sırasında)
             if (data.status && data.status !== "active") {
@@ -4483,14 +4503,14 @@ function App() {
             // Son giriş güncelle
             db.collection("kullanicilar").doc(docRef2 || firebaseUser.uid).update({ lastLogin: new Date().toISOString() }).catch(() => {});
             const normalizedRole = String(data?.role || data?.rol || "").trim().toLowerCase();
-            console.log("[KS] AUTO-LOGIN uid:", firebaseUser.uid, "| docId:", docRef2||firebaseUser.uid, "| normalizedRole:", normalizedRole);
+            console.log("[KS] AUTO-LOGIN başarılı — uid:", firebaseUser.uid, "| docId:", docRef2||firebaseUser.uid, "| rol:", normalizedRole);
             userInfo = { role: normalizedRole || "unknown", name: data.name || firebaseUser.email, photoURL: data.photoURL || null };
           } else {
-            console.warn("[KS] AUTO-LOGIN: Firestore'da kullanıcı bulunamadı. uid:", firebaseUser.uid, "email:", firebaseUser.email);
+            console.warn("[KS] AUTO-LOGIN: Firestore'da kullanıcı bulunamadı — uid:", firebaseUser.uid, "| email:", firebaseUser.email, "| Koleksiyon: kullanicilar");
             userInfo = { role: "unknown", name: firebaseUser.email, photoURL: null };
           }
           setUser({ ...userInfo, email: firebaseUser.email, id: firebaseUser.uid });
-        } catch (e) {}
+        } catch (e) { console.error("[KS] AUTO-LOGIN beklenmedik hata:", e); }
       }
     });
     return () => unsubscribe();
