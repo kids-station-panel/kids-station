@@ -2794,9 +2794,24 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const db = firebase.firestore();
-      const snap = await db.collection(USER_COL).get();
-      setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const dbLocal = firebase.firestore();
+      const [userSnap, staffSnap] = await Promise.all([
+        dbLocal.collection(USER_COL).get(),
+        dbLocal.collection("staff").get(),
+      ]);
+      const allUsers = userSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setUsers(allUsers);
+      // Öğretmen-Personel otomatik senkronizasyon: staff kaydı olmayan teacher'ları ekle
+      const existingStaffUserIds = new Set(staffSnap.docs.map(d => d.data().userId || d.id));
+      const missingTeachers = allUsers.filter(u =>
+        u.role === "teacher" && u.status !== "deleted" && !existingStaffUserIds.has(String(u.id))
+      );
+      if (missingTeachers.length > 0 && onTeacherCreated) {
+        console.log("[KS] Eksik personel kaydı oluşturuluyor:", missingTeachers.length);
+        missingTeachers.forEach(t => {
+          onTeacherCreated(t.id, t.name || "", t.email || "", t.phone || "", "");
+        });
+      }
     } catch (e) { showToast("Kullanıcılar yüklenemedi: " + e.message, C.red); }
     setLoading(false);
   };
