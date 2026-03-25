@@ -4808,10 +4808,19 @@ function App() {
   // Firebase oturum kontrolü — Beni Hatırla aktifse otomatik giriş
   useEffect(() => {
     const auth = firebase.auth();
+    const snap2arrLocal = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return {...data, id: d.id}; });
+    // Auth sonrası kritik koleksiyonları zorla yenile — auth öncesi snapshot boş gelirse düzeltir
+    const refreshDataAfterAuth = () => {
+      [["members", setMembersRaw], ["staff", setStaffRaw], ["finance", setFinanceRaw],
+       ["announcements", setAnnouncementsRaw], ["schedule", setScheduleRaw]].forEach(([col, setter]) => {
+        db.collection(col).get().then(snap => {
+          if (!_fsWriting[col]) setter(snap2arrLocal(snap));
+        }).catch(() => {});
+      });
+    };
     const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
-      if (firebaseUser && !user) {
+      if (firebaseUser) {
         try {
-          const db = firebase.firestore();
           const found = await findUserDoc(db, firebaseUser.uid, firebaseUser.email);
           if (!found) {
             console.warn("[KS] AUTO-LOGIN: Kullanıcı bulunamadı — uid:", firebaseUser.uid);
@@ -4827,6 +4836,8 @@ function App() {
           const role = String(data.role || "").trim().toLowerCase();
           console.log("[KS] AUTO-LOGIN OK — uid:", firebaseUser.uid, "col:", found.col, "role:", role);
           setUser({ role: role || "unknown", name: data.name || firebaseUser.email, email: firebaseUser.email, id: firebaseUser.uid, photoURL: data.photoURL || null });
+          // Auth tamamlandı — verileri zorla yenile (auth race condition önlemi)
+          refreshDataAfterAuth();
         } catch (e) { console.error("[KS] AUTO-LOGIN hatası:", e); }
       }
     });
@@ -4992,26 +5003,39 @@ function App() {
     rewards: <RewardsPage members={members} />,
     users: <UserManagementPage
       onTeacherCreated={(uid, name, email, phone, branch) => {
+        const today = new Date().toISOString().slice(0, 10);
         const newStaffRecord = {
           id: uid, name, email, phone: phone || "",
           role: "Antrenör", employmentType: "Tam Zamanlı", shift: "Sabah",
           emergencyContact: "", address: "", birthDate: "",
-          startDate: new Date().toISOString().slice(0, 10),
+          startDate: today,
           branches: branch ? [branch] : [], salary: 0, salaryHistory: [], notes: "",
           username: uid, userId: uid, photo: null, individualStudents: [],
           isTeacherAccount: true, userStatus: "active",
         };
-        setStaff(prev => [...prev, newStaffRecord]);
+        // Doğrudan Firestore'a yaz — batch delete-recreate'ten daha güvenilir
+        db.collection("staff").doc(String(uid)).set({ ...newStaffRecord, _order: Date.now() })
+          .then(() => console.log("[KS] Staff kaydı oluşturuldu:", uid))
+          .catch(e => console.warn("[KS] Staff yazma hatası:", e));
+        // React state optimistic güncelle (setStaff kullanmıyoruz — fsSave conflict önlemek için)
+        setStaffRaw(prev => {
+          if (prev.find(s => s.id === uid || s.userId === uid)) return prev;
+          return [...prev, newStaffRecord];
+        });
       }}
       onTeacherStatusChange={(uid, newStatus) => {
-        setStaff(prev => prev.map(s =>
+        db.collection("staff").doc(String(uid)).update({ userStatus: newStatus })
+          .catch(e => console.warn("[KS] Staff status güncelleme hatası:", e));
+        setStaffRaw(prev => prev.map(s =>
           (s.userId === uid || s.id === uid || s.username === uid)
             ? { ...s, userStatus: newStatus }
             : s
         ));
       }}
       onTeacherEdited={(uid, name, phone) => {
-        setStaff(prev => prev.map(s =>
+        db.collection("staff").doc(String(uid)).update({ name, phone: phone || "" })
+          .catch(e => console.warn("[KS] Staff edit hatası:", e));
+        setStaffRaw(prev => prev.map(s =>
           (s.userId === uid || s.id === uid || s.username === uid)
             ? { ...s, name, phone: phone || s.phone }
             : s
