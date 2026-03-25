@@ -998,10 +998,12 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
     setShowAddPackage(false);
   };
 
-  const openEditPackage = () => {
-    if (!activeEnrollment?.activePackage) return;
-    const p = activeEnrollment.activePackage;
-    setEditPkgForm({ name: p.name, totalLessons: p.totalLessons, amount: p.amount||"", startDate: p.startDate||"", endDate: p.endDate||"" });
+  const openEditPackage = (enroll) => {
+    const target = enroll || activeEnrollment;
+    if (!target?.activePackage) return;
+    const p = target.activePackage;
+    setEditPkgForm({ name: p.name||"", totalLessons: p.totalLessons||0, amount: p.amount||"", startDate: p.startDate||"", endDate: p.endDate||"" });
+    if (enroll) setActiveTab(enroll.id);
     setShowEditPackage(true);
     setShowAddPackage(false);
   };
@@ -1247,7 +1249,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                     <div style={{ fontWeight: 900, fontSize: 14, color: C.text }}>📦 Aktif Paket</div>
                     <div style={{ display:"flex", gap:8 }}>
                       {activeEnrollment.activePackage && (
-                        <button style={{ ...btnOutlineStyle(C.blue), fontSize: 12, padding: "8px 14px" }} onClick={() => { setShowEditPackage(!showEditPackage); setShowAddPackage(false); if (!showEditPackage) openEditPackage(); }}>✏️ Düzenle</button>
+                        <button style={{ ...btnOutlineStyle(C.blue), fontSize: 12, padding: "8px 14px" }} onClick={() => { if (showEditPackage) { setShowEditPackage(false); } else { openEditPackage(); } }}>✏️ Düzenle</button>
                       )}
                       <button style={{ ...btnStyle(C.orange), fontSize: 12, padding: "8px 14px" }} onClick={() => { setShowAddPackage(!showAddPackage); setShowEditPackage(false); }}>+ Yeni Paket</button>
                     </div>
@@ -1476,12 +1478,13 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                     <Badge color={cfg.c}>{cfg.l}</Badge>
                   </div>
                 </div>
-                <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:8 }}>
                   {[["bekliyor","⏳ Bekliyor",C.orange],["kismi","🔶 Kısmi","#f59e0b"],["odendi","✅ Ödendi",C.green],["gecikti","🔴 Gecikmeli",C.red],["iptal","⛔ İptal",C.textDim]].map(([s,lbl,col]) => (
                     <button key={s} onClick={() => updatePayment(e.id, s, s==="odendi"?new Date().toISOString().slice(0,10):"")}
                       style={{ padding:"5px 10px", borderRadius:20, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit", border:"1.5px solid "+col, background:pStatus===s?col:"transparent", color:pStatus===s?"#fff":col, transition:"all 0.15s" }}>{lbl}</button>
                   ))}
                 </div>
+                <button onClick={() => openEditPackage(e)} style={{ padding:"5px 12px", borderRadius:20, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit", border:`1.5px solid ${C.blue}`, background:"transparent", color:C.blue }}>✏️ Paketi Düzenle</button>
               </div>
             );
           })
