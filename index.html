@@ -3226,8 +3226,14 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const allChildren = (allParents||[]).flatMap(p => p.children||[]);
   const [qrModal, setQrModal] = useState(null);
 
+  // Bu öğretmene atanmış gruplar
+  const myGroups = (groups||[]).filter(g =>
+    g.isActive && (g.teacherIds||[]).some(tid => String(tid) === String(user.id) || String(tid) === String(myStaff?.id))
+  );
+
   const navItems = [
     { key: "individual", label: "Bireysel Dersler", icon: "📚" },
+    { key: "groups", label: "Grup Dersleri", icon: "👥" },
     { key: "students", label: "Öğrenciler", icon: "👨‍🎓" },
     { key: "attendance", label: "Devamsızlık", icon: "📅" },
     { key: "notes", label: "Seans Notları", icon: "📝" },
@@ -3446,6 +3452,65 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {page === "groups" && (
+          <div className="fade-in">
+            <div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 4 }}>👥 Grup Derslerim</div>
+            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Size atanan gruplar ve öğrenciler</div>
+            {myGroups.length === 0 ? (
+              <Card>
+                <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
+                  <div style={{ fontSize:40, marginBottom:10 }}>👥</div>
+                  <div style={{ fontWeight:700, fontSize:15 }}>Henüz gruba atanmadınız.</div>
+                  <div style={{ fontSize:13, marginTop:4 }}>Admin tarafından bir gruba eklendiğinde burada görünecek.</div>
+                </div>
+              </Card>
+            ) : myGroups.map(g => {
+              const branchName = (branches||[]).find(b => b.id === g.branchId)?.name || "-";
+              const groupStudents = (g.studentIds||[]).map(sid => allChildren.find(c => String(c.id) === String(sid))).filter(Boolean);
+              return (
+                <Card key={g.id}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                    <div>
+                      <div style={{ fontSize:18, fontWeight:900, color:C.text }}>{g.name}</div>
+                      <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>{branchName} · {g.type === "individual" ? "Bireysel" : "Grup"}</div>
+                      <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
+                        <Badge color={C.blue}>{branchName}</Badge>
+                        <Badge color={C.orange}>{groupStudents.length} öğrenci</Badge>
+                      </div>
+                    </div>
+                    <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>Öğrenciler</div>
+                    {groupStudents.length === 0 ? (
+                      <div style={{ fontSize:13, color:C.textDim }}>Bu grupta öğrenci yok.</div>
+                    ) : (
+                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                        {groupStudents.map(child => {
+                          const age = calcAge(child.birthDate);
+                          const remaining = (child.enrollments||[]).reduce((s,e) => s+(e.activePackage?e.activePackage.totalLessons-e.activePackage.usedLessons:0),0);
+                          return (
+                            <div key={child.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#f5f8ff", borderRadius:10 }}>
+                              <div>
+                                <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
+                                <div style={{ fontSize:12, color:C.textDim, marginTop:2, fontWeight:600 }}>{age} yaş · {(child.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
+                              </div>
+                              <div style={{ display:"flex", gap:6 }}>
+                                <Badge color={child.status === "Aktif" ? C.green : C.red}>{child.status}</Badge>
+                                <Badge color={remaining<=3?C.red:C.blue}>📚 {remaining}</Badge>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              );
+            })}
           </div>
         )}
 
