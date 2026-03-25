@@ -1545,7 +1545,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
 
 
 // ── VELİ DETAY SAYFASI ──────────────────────────────────────
-function ParentDetail({ parent, onBack, parents, setParents }) {
+function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ ...parent });
   const [selectedChild, setSelectedChild] = useState(null);
@@ -1765,7 +1765,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 
   if (selectedParent) {
     const fresh = parents.find(p => p.id === selectedParent.id) || selectedParent;
-    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} />;
+    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} />;
   }
 
   const allChildren = parents.flatMap(p => p.children || []);
