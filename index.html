@@ -3076,7 +3076,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange }) {
 }
 
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
-function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, onUpdatePhoto }) {
+function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, onUpdatePhoto }) {
   const isMobile = useIsMobile(600);
   const [page, setPage] = useState("individual");
   const [showProfile, setShowProfile] = useState(false);
@@ -3603,7 +3603,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         )}
 
         {page === "calendar" && (
-          <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={myStaff ? [myStaff] : []} schedule={schedule} setSchedule={() => {}} isAdmin={false} />
+          <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff||[]} schedule={schedule} setSchedule={setSchedule||(() => {})} isAdmin={false} currentUser={user} canAdd={true} />
         )}
       </div>
     </div>
@@ -3787,7 +3787,7 @@ function NotificationsPage({ members, finance, staff, dismissedNotifs, setDismis
 }
 
 // ── TAKVİM / HAFTALIK PROGRAM ────────────────────────────────
-function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
+function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentUser, canAdd }) {
   const allChildren = (members||[]).flatMap(p => p.children||[]);
   const days = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"];
   const dayShort = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
@@ -3807,87 +3807,156 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
     });
   });
 
-  // Manuel eklenen + auto slotlar birleşik
-  const allSlots = [...autoSlots, ...(schedule||[])];
+  // "until" girişleri için bitiş tarihi kontrolü
+  const todayStr = new Date().toISOString().slice(0,10);
+  const filteredSchedule = (schedule||[]).filter(s => {
+    if (s.repeat === "until" && s.repeatUntil && s.repeatUntil < todayStr) return false;
+    return true;
+  });
+  const allSlots = [...autoSlots, ...filteredSchedule];
 
   const [view, setView] = useState("liste");
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
-  const [form, setForm] = useState({ title:"", branch:"Futbol", day:"Pzt", time:"09:00", endTime:"10:00", teacher:"", type:"Grup", notes:"" });
+  const [conflicts, setConflicts] = useState([]);
+  const emptyForm = { title:"", branch:"Futbol", day:"Pzt", time:"09:00", endTime:"10:00", teacher:"", type:"Grup", notes:"", repeat:"weekly", repeatUntil:"" };
+  const [form, setForm] = useState(emptyForm);
+
+  // Çakışma tespiti
+  const checkConflicts = (f, excludeId=null) => {
+    const warns = [];
+    const toMin = t => { if (!t) return null; const [h,m] = t.split(":"); return +h*60 + +m; };
+    allSlots.forEach(s => {
+      if (s.id === excludeId) return;
+      if (s.day !== f.day) return;
+      const s1=toMin(f.time), e1=f.endTime?toMin(f.endTime):((s1||0)+60);
+      const s2=toMin(s.time), e2=s.endTime?toMin(s.endTime):((s2||0)+60);
+      if (s1===null || s2===null) return;
+      if (!(s1 < e2 && e1 > s2)) return;
+      if (f.teacher && s.teacher && f.teacher === s.teacher)
+        warns.push(`⚠️ Öğretmen çakışması: ${s.teacher} — "${s.title}" (${s.time}${s.endTime?"-"+s.endTime:""})`);
+    });
+    return warns;
+  };
+
+  const handleFormChange = (updates) => {
+    const newForm = { ...form, ...updates };
+    setForm(newForm);
+    setConflicts(checkConflicts(newForm, editItem?.id));
+  };
 
   const openAdd = () => {
     setEditItem(null);
-    setForm({ title:"", branch:"Futbol", day:"Pzt", time:"09:00", endTime:"10:00", teacher:"", type:"Grup", notes:"" });
+    const teacherName = !isAdmin && currentUser ? (currentUser.name||"") : "";
+    setForm({ ...emptyForm, teacher: teacherName });
+    setConflicts([]);
     setShowModal(true);
   };
   const openEdit = (item) => {
     setEditItem(item);
-    setForm({ title:item.title, branch:item.branch, day:item.day, time:item.time, endTime:item.endTime||"", teacher:item.teacher, type:item.type||"Grup", notes:item.notes||"" });
+    setForm({ title:item.title, branch:item.branch||"Futbol", day:item.day, time:item.time, endTime:item.endTime||"", teacher:item.teacher||"", type:item.type||"Grup", notes:item.notes||"", repeat:item.repeat||"weekly", repeatUntil:item.repeatUntil||"" });
+    setConflicts([]);
     setShowModal(true);
   };
   const saveItem = () => {
     if (!form.title.trim()) return;
+    const warns = checkConflicts(form, editItem?.id);
+    if (warns.length > 0) {
+      const ok = window.confirm(`Çakışma tespit edildi:\n${warns.join("\n")}\n\nYine de kaydetmek istiyor musunuz?`);
+      if (!ok) return;
+    }
     if (editItem) {
-      setSchedule(prev => (prev||[]).map(s => s.id===editItem.id ? {...s,...form} : s));
+      setSchedule(prev => (prev||[]).map(s => s.id===editItem.id ? {...s,...form, updatedAt:new Date().toISOString(), updatedBy:currentUser?.name||""} : s));
     } else {
-      const newItem = { id: Date.now(), ...form };
+      const newItem = { id:Date.now(), ...form, addedBy:currentUser?.name||"Sistem", addedByRole:currentUser?.role||"unknown", addedById:currentUser?.id||null, createdAt:new Date().toISOString() };
       setSchedule(prev => [...(prev||[]), newItem]);
     }
     setShowModal(false);
   };
   const deleteItem = (id) => {
+    if (!window.confirm("Bu girişi silmek istediğinizden emin misiniz?")) return;
     setSchedule(prev => (prev||[]).filter(s => s.id !== id));
   };
+
+  const canEditItem = (item) => {
+    if (item.isAuto) return false;
+    if (isAdmin) return true;
+    if (currentUser && item.addedById && item.addedById === currentUser.id) return true;
+    return false;
+  };
+
+  const canAddEntry = isAdmin || canAdd;
 
   return (
     <div className="fade-in">
       {showModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
           onClick={() => setShowModal(false)}>
-          <div style={{ background:"#fff", borderRadius:20, padding:24, maxWidth:440, width:"100%", maxHeight:"90vh", overflowY:"auto" }}
+          <div style={{ background:"#fff", borderRadius:20, padding:24, maxWidth:460, width:"100%", maxHeight:"90vh", overflowY:"auto" }}
             onClick={e => e.stopPropagation()}>
             <div style={{ fontWeight:900, fontSize:18, color:C.text, marginBottom:18 }}>{editItem ? "✏️ Düzenle" : "➕ Yeni Etkinlik"}</div>
+            {conflicts.length > 0 && (
+              <div style={{ background:"#fff3cd", border:"1.5px solid #ffc107", borderRadius:10, padding:"10px 14px", marginBottom:14 }}>
+                {conflicts.map((c,i) => <div key={i} style={{ fontSize:12, color:"#856404", fontWeight:700 }}>{c}</div>)}
+              </div>
+            )}
             <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
               <div>
                 <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Başlık *</label>
-                <input style={inputStyle} value={form.title} onChange={e => setForm(f=>({...f,title:e.target.value}))} placeholder="Ders/Etkinlik adı" />
+                <input style={inputStyle} value={form.title} onChange={e => handleFormChange({title:e.target.value})} placeholder="Ders/Etkinlik adı" />
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 <div>
                   <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Branş</label>
-                  <select style={inputStyle} value={form.branch} onChange={e => setForm(f=>({...f,branch:e.target.value}))}>
+                  <select style={inputStyle} value={form.branch} onChange={e => handleFormChange({branch:e.target.value})}>
                     {["Futbol","Jimnastik","Yüzme","Basketbol","Tenis","Diğer"].map(b => <option key={b}>{b}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Gün</label>
-                  <select style={inputStyle} value={form.day} onChange={e => setForm(f=>({...f,day:e.target.value}))}>
+                  <select style={inputStyle} value={form.day} onChange={e => handleFormChange({day:e.target.value})}>
                     {dayShort.map(d => <option key={d}>{d}</option>)}
                   </select>
                 </div>
                 <div>
                   <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Başlangıç</label>
-                  <input type="time" style={inputStyle} value={form.time} onChange={e => setForm(f=>({...f,time:e.target.value}))} />
+                  <input type="time" style={inputStyle} value={form.time} onChange={e => handleFormChange({time:e.target.value})} />
                 </div>
                 <div>
                   <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Bitiş</label>
-                  <input type="time" style={inputStyle} value={form.endTime} onChange={e => setForm(f=>({...f,endTime:e.target.value}))} />
+                  <input type="time" style={inputStyle} value={form.endTime} onChange={e => handleFormChange({endTime:e.target.value})} />
                 </div>
               </div>
               <div>
                 <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Eğitmen</label>
-                <input style={inputStyle} value={form.teacher} onChange={e => setForm(f=>({...f,teacher:e.target.value}))} placeholder="Eğitmen adı" list="cal-teacher-list" />
+                <input style={inputStyle} value={form.teacher} onChange={e => handleFormChange({teacher:e.target.value})} placeholder="Eğitmen adı" list="cal-teacher-list" />
                 <datalist id="cal-teacher-list">{(staff||[]).filter(s => !s.userStatus || s.userStatus === "active").map(s=><option key={s.id} value={s.name}/>)}</datalist>
               </div>
-              <div>
-                <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Tür</label>
-                <select style={inputStyle} value={form.type} onChange={e => setForm(f=>({...f,type:e.target.value}))}>
-                  {["Grup","Bireysel","Etkinlik","Toplantı","Diğer"].map(t => <option key={t}>{t}</option>)}
-                </select>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Tür</label>
+                  <select style={inputStyle} value={form.type} onChange={e => handleFormChange({type:e.target.value})}>
+                    {["Grup","Bireysel","Etkinlik","Toplantı","Diğer"].map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Tekrar</label>
+                  <select style={inputStyle} value={form.repeat} onChange={e => handleFormChange({repeat:e.target.value})}>
+                    <option value="once">Tek Sefer</option>
+                    <option value="weekly">Her Hafta</option>
+                    <option value="until">Tarihe Kadar</option>
+                  </select>
+                </div>
               </div>
+              {form.repeat === "until" && (
+                <div>
+                  <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Bitiş Tarihi</label>
+                  <input type="date" style={inputStyle} value={form.repeatUntil} onChange={e => handleFormChange({repeatUntil:e.target.value})} />
+                </div>
+              )}
               <div>
                 <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Notlar</label>
-                <textarea style={{...inputStyle, height:60, resize:"none"}} value={form.notes} onChange={e => setForm(f=>({...f,notes:e.target.value}))} placeholder="Opsiyonel not..." />
+                <textarea style={{...inputStyle, height:60, resize:"none"}} value={form.notes} onChange={e => handleFormChange({notes:e.target.value})} placeholder="Opsiyonel not..." />
               </div>
             </div>
             <div style={{ display:"flex", gap:10, marginTop:18 }}>
@@ -3902,10 +3971,10 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
         <div>
           <div className="ks-page-title" style={{ marginBottom:2, color:C.text }}>📅 Haftalık Program</div>
           <div style={{ fontSize:14, color:C.textDim, fontWeight:600 }}>
-            {isAdmin ? "Tüm ders ve etkinlik programı" : "Ders programınız (salt okunur)"}
+            {isAdmin ? "Tüm ders ve etkinlik programı" : "Paylaşımlı program — herkes görebilir, kendi girişini düzenleyebilir"}
           </div>
         </div>
-        {isAdmin && (
+        {canAddEntry && (
           <button style={btnStyle(C.green)} onClick={openAdd}>➕ Ekle</button>
         )}
       </div>
@@ -3934,10 +4003,11 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
                   return (
                     <div key={d} style={{ minHeight:48, background:slotItems.length?"transparent":"#f9faff", borderRadius:6, border:`1px solid ${C.border}`, position:"relative", overflow:"hidden" }}>
                       {slotItems.map((s,i) => (
-                        <div key={i} onClick={() => isAdmin && !s.isAuto && openEdit(s)}
-                          style={{ background:(branchColors[s.branch]||C.blue)+"22", border:`1.5px solid ${branchColors[s.branch]||C.blue}44`, borderRadius:6, padding:"4px 6px", margin:2, cursor: isAdmin&&!s.isAuto?"pointer":"default" }}>
+                        <div key={i} onClick={() => canEditItem(s) && openEdit(s)}
+                          style={{ background:(branchColors[s.branch]||C.blue)+"22", border:`1.5px solid ${branchColors[s.branch]||C.blue}44`, borderRadius:6, padding:"4px 6px", margin:2, cursor:canEditItem(s)?"pointer":"default" }}>
                           <div style={{ fontSize:10, fontWeight:900, color:branchColors[s.branch]||C.blue, lineHeight:1.3 }}>{s.title}</div>
                           <div style={{ fontSize:9, color:C.textDim, fontWeight:600 }}>{s.branch} · {(s.teacher||"").split(" ")[0]}</div>
+                          {s.addedBy && <div style={{ fontSize:8, color:C.textDim, fontStyle:"italic" }}>{s.addedBy}</div>}
                         </div>
                       ))}
                     </div>
@@ -3959,17 +4029,23 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
                 <div style={{ fontWeight:900, fontSize:15, color:C.text, marginBottom:10, paddingBottom:6, borderBottom:`2px solid ${C.border}` }}>{day}</div>
                 {daySlots.map((s) => (
                   <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 14px", marginBottom:8, borderRadius:12, background:(branchColors[s.branch]||C.blue)+"0e", border:`1.5px solid ${branchColors[s.branch]||C.blue}22` }}>
-                    <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:12, flex:1, minWidth:0 }}>
                       <div style={{ fontWeight:900, fontSize:14, color:branchColors[s.branch]||C.blue, minWidth:45 }}>{s.time}{s.endTime?" - "+s.endTime:""}</div>
-                      <div>
+                      <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{s.title}</div>
                         <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.branch} · {s.teacher}</div>
                         {s.notes && <div style={{ fontSize:11, color:C.textDim, fontStyle:"italic" }}>{s.notes}</div>}
+                        <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:3, flexWrap:"wrap" }}>
+                          {s.repeat && s.repeat !== "once" && (
+                            <Badge color={C.blue}>{s.repeat==="weekly" ? "🔁 Her Hafta" : s.repeat==="until" ? `🔁 ${s.repeatUntil ? s.repeatUntil+" kadar" : "Tekrarlayan"}` : ""}</Badge>
+                          )}
+                          {s.addedBy && <span style={{ fontSize:10, color:C.textDim, fontWeight:600 }}>Ekleyen: {s.addedBy}</span>}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                    <div style={{ display:"flex", gap:6, alignItems:"center", flexShrink:0 }}>
                       <Badge color={branchColors[s.branch]||C.blue}>{s.type||"Ders"}</Badge>
-                      {isAdmin && !s.isAuto && (
+                      {canEditItem(s) && (
                         <>
                           <button onClick={() => openEdit(s)} style={{ ...btnOutlineStyle(C.blue), padding:"4px 10px", fontSize:12 }}>✏️</button>
                           <button onClick={() => deleteItem(s.id)} style={{ ...btnOutlineStyle(C.red), padding:"4px 10px", fontSize:12 }}>🗑️</button>
@@ -3986,7 +4062,7 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin }) {
               <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
                 <div style={{ fontSize:40, marginBottom:8 }}>📅</div>
                 <div style={{ fontWeight:700 }}>Henüz program girilmemiş.</div>
-                {isAdmin && <div style={{ fontSize:13, marginTop:4 }}>➕ Ekle butonuyla ders/etkinlik ekleyebilirsiniz.</div>}
+                {canAddEntry && <div style={{ fontSize:13, marginTop:4 }}>➕ Ekle butonuyla ders/etkinlik ekleyebilirsiniz.</div>}
               </div>
             </Card>
           )}
@@ -4751,15 +4827,13 @@ function App() {
     const assignedIds = new Set((myStaff?.individualStudents || []).map(a => Number(a.childId)));
     const allChildren = members.flatMap(p => p.children || []);
     const myChildren = assignedIds.size > 0 ? allChildren.filter(c => assignedIds.has(Number(c.id))) : [];
-    // Sadece bu öğretmene ait çizelge girişleri
-    const mySchedule = schedule.filter(sl => !sl.teacher || sl.teacher === myStaff?.name);
     return <TeacherPanel user={user} members={myChildren}
       announcements={announcements} setAnnouncements={setAnnouncements}
       attendance={[]} setAttendance={() => {}}
       staff={staff} setStaff={setStaff}
       allParents={members} setAllParents={setMembers}
       channels={channels} channelMessages={channelMessages}
-      schedule={mySchedule}
+      schedule={schedule} setSchedule={setSchedule}
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
   }
 
@@ -4792,7 +4866,7 @@ function App() {
     finance: <FinancePage finance={finance} setFinance={setFinance} />,
     reports: <ReportsPage members={members} finance={finance} staff={staff} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
-    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} />,
+    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} currentUser={user} canAdd={true} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={true} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
