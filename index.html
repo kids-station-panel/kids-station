@@ -193,7 +193,7 @@ const initParents = [
     parent1Name: "Ahmet Yılmaz", parent1Phone: "0532 111 2233",
     parent2Name: "Fatma Yılmaz", parent2Phone: "0532 111 9999",
     children: [
-      { id: 101, parentId: 1, name: "Ali Yılmaz", birthDate: "2016-05-10", class: "A Grubu",
+      { id: 101, parentId: 1, name: "Ali Yılmaz", birthDate: "2016-05-10",
         status: "Aktif", trainerNote: "Ali bu ay koordinasyon çalışmalarında çok iyi ilerleme kaydetti.", photo: null, reports: [],
         enrollments: [
           {
@@ -226,7 +226,7 @@ const initParents = [
     parent1Name: "Mehmet Kaya", parent1Phone: "0541 222 3344",
     parent2Name: "Zeynep Kaya", parent2Phone: "0541 222 5566",
     children: [
-      { id: 201, parentId: 2, name: "Elif Kaya", birthDate: "2015-08-22", class: "B Grubu",
+      { id: 201, parentId: 2, name: "Elif Kaya", birthDate: "2015-08-22",
         status: "Aktif", trainerNote: "", photo: null, reports: [],
         enrollments: [
           { id: 20101, branchName: "Jimnastik", lessonType: "Grup",
@@ -240,7 +240,7 @@ const initParents = [
           }
         ]
       },
-      { id: 202, parentId: 2, name: "Can Kaya", birthDate: "2018-01-15", class: "C Grubu",
+      { id: 202, parentId: 2, name: "Can Kaya", birthDate: "2018-01-15",
         status: "Aktif", trainerNote: "Su korkusunu yendi, harika ilerleme!", photo: null, reports: [],
         enrollments: [
           { id: 20201, branchName: "Yüzme", lessonType: "Bireysel",
@@ -262,7 +262,7 @@ const initParents = [
     parent1Name: "Selin Arslan", parent1Phone: "0505 444 5566",
     parent2Name: "", parent2Phone: "",
     children: [
-      { id: 301, parentId: 3, name: "Mert Arslan", birthDate: "2017-11-03", class: "A Grubu",
+      { id: 301, parentId: 3, name: "Mert Arslan", birthDate: "2017-11-03",
         status: "Aktif", trainerNote: "", photo: null, reports: [],
         enrollments: [
           { id: 30101, branchName: "Basketbol", lessonType: "Grup",
@@ -880,7 +880,7 @@ function AdminDashboard({ members, finance, staff }) {
             <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: C.text }}>{m.name}</div>
-                <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, fontWeight: 600 }}>{(m.enrollments||[]).map(e=>e.branchName).join(", ")||"-"} · {m.class}</div>
+                <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, fontWeight: 600 }}>{(m.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
               </div>
               <Badge color={m.status === "Aktif" ? C.green : C.red}>{m.status}</Badge>
             </div>
@@ -933,7 +933,7 @@ function calcAge(birthDate) {
 }
 
 // ── ÇOCUK DETAY SAYFASI ──────────────────────────────────────
-function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance }) {
+function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches }) {
   const freshChild = parents.find(p => p.id === parent.id)?.children.find(c => c.id === child.id) || child;
   const enrollments = freshChild.enrollments || [];
 
@@ -1066,7 +1066,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
     updateEnrollment(activeEnrollment.id, { attendance: updatedAtt, activePackage: updatedPkg });
   };
 
-  const saveEdit = () => { updateChild({ name: editChild.name, birthDate: editChild.birthDate, class: editChild.class, status: editChild.status }); setEditing(false); };
+  const saveEdit = () => { updateChild({ name: editChild.name, birthDate: editChild.birthDate, status: editChild.status }); setEditing(false); };
   const saveNote = () => { updateChild({ trainerNote: noteText }); setNoteEdit(false); };
   const handlePhotoUpload = (e) => {
     const file = e.target.files[0]; if (!file) return;
@@ -1098,7 +1098,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
         <button onClick={onBack} style={{ ...btnOutlineStyle(C.blue), display: "flex", alignItems: "center", gap: 6 }}>← Geri</button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 22, fontWeight: 900, color: C.text }}>{freshChild.name}</div>
-          <div style={{ fontSize: 13, color: C.textDim, fontWeight: 600 }}>{freshChild.class} · {age} yaşında · {enrollments.length} branş</div>
+          <div style={{ fontSize: 13, color: C.textDim, fontWeight: 600 }}>{age} yaşında · {enrollments.length} branş</div>
         </div>
         <button style={btnStyle(C.blue)} onClick={() => { setEditChild({...freshChild}); setEditing(true); }}>✏️ Düzenle</button>
         <button style={btnStyle(C.red)} onClick={() => {
@@ -1137,11 +1137,6 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12 }}>
             <div><div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Ad Soyad</div><input style={inputStyle} value={editChild.name||""} onChange={e => setEditChild({...editChild, name: e.target.value})} /></div>
             <div><div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Doğum Tarihi</div><input style={inputStyle} type="date" value={editChild.birthDate||""} onChange={e => setEditChild({...editChild, birthDate: e.target.value})} /></div>
-            <div><div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Grup</div>
-              <select style={inputStyle} value={editChild.class||"A Grubu"} onChange={e => setEditChild({...editChild, class: e.target.value})}>
-                <option>A Grubu</option><option>B Grubu</option><option>C Grubu</option>
-              </select>
-            </div>
             <div><div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Durum</div>
               <select style={inputStyle} value={editChild.status||"Aktif"} onChange={e => setEditChild({...editChild, status: e.target.value})}>
                 <option>Aktif</option><option>Pasif</option>
@@ -1168,7 +1163,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
             </label>
           </div>
           <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 10 }}>
-            {[["🎂 Doğum Tarihi", freshChild.birthDate||"-"],["🎈 Yaş", age+" yaşında"],["🏫 Grup", freshChild.class],["📌 Durum", freshChild.status]].map(([l,v]) => (
+            {[["🎂 Doğum Tarihi", freshChild.birthDate||"-"],["🎈 Yaş", age+" yaşında"],["📌 Durum", freshChild.status]].map(([l,v]) => (
               <div key={l} style={{ background:"#f5f8ff", borderRadius:10, padding:"10px 14px" }}>
                 <div style={{ fontSize:11, color:C.textDim, fontWeight:800, textTransform:"uppercase", marginBottom:3 }}>{l}</div>
                 <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{v}</div>
@@ -1193,7 +1188,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
               <div>
                 <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Branş</div>
                 <select style={inputStyle} value={enrollForm.branchName} onChange={e => setEnrollForm({...enrollForm, branchName: e.target.value})}>
-                  {BRANCHES.map(b => <option key={b}>{b}</option>)}
+                  {(dynamicBranches && dynamicBranches.length > 0 ? dynamicBranches.map(b => b.name) : BRANCHES).map(b => <option key={b}>{b}</option>)}
                 </select>
               </div>
               <div>
@@ -1545,12 +1540,12 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
 
 
 // ── VELİ DETAY SAYFASI ──────────────────────────────────────
-function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance }) {
+function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ ...parent });
   const [selectedChild, setSelectedChild] = useState(null);
   const [showAddChild, setShowAddChild] = useState(false);
-  const [childForm, setChildForm] = useState({ name: "", birthDate: "", class: "A Grubu", branchName: "Futbol", lessonType: "Grup" });
+  const [childForm, setChildForm] = useState({ name: "", birthDate: "", branchName: "Futbol", lessonType: "Grup" });
 
   const freshParent = parents.find(p => p.id === parent.id) || parent;
 
@@ -1564,7 +1559,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
     const newChild = {
       id: Date.now(), parentId: parent.id,
       name: childForm.name, birthDate: childForm.birthDate,
-      class: childForm.class, status: "Aktif",
+      status: "Aktif",
       trainerNote: "", photo: null, reports: [],
       enrollments: childForm.branchName ? [{
         id: Date.now()+1, branchName: childForm.branchName, lessonType: childForm.lessonType||"Grup",
@@ -1572,13 +1567,13 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
       }] : [],
     };
     setParents(parents.map(p => p.id === parent.id ? { ...p, children: [...p.children, newChild] } : p));
-    setChildForm({ name: "", birthDate: "", branch: "", class: "A Grubu", plan: "Aylık", daysPerWeek: 3 });
+    setChildForm({ name: "", birthDate: "", branchName: "Futbol", lessonType: "Grup" });
     setShowAddChild(false);
   };
 
   if (selectedChild) {
     const freshChild = freshParent.children.find(c => c.id === selectedChild.id) || selectedChild;
-    return <ChildDetail child={freshChild} parent={freshParent} onBack={() => setSelectedChild(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} />;
+    return <ChildDetail child={freshChild} parent={freshParent} onBack={() => setSelectedChild(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} />;
   }
 
   return (
@@ -1666,15 +1661,9 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
                 <input style={inputStyle} type="date" value={childForm.birthDate} onChange={e => setChildForm({...childForm, birthDate: e.target.value})} />
               </div>
               <div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Grup</div>
-                <select style={inputStyle} value={childForm.class} onChange={e => setChildForm({...childForm, class: e.target.value})}>
-                  <option>A Grubu</option><option>B Grubu</option><option>C Grubu</option>
-                </select>
-              </div>
-              <div>
                 <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>İlk Branş</div>
                 <select style={inputStyle} value={childForm.branchName} onChange={e => setChildForm({...childForm, branchName: e.target.value})}>
-                  {BRANCHES.map(b => <option key={b}>{b}</option>)}
+                  {(dynamicBranches && dynamicBranches.length > 0 ? dynamicBranches.map(b => b.name) : BRANCHES).map(b => <option key={b}>{b}</option>)}
                 </select>
               </div>
               <div>
@@ -1705,7 +1694,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
                 </div>
                 <div>
                   <div style={{ fontWeight: 900, fontSize: 15, color: C.text }}>{child.name}</div>
-                  <div style={{ fontSize: 13, color: C.textDim, marginTop: 2, fontWeight: 600 }}>{age} yaş · {child.branch} · {child.class}</div>
+                  <div style={{ fontSize: 13, color: C.textDim, marginTop: 2, fontWeight: 600 }}>{age} yaş · {(child.enrollments||[]).map(e=>e.branchName).join(", ") || "-"}</div>
                   <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
                     <Badge color={child.status === "Aktif" ? C.green : C.red}>{child.status}</Badge>
                     {(child.enrollments||[]).some(e=>e.activePackage&&!e.activePackage.paid) && <Badge color={C.orange}>⏳ Ödeme Bekliyor</Badge>}
@@ -1737,7 +1726,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
 }
 
 // ── VELİ LİSTESİ (ANA ÜYELER SAYFASI) ──────────────────────
-function MembersPage({ members: parents, setMembers: setParents, finance, setFinance }) {
+function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedParent, setSelectedParent] = useState(null);
@@ -1765,7 +1754,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 
   if (selectedParent) {
     const fresh = parents.find(p => p.id === selectedParent.id) || selectedParent;
-    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} />;
+    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} />;
   }
 
   const allChildren = parents.flatMap(p => p.children || []);
@@ -2091,7 +2080,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
                       {(() => {
                         const child = allChildren.find(c => c.id === Number(assignForm.childId));
                         const enrBranches = (child?.enrollments||[]).map(e=>e.branchName).filter(Boolean);
-                        const opts = enrBranches.length > 0 ? enrBranches : BRANCHES;
+                        const dynamicBranchNames = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b=>b.name) : BRANCHES; const opts = enrBranches.length > 0 ? enrBranches : dynamicBranchNames;
                         return opts.map(b => <option key={b} value={b}>{b}</option>);
                       })()}
                     </select>
@@ -2269,7 +2258,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
   );
 }
 
-function StaffPage({ staff, setStaff, finance, setFinance, allParents }) {
+function StaffPage({ staff, setStaff, finance, setFinance, allParents, branches: dynamicBranches }) {
   const [showAdd, setShowAdd]         = useState(false);
   const [selectedStaff, setSelected]  = useState(null);
   const [form, setForm]               = useState({ name:"", role:"Antrenör", employmentType:"Tam Zamanlı", shift:"Sabah", phone:"", salary:"", branches:"" });
@@ -2769,7 +2758,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto }
 }
 
 // ── KULLANICI YÖNETİMİ (ADMIN) ────────────────────────────
-function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacherEdited }) {
+function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacherEdited, branches: dynamicBranches }) {
   const [users, setUsers]               = useState([]);
   const [loading, setLoading]           = useState(true);
   const [searchQ, setSearchQ]           = useState("");
@@ -3111,7 +3100,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
               <div>
                 <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Branş</div>
                 <select style={inputStyle} value={form.branch} onChange={e => setForm(p => ({...p, branch: e.target.value}))}>
-                  {["Futbol","Jimnastik","Yüzme","Basketbol","Tenis","Diğer"].map(b => <option key={b}>{b}</option>)}
+                  {(dynamicBranches && dynamicBranches.length > 0 ? dynamicBranches.map(b=>b.name) : BRANCHES).map(b => <option key={b}>{b}</option>)}
                 </select>
               </div>
             )}
@@ -3211,7 +3200,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
 }
 
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
-function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, onUpdatePhoto }) {
+function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, branches, onUpdatePhoto }) {
   const isMobile = useIsMobile(600);
   const [page, setPage] = useState("individual");
   const [showProfile, setShowProfile] = useState(false);
@@ -3224,7 +3213,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0,10));
   const [devForm, setDevForm] = useState({});
 
-  const myClasses = [...new Set(members.map(m => m.class))];
+  // myClasses removed — class field deprecated, using groups collection instead
 
   // Öğretmen hesabını staff kaydıyla eşleştir: userId (yeni) veya email veya username (eski)
   const myStaff = (staff||[]).find(s =>
@@ -3260,7 +3249,6 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
       id: Date.now() + m.id,
       memberId: m.id,
       memberName: m.name,
-      class: m.class,
       date: selectedDate,
       status: attForm[m.id] || "Geldi",
     }));
@@ -3464,21 +3452,23 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         {page === "students" && (
           <div className="fade-in">
             <div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 4 }}>👨‍🎓 Öğrenci Listesi</div>
-            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Tüm gruplar ve üyeler</div>
-            {myClasses.map(cls => (
-              <Card key={cls}>
-                <CardTitle color={C.blue} icon="🏷️">{cls}</CardTitle>
-                {members.filter(m => m.class === cls).map(m => (
-                  <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: 15, color: C.text }}>{m.name}</div>
-                      <div style={{ fontSize: 13, color: C.textDim, marginTop: 3, fontWeight: 600 }}>{m.phone} · {m.plan}</div>
-                    </div>
-                    <Badge color={m.status === "Aktif" ? C.green : C.red}>{m.status}</Badge>
+            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Bireysel öğrencilerim</div>
+            <Card>
+              {members.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "24px 0", color: C.textDim }}>
+                  <div style={{ fontSize: 36, marginBottom: 8 }}>👨‍🎓</div>
+                  <div style={{ fontWeight: 700 }}>Henüz öğrenci atanmamış</div>
+                </div>
+              ) : members.map(m => (
+                <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 15, color: C.text }}>{m.name}</div>
+                    <div style={{ fontSize: 13, color: C.textDim, marginTop: 3, fontWeight: 600 }}>{(m.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
                   </div>
-                ))}
-              </Card>
-            ))}
+                  <Badge color={m.status === "Aktif" ? C.green : C.red}>{m.status}</Badge>
+                </div>
+              ))}
+            </Card>
           </div>
         )}
 
@@ -3503,7 +3493,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                   <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: `1px solid ${C.border}` }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: 14, color: C.text }}>{m.name}</div>
-                      <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600 }}>{m.class}</div>
+                      <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600 }}>{(m.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
                       {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange],["Telafi",C.blue],["İptal","#94a3b8"]].map(([s,col]) => (
@@ -3922,7 +3912,7 @@ function NotificationsPage({ members, finance, staff, dismissedNotifs, setDismis
 }
 
 // ── TAKVİM / HAFTALIK PROGRAM ────────────────────────────────
-function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentUser, canAdd }) {
+function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentUser, canAdd, branches: dynamicBranches }) {
   const allChildren = (members||[]).flatMap(p => p.children||[]);
   const days = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"];
   const dayShort = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
@@ -4044,7 +4034,7 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentU
                 <div>
                   <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Branş</label>
                   <select style={inputStyle} value={form.branch} onChange={e => handleFormChange({branch:e.target.value})}>
-                    {["Futbol","Jimnastik","Yüzme","Basketbol","Tenis","Diğer"].map(b => <option key={b}>{b}</option>)}
+                    {(dynamicBranches && dynamicBranches.length > 0 ? dynamicBranches.map(b=>b.name) : BRANCHES).map(b => <option key={b}>{b}</option>)}
                   </select>
                 </div>
                 <div>
@@ -4770,6 +4760,310 @@ function QRApproveButton({ qrData, qrModal, allParents, onApprove }) {
   );
 }
 
+// ── BRANŞLAR SAYFASI ──────────────────────────────────────
+function BranchesPage({ branches, setBranches }) {
+  const [form, setForm] = React.useState({ name: "", description: "" });
+  const [editId, setEditId] = React.useState(null);
+  const [editForm, setEditForm] = React.useState({});
+  const [showAdd, setShowAdd] = React.useState(false);
+
+  const addBranch = () => {
+    if (!form.name.trim()) return;
+    const newBranch = { id: String(Date.now()), name: form.name.trim(), description: form.description.trim(), isActive: true, createdAt: new Date().toISOString(), _order: Date.now() };
+    setBranches([...branches, newBranch]);
+    setForm({ name: "", description: "" });
+    setShowAdd(false);
+  };
+  const saveEdit = () => {
+    setBranches(branches.map(b => b.id === editId ? { ...b, ...editForm } : b));
+    setEditId(null);
+  };
+  const toggleActive = (id) => {
+    setBranches(branches.map(b => b.id === id ? { ...b, isActive: !b.isActive } : b));
+  };
+  const deleteBranch = (id) => {
+    if (!window.confirm("Bu branşı silmek istediğinize emin misiniz?")) return;
+    setBranches(branches.filter(b => b.id !== id));
+  };
+
+  return (
+    <div className="fade-in">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: C.text }}>⚽ Branş Yönetimi</div>
+          <div style={{ fontSize: 14, color: C.textDim, fontWeight: 600 }}>{branches.length} branş tanımlı</div>
+        </div>
+        <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Branş</button>
+      </div>
+
+      {showAdd && (
+        <Card style={{ border: "2px dashed " + C.blue + "44", background: "#f0f4ff", marginBottom: 16 }}>
+          <CardTitle color={C.blue} icon="➕">Yeni Branş Ekle</CardTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Branş Adı</div>
+              <input style={inputStyle} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Örn: Futbol, Yüzme..." />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Açıklama</div>
+              <input style={inputStyle} value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Branş açıklaması..." />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button style={btnStyle(C.green)} onClick={addBranch}>✓ Ekle</button>
+            <button style={btnOutlineStyle(C.red)} onClick={() => setShowAdd(false)}>İptal</button>
+          </div>
+        </Card>
+      )}
+
+      {branches.length === 0 ? (
+        <Card>
+          <div style={{ textAlign: "center", padding: "32px 0", color: C.textDim }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>⚽</div>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Henüz branş tanımlanmamış</div>
+            <div style={{ fontSize: 14 }}>Yukarıdan ilk branşı ekleyin.</div>
+          </div>
+        </Card>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 320px), 1fr))", gap: 16 }}>
+          {branches.map(b => (
+            <Card key={b.id}>
+              {editId === b.id ? (
+                <div>
+                  <div style={{ display: "grid", gap: 10, marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Branş Adı</div>
+                      <input style={inputStyle} value={editForm.name||""} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Açıklama</div>
+                      <input style={inputStyle} value={editForm.description||""} onChange={e => setEditForm({...editForm, description: e.target.value})} />
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button style={btnStyle(C.green)} onClick={saveEdit}>✓ Kaydet</button>
+                    <button style={btnOutlineStyle(C.red)} onClick={() => setEditId(null)}>İptal</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 900, fontSize: 18, color: C.text }}>{b.name}</div>
+                      {b.description && <div style={{ fontSize: 13, color: C.textDim, marginTop: 4, fontWeight: 600 }}>{b.description}</div>}
+                    </div>
+                    <Badge color={b.isActive ? C.green : C.red}>{b.isActive ? "Aktif" : "Pasif"}</Badge>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button style={btnOutlineStyle(C.blue)} onClick={() => { setEditId(b.id); setEditForm({ name: b.name, description: b.description||"" }); }}>✏️ Düzenle</button>
+                    <button style={btnOutlineStyle(b.isActive ? C.orange : C.green)} onClick={() => toggleActive(b.id)}>{b.isActive ? "⏸ Pasif" : "▶ Aktif"}</button>
+                    <button style={btnOutlineStyle(C.red)} onClick={() => deleteBranch(b.id)}>🗑️ Sil</button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── GRUPLAR SAYFASI ────────────────────────────────────────
+function GroupsPage({ groups, setGroups, branches, staff, members }) {
+  const [form, setForm] = React.useState({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [] });
+  const [showAdd, setShowAdd] = React.useState(false);
+  const [editId, setEditId] = React.useState(null);
+  const [editForm, setEditForm] = React.useState({});
+  const allChildren = (members||[]).flatMap(p => p.children||[]);
+
+  const addGroup = () => {
+    if (!form.name.trim()) return;
+    const newGroup = {
+      id: String(Date.now()), name: form.name.trim(), branchId: form.branchId,
+      type: form.type, teacherIds: form.teacherIds, studentIds: form.studentIds,
+      isActive: true, createdAt: new Date().toISOString(), _order: Date.now(),
+    };
+    setGroups([...groups, newGroup]);
+    setForm({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [] });
+    setShowAdd(false);
+  };
+  const saveEdit = () => {
+    setGroups(groups.map(g => g.id === editId ? { ...g, ...editForm } : g));
+    setEditId(null);
+  };
+  const deleteGroup = (id) => {
+    if (!window.confirm("Bu grubu silmek istediğinize emin misiniz?")) return;
+    setGroups(groups.filter(g => g.id !== id));
+  };
+
+  const getBranchName = (id) => (branches||[]).find(b => b.id === id)?.name || "-";
+  const getTeacherName = (id) => (staff||[]).find(s => String(s.id) === String(id))?.name || id;
+  const getStudentName = (id) => allChildren.find(c => String(c.id) === String(id))?.name || id;
+  const toggleInArray = (arr, val) => arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val];
+
+  return (
+    <div className="fade-in">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: C.text }}>👥 Grup Yönetimi</div>
+          <div style={{ fontSize: 14, color: C.textDim, fontWeight: 600 }}>{groups.length} grup tanımlı</div>
+        </div>
+        <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Grup</button>
+      </div>
+
+      {showAdd && (
+        <Card style={{ border: "2px dashed " + C.blue + "44", background: "#f0f4ff", marginBottom: 16 }}>
+          <CardTitle color={C.blue} icon="➕">Yeni Grup Oluştur</CardTitle>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Grup Adı</div>
+              <input style={inputStyle} value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="Örn: Futbol Grubu A..." />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Branş</div>
+              <select style={inputStyle} value={form.branchId} onChange={e => setForm({...form, branchId: e.target.value})}>
+                <option value="">-- Branş Seç --</option>
+                {(branches||[]).filter(b=>b.isActive).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Tip</div>
+              <select style={inputStyle} value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+                <option value="group">Grup Dersi</option>
+                <option value="individual">Bireysel Ders</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Öğretmenler</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {(staff||[]).filter(s=>s.isTeacherAccount||s.role==="Antrenör").map(s => (
+                React.createElement("label", { key: s.id, style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: form.teacherIds.includes(String(s.id)) ? C.blue+"22" : "#f5f8ff", border: "1px solid " + (form.teacherIds.includes(String(s.id)) ? C.blue : C.border), borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 700 } },
+                  React.createElement("input", { type: "checkbox", checked: form.teacherIds.includes(String(s.id)), onChange: () => setForm({...form, teacherIds: toggleInArray(form.teacherIds, String(s.id))}), style: { accentColor: C.blue } }),
+                  s.name
+                )
+              ))}
+            </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Öğrenciler</div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {allChildren.map(c => (
+                React.createElement("label", { key: c.id, style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: form.studentIds.includes(String(c.id)) ? C.orange+"22" : "#f5f8ff", border: "1px solid " + (form.studentIds.includes(String(c.id)) ? C.orange : C.border), borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 700 } },
+                  React.createElement("input", { type: "checkbox", checked: form.studentIds.includes(String(c.id)), onChange: () => setForm({...form, studentIds: toggleInArray(form.studentIds, String(c.id))}), style: { accentColor: C.orange } }),
+                  c.name
+                )
+              ))}
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+            <button style={btnStyle(C.green)} onClick={addGroup}>✓ Oluştur</button>
+            <button style={btnOutlineStyle(C.red)} onClick={() => setShowAdd(false)}>İptal</button>
+          </div>
+        </Card>
+      )}
+
+      {groups.length === 0 ? (
+        <Card>
+          <div style={{ textAlign: "center", padding: "32px 0", color: C.textDim }}>
+            <div style={{ fontSize: 48, marginBottom: 12 }}>👥</div>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6 }}>Henüz grup oluşturulmamış</div>
+            <div style={{ fontSize: 14 }}>Yukarıdan ilk grubu oluşturun.</div>
+          </div>
+        </Card>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 360px), 1fr))", gap: 16 }}>
+          {groups.map(g => (
+            <Card key={g.id}>
+              {editId === g.id ? (
+                <div>
+                  <div style={{ display: "grid", gap: 10, marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Grup Adı</div>
+                      <input style={inputStyle} value={editForm.name||""} onChange={e => setEditForm({...editForm, name: e.target.value})} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Branş</div>
+                      <select style={inputStyle} value={editForm.branchId||""} onChange={e => setEditForm({...editForm, branchId: e.target.value})}>
+                        <option value="">-- Branş Seç --</option>
+                        {(branches||[]).filter(b=>b.isActive).map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Tip</div>
+                      <select style={inputStyle} value={editForm.type||"group"} onChange={e => setEditForm({...editForm, type: e.target.value})}>
+                        <option value="group">Grup Dersi</option>
+                        <option value="individual">Bireysel Ders</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Öğretmenler</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {(staff||[]).filter(s=>s.isTeacherAccount||s.role==="Antrenör").map(s => (
+                        React.createElement("label", { key: s.id, style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: (editForm.teacherIds||[]).includes(String(s.id)) ? C.blue+"22" : "#f5f8ff", border: "1px solid " + ((editForm.teacherIds||[]).includes(String(s.id)) ? C.blue : C.border), borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 700 } },
+                          React.createElement("input", { type: "checkbox", checked: (editForm.teacherIds||[]).includes(String(s.id)), onChange: () => setEditForm({...editForm, teacherIds: toggleInArray(editForm.teacherIds||[], String(s.id))}), style: { accentColor: C.blue } }),
+                          s.name
+                        )
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Öğrenciler</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {allChildren.map(c => (
+                        React.createElement("label", { key: c.id, style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: (editForm.studentIds||[]).includes(String(c.id)) ? C.orange+"22" : "#f5f8ff", border: "1px solid " + ((editForm.studentIds||[]).includes(String(c.id)) ? C.orange : C.border), borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 700 } },
+                          React.createElement("input", { type: "checkbox", checked: (editForm.studentIds||[]).includes(String(c.id)), onChange: () => setEditForm({...editForm, studentIds: toggleInArray(editForm.studentIds||[], String(c.id))}), style: { accentColor: C.orange } }),
+                          c.name
+                        )
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button style={btnStyle(C.green)} onClick={saveEdit}>✓ Kaydet</button>
+                    <button style={btnOutlineStyle(C.red)} onClick={() => setEditId(null)}>İptal</button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                    <div>
+                      <div style={{ fontWeight: 900, fontSize: 18, color: C.text }}>{g.name}</div>
+                      <div style={{ fontSize: 13, color: C.textDim, marginTop: 3, fontWeight: 600 }}>
+                        {getBranchName(g.branchId)} · {g.type === "individual" ? "Bireysel" : "Grup"}
+                      </div>
+                    </div>
+                    <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Öğretmenler ({(g.teacherIds||[]).length})</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {(g.teacherIds||[]).length === 0 ? React.createElement("span", { style: { fontSize: 12, color: C.textDim } }, "Atanmadı") :
+                        (g.teacherIds||[]).map(tid => React.createElement(Badge, { key: tid, color: C.blue }, getTeacherName(tid)))}
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Öğrenciler ({(g.studentIds||[]).length})</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {(g.studentIds||[]).length === 0 ? React.createElement("span", { style: { fontSize: 12, color: C.textDim } }, "Atanmadı") :
+                        (g.studentIds||[]).map(sid => React.createElement(Badge, { key: sid, color: C.orange }, getStudentName(sid)))}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button style={btnOutlineStyle(C.blue)} onClick={() => { setEditId(g.id); setEditForm({ name: g.name, branchId: g.branchId||"", type: g.type||"group", teacherIds: [...(g.teacherIds||[])], studentIds: [...(g.studentIds||[])] }); }}>✏️ Düzenle</button>
+                    <button style={btnOutlineStyle(C.red)} onClick={() => deleteGroup(g.id)}>🗑️ Sil</button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── ANA UYGULAMA ──────────────────────────────────────────
 const db = firebase.firestore();
 
@@ -4816,6 +5110,9 @@ function App() {
   const [channelMessages, setChannelMessagesRaw] = useState([]);
   const [dismissedNotifs, setDismissedNotifsRaw] = useState([]);
   const [readNotifs, setReadNotifsRaw] = useState([]);
+  const [branches, setBranchesRaw] = useState([]);
+  const [groups, setGroupsRaw] = useState([]);
+  const [attendance, setAttendanceRaw] = useState([]);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showProfile, setShowProfile] = useState(false);
@@ -4827,7 +5124,8 @@ function App() {
     // Auth sonrası kritik koleksiyonları zorla yenile — auth öncesi snapshot boş gelirse düzeltir
     const refreshDataAfterAuth = () => {
       [["members", setMembersRaw], ["staff", setStaffRaw], ["finance", setFinanceRaw],
-       ["announcements", setAnnouncementsRaw], ["schedule", setScheduleRaw]].forEach(([col, setter]) => {
+       ["announcements", setAnnouncementsRaw], ["schedule", setScheduleRaw],
+       ["branches", setBranchesRaw], ["groups", setGroupsRaw], ["attendance", setAttendanceRaw]].forEach(([col, setter]) => {
         db.collection(col).get().then(snap => {
           if (!_fsWriting[col]) setter(snap2arrLocal(snap));
         }).catch(() => {});
@@ -4903,12 +5201,13 @@ function App() {
   useEffect(() => {
     const unsubs = [];
     const loaded = new Set();
-    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs"];
+    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance"];
     const setters = {
       members: setMembersRaw, staff: setStaffRaw, finance: setFinanceRaw,
       announcements: setAnnouncementsRaw, schedule: setScheduleRaw,
       channels: setChannelsRaw, channelMessages: setChannelMessagesRaw,
       dismissedNotifs: setDismissedNotifsRaw, readNotifs: setReadNotifsRaw,
+      branches: setBranchesRaw, groups: setGroupsRaw, attendance: setAttendanceRaw,
     };
     const snap2arr = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
     const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
@@ -4974,6 +5273,21 @@ function App() {
     setReadNotifsRaw(next);
     fsSave("readNotifs", next);
   };
+  const setBranches = (val) => {
+    const next = typeof val === "function" ? val(branches) : val;
+    setBranchesRaw(next);
+    fsSave("branches", next);
+  };
+  const setGroups = (val) => {
+    const next = typeof val === "function" ? val(groups) : val;
+    setGroupsRaw(next);
+    fsSave("groups", next);
+  };
+  const setAttendance = (val) => {
+    const next = typeof val === "function" ? val(attendance) : val;
+    setAttendanceRaw(next);
+    fsSave("attendance", next);
+  };
 
   if (!dbReady) return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#1a3a6b,#1e5cb3)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16 }}>
@@ -5015,11 +5329,12 @@ function App() {
     const myChildren = assignedIds.size > 0 ? allChildren.filter(c => assignedIds.has(Number(c.id))) : [];
     return <TeacherPanel user={user} members={myChildren}
       announcements={announcements} setAnnouncements={setAnnouncements}
-      attendance={[]} setAttendance={() => {}}
+      attendance={attendance} setAttendance={setAttendance}
       staff={staff} setStaff={setStaff}
       allParents={members} setAllParents={setMembers}
       channels={channels} channelMessages={channelMessages}
       schedule={schedule} setSchedule={setSchedule}
+      groups={groups} branches={branches}
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
   }
 
@@ -5040,19 +5355,21 @@ function App() {
     { key: "messages", label: "Mesajlar", icon: "💬" },
     { key: "rewards", label: "Ödüller", icon: "🏆" },
     { key: "users", label: "Kullanıcılar", icon: "👤" },
+    { key: "branches", label: "Branşlar", icon: "⚽" },
+    { key: "groups", label: "Gruplar", icon: "👥" },
   ];
-  const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed"];
+  const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange];
 
   const alertCount = useNotifications(members, finance, staff).filter(a=>a.type==="danger"||a.type==="warning").length;
 
   const pages = {
     dashboard: <AdminDashboard members={members} finance={finance} staff={staff} />,
-    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} />,
+    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} />,
     reports: <ReportsPage members={members} finance={finance} staff={staff} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
-    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} currentUser={user} canAdd={true} />,
+    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} currentUser={user} canAdd={true} branches={branches} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={true} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
@@ -5096,7 +5413,10 @@ function App() {
             : s
         ));
       }}
+    branches={branches}
     />,
+    branches: <BranchesPage branches={branches} setBranches={setBranches} />,
+    groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff} members={members} />,
   };
 
   return (
@@ -5142,7 +5462,7 @@ function App() {
 
       <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "22px 16px 30px", overflowY: "auto" }}>
         <div style={{ display: page === "staff" ? "block" : "none" }}>
-          <StaffPage staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} />
+          <StaffPage staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} branches={branches} />
         </div>
         {page !== "staff" && pages[page]}
       </div>
