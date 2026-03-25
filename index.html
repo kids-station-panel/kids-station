@@ -4853,6 +4853,46 @@ function App() {
           setUser({ role: role || "unknown", name: data.name || firebaseUser.email, email: firebaseUser.email, id: firebaseUser.uid, photoURL: data.photoURL || null });
           // Auth tamamlandı — verileri zorla yenile (auth race condition önlemi)
           refreshDataAfterAuth();
+          // Admin girişinde öğretmen-personel senkronizasyonu
+          if (role === "admin" || role === "yönetici") {
+            setTimeout(async () => {
+              try {
+                const [userSnap, staffSnap] = await Promise.all([
+                  db.collection(USER_COL).get(),
+                  db.collection("staff").get(),
+                ]);
+                const existingStaffUserIds = new Set(staffSnap.docs.map(d => d.data().userId || d.id));
+                const allUsers = userSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+                const missingTeachers = allUsers.filter(u =>
+                  u.role === "teacher" && u.status !== "deleted" && !existingStaffUserIds.has(String(u.id))
+                );
+                if (missingTeachers.length > 0) {
+                  console.log("[KS] Eksik personel kaydı:", missingTeachers.length, "öğretmen");
+                  const today = new Date().toISOString().slice(0, 10);
+                  const batch = db.batch();
+                  const newRecords = [];
+                  missingTeachers.forEach(t => {
+                    const rec = {
+                      id: t.id, name: t.name || "", email: t.email || "", phone: t.phone || "",
+                      role: "Antrenör", employmentType: "Tam Zamanlı", shift: "Sabah",
+                      emergencyContact: "", address: "", birthDate: "",
+                      startDate: today, branches: [], salary: 0, salaryHistory: [], notes: "",
+                      username: t.id, userId: t.id, photo: null, individualStudents: [],
+                      isTeacherAccount: true, userStatus: t.status || "active", _order: Date.now(),
+                    };
+                    batch.set(db.collection("staff").doc(String(t.id)), rec);
+                    newRecords.push(rec);
+                  });
+                  await batch.commit();
+                  setStaffRaw(prev => {
+                    const existingIds = new Set(prev.map(s => String(s.id)));
+                    const toAdd = newRecords.filter(r => !existingIds.has(String(r.id)));
+                    return toAdd.length > 0 ? [...prev, ...toAdd] : prev;
+                  });
+                }
+              } catch(e) { console.warn("[KS] Teacher-staff sync hatası:", e); }
+            }, 1500); // onSnapshot'ların gelmesini bekle
+          }
         } catch (e) { console.error("[KS] AUTO-LOGIN hatası:", e); }
       }
     });
