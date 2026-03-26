@@ -66,25 +66,13 @@
     /* Mobil: sabit genişlik, yatay scroll */
     .nav-scroll .nav-btn {
       flex: 0 0 auto;
-      min-width: 60px;
-      max-width: 80px;
+      min-width: 58px;
     }
-    /* Tablet ≥ 601px: esnek büyüme, ama max-width ile sınırlı */
+    /* Tablet+ (≥601px): tüm container genişliğini eşit doldur */
     @media (min-width: 601px) {
       .nav-scroll .nav-btn {
         flex: 1 1 0;
-        min-width: 60px;
-        max-width: 105px;
-      }
-    }
-    /* Büyük ekran ≥ 1200px: biraz daha dar tut */
-    @media (min-width: 1200px) {
-      .nav-scroll .nav-btn {
-        max-width: 90px;
-      }
-      .ks-header-top {
-        padding-left: max(20px, calc((100vw - 1600px) / 2 + 20px)) !important;
-        padding-right: max(20px, calc((100vw - 1600px) / 2 + 20px)) !important;
+        min-width: 0;
       }
     }
 
@@ -528,7 +516,7 @@ function UserAvatar({ user, size = 38, fontSize = 15 }) {
     <div style={{ width: size, height: size, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg, #60a5fa 0%, #34d399 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
       {user.photoURL
         ? <img src={user.photoURL} alt="profil" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        : <span style={{ fontSize, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{initials}</span>
+        : <span style={{ fontSize, fontWeight: 900, color: "#fff", lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center", userSelect: "none" }}>{initials}</span>
       }
     </div>
   );
@@ -2768,20 +2756,20 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto }
             </div>
           )}
         </div>
-        <button onClick={() => setShowProfile(true)} title="Profil" style={{ width:isMobile ? 34 : 38, height:isMobile ? 34 : 38, borderRadius:"50%", border:"2.5px solid rgba(255,255,255,0.4)", overflow:"hidden", cursor:"pointer", padding:0, flexShrink:0, boxShadow:"0 2px 10px rgba(0,0,0,0.22)" }}>
+        <button onClick={() => setShowProfile(true)} title="Profil" style={{ width:isMobile ? 34 : 38, height:isMobile ? 34 : 38, borderRadius:"50%", border:"2.5px solid rgba(255,255,255,0.4)", overflow:"hidden", cursor:"pointer", padding:0, flexShrink:0, boxShadow:"0 2px 10px rgba(0,0,0,0.22)", display:"flex", alignItems:"center", justifyContent:"center" }}>
           <UserAvatar user={user} size={isMobile ? 34 : 38} fontSize={isMobile ? 13 : 15} />
         </button>
       </div>
 
       {/* Nav */}
-      <div className="nav-scroll" style={{ background:"#fff", boxShadow:"0 2px 8px rgba(0,0,0,0.07)", padding:"0 8px", display:"flex", gap:4, overflowX:"auto", scrollbarWidth:"none", borderBottom:`1.5px solid ${C.border}` }}>
+      <div className="nav-scroll" style={{ background:"#fff", boxShadow:"0 2px 8px rgba(0,0,0,0.07)", padding:"0 4px", display:"flex", overflowX:"auto", scrollbarWidth:"none", borderBottom:`1.5px solid ${C.border}` }}>
         {navItems.map((item, i) => {
           const active = page === item.key;
           const col = navColors[i];
           return (
-            <button key={item.key} onClick={() => setPage(item.key)} className="nav-btn" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:isMobile ? "8px 10px" : "10px 14px", border:"none", borderBottom:active ? `3px solid ${col}` : "3px solid transparent", background:active ? col+"12" : "transparent", color:active ? col : C.textMid, fontWeight:active ? 900 : 700, fontSize:isMobile ? 9 : 10, cursor:"pointer", fontFamily:"inherit", minWidth:isMobile ? 54 : 64, flexShrink:0, transition:"all 0.15s", letterSpacing:0.3 }}>
-              <span style={{ fontSize:isMobile ? 18 : 20 }}>{item.icon}</span>
-              {item.label}
+            <button key={item.key} onClick={() => setPage(item.key)} className="nav-btn" style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, padding:isMobile ? "8px 4px" : "10px 8px", border:"none", borderBottom:active ? `3px solid ${col}` : "3px solid transparent", background:active ? col+"12" : "transparent", color:active ? col : C.textMid, fontWeight:active ? 900 : 700, fontSize:isMobile ? 9 : 11, cursor:"pointer", fontFamily:"inherit", minWidth:0, overflow:"hidden", transition:"all 0.15s", letterSpacing:0.3 }}>
+              <span style={{ fontSize:isMobile ? 18 : 20, lineHeight:1 }}>{item.icon}</span>
+              <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100%", display:"block" }}>{item.label}</span>
             </button>
           );
         })}
@@ -3348,7 +3336,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 8 }}>
-            <button onClick={() => setShowProfile(true)} title="Profil ve Hesap Ayarları" style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,0.4)", overflow: "hidden", cursor: "pointer", padding: 0, flexShrink: 0, boxShadow: "0 2px 10px rgba(0,0,0,0.22)" }}>
+            <button onClick={() => setShowProfile(true)} title="Profil ve Hesap Ayarları" style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,0.4)", overflow: "hidden", cursor: "pointer", padding: 0, flexShrink: 0, boxShadow: "0 2px 10px rgba(0,0,0,0.22)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <UserAvatar user={user} size={isMobile ? 34 : 38} fontSize={isMobile ? 13 : 15} />
             </button>
           </div>
@@ -5541,7 +5529,7 @@ function App() {
             {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", fontWeight: 600, marginTop: 4 }}>Yönetim Paneli</div>}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10, flexShrink: 0 }}>
-            <button onClick={() => setShowProfile(true)} title="Profil ve Hesap Ayarları" style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,0.4)", overflow: "hidden", cursor: "pointer", padding: 0, flexShrink: 0, boxShadow: "0 2px 10px rgba(0,0,0,0.22)", transition: "transform 0.15s, box-shadow 0.15s" }}>
+            <button onClick={() => setShowProfile(true)} title="Profil ve Hesap Ayarları" style={{ width: isMobile ? 34 : 38, height: isMobile ? 34 : 38, borderRadius: "50%", border: "2.5px solid rgba(255,255,255,0.4)", overflow: "hidden", cursor: "pointer", padding: 0, flexShrink: 0, boxShadow: "0 2px 10px rgba(0,0,0,0.22)", transition: "transform 0.15s, box-shadow 0.15s", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <UserAvatar user={user} size={isMobile ? 34 : 38} fontSize={isMobile ? 13 : 15} />
             </button>
           </div>
