@@ -947,7 +947,16 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
   const [showEditPackage, setShowEditPackage] = useState(false);
   const [editPkgForm, setEditPkgForm] = useState({});
   const [showAddAtt, setShowAddAtt] = useState(false);
-  const [enrollForm, setEnrollForm] = useState({ branchName: "Futbol", lessonType: "Grup" });
+  // enrollForm.branchName initial değeri "Futbol" — dinamik branşlar yüklenince seçili değer
+  // o listede yoksa ilk geçerli branşa sıfırla (aksi halde state "Futbol" kalır, select başkasını gösterir)
+  const _availBranches = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+  const [enrollForm, setEnrollForm] = useState({ branchName: _availBranches[0] || "Futbol", lessonType: "Grup" });
+  useEffect(() => {
+    const avail = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+    if (avail.length > 0) {
+      setEnrollForm(f => ({ ...f, branchName: avail.includes(f.branchName) ? f.branchName : avail[0] }));
+    }
+  }, [dynamicBranches]);
   const [pkgForm, setPkgForm] = useState({ name: "Aylık 12 Ders", totalLessons: 12, startDate: new Date().toISOString().slice(0,10), endDate: "", amount: "", paid: false });
   const [attForm, setAttForm] = useState({ date: new Date().toISOString().slice(0,10), status: "Geldi" });
 
@@ -1545,7 +1554,15 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
   const [editForm, setEditForm] = useState({ ...parent });
   const [selectedChild, setSelectedChild] = useState(null);
   const [showAddChild, setShowAddChild] = useState(false);
-  const [childForm, setChildForm] = useState({ name: "", birthDate: "", branchName: "Futbol", lessonType: "Grup" });
+  // childForm.branchName "Futbol" default — dinamik branşlar yüklenince senkronize et
+  const _pAvailBranches = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+  const [childForm, setChildForm] = useState({ name: "", birthDate: "", branchName: _pAvailBranches[0] || "Futbol", lessonType: "Grup" });
+  useEffect(() => {
+    const avail = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+    if (avail.length > 0) {
+      setChildForm(f => ({ ...f, branchName: avail.includes(f.branchName) ? f.branchName : avail[0] }));
+    }
+  }, [dynamicBranches]);
 
   const freshParent = parents.find(p => p.id === parent.id) || parent;
 
@@ -1567,7 +1584,8 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
       }] : [],
     };
     setParents(parents.map(p => p.id === parent.id ? { ...p, children: [...p.children, newChild] } : p));
-    setChildForm({ name: "", birthDate: "", branchName: "Futbol", lessonType: "Grup" });
+    const avail = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+    setChildForm({ name: "", birthDate: "", branchName: avail[0] || "Futbol", lessonType: "Grup" });
     setShowAddChild(false);
   };
 
@@ -2765,7 +2783,12 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
   const [filterRole, setFilterRole]     = useState("Tümü");
   const [filterStatus, setFilterStatus] = useState("Tümü");
   const [showCreate, setShowCreate]     = useState(false);
-  const [form, setForm]                 = useState({ name:"", email:"", password:"", confirmPwd:"", role:"teacher", phone:"", branch:"Futbol" });
+  const _umAvail = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+  const [form, setForm]                 = useState({ name:"", email:"", password:"", confirmPwd:"", role:"teacher", phone:"", branch: _umAvail[0] || "Futbol" });
+  useEffect(() => {
+    const avail = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+    if (avail.length > 0) setForm(f => ({ ...f, branch: avail.includes(f.branch) ? f.branch : avail[0] }));
+  }, [dynamicBranches]);
   const [creating, setCreating]         = useState(false);
   const [createError, setCreateError]   = useState("");
   const [editUser, setEditUser]         = useState(null);
@@ -2841,7 +2864,8 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
         onTeacherCreated(data.localId, form.name.trim(), form.email.trim().toLowerCase(), form.phone.trim(), form.branch||"");
       }
       showToast("Hesap oluşturuldu: " + form.name);
-      setForm({ name:"", email:"", password:"", confirmPwd:"", role:"teacher", phone:"", branch:"Futbol" });
+      const avail2 = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+      setForm({ name:"", email:"", password:"", confirmPwd:"", role:"teacher", phone:"", branch: avail2[0] || "Futbol" });
       setShowCreate(false);
       await loadUsers();
     } catch (e) { setCreateError("Hata: " + e.message); }
@@ -4009,7 +4033,8 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentU
   const [showModal, setShowModal] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [conflicts, setConflicts] = useState([]);
-  const emptyForm = { title:"", branch:"Futbol", day:"Pzt", time:"09:00", endTime:"10:00", teacher:"", type:"Grup", notes:"", repeat:"weekly", repeatUntil:"" };
+  const _calAvail = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
+  const emptyForm = { title:"", branch: _calAvail[0] || "Futbol", day:"Pzt", time:"09:00", endTime:"10:00", teacher:"", type:"Grup", notes:"", repeat:"weekly", repeatUntil:"" };
   const [form, setForm] = useState(emptyForm);
 
   // Çakışma tespiti
