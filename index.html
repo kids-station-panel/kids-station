@@ -1738,6 +1738,17 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
         <button style={btnStyle(C.blue)} onClick={() => { setEditForm({...freshParent}); setEditing(true); }}>✏️ Düzenle</button>
         <button style={btnStyle(C.red)} onClick={() => {
           if (window.confirm(`"${freshParent.name}" velisini ve tüm çocuklarını silmek istediğinize emin misiniz?\nBu işlem geri alınamaz!`)) {
+            // Veli silinirken tüm çocukların paket finance kayıtlarını temizle
+            if (setFinance) {
+              const removeIds = new Set();
+              (freshParent.children || []).forEach(child => {
+                (child.enrollments || []).forEach(enr => {
+                  if (enr.activePackage) removeIds.add("pkg_" + enr.id + "_" + enr.activePackage.id);
+                  (enr.packageHistory || []).forEach(p => removeIds.add("pkg_" + enr.id + "_" + p.id));
+                });
+              });
+              if (removeIds.size > 0) setFinance(prev => (prev||[]).filter(f => !removeIds.has(String(f.id))));
+            }
             setParents(parents.filter(p => p.id !== parent.id));
             onBack();
           }
@@ -2564,12 +2575,37 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, branches:
   );
 }
 // ── FİNANS ────────────────────────────────────────────────
-function FinancePage({ finance, setFinance }) {
+function FinancePage({ finance, setFinance, members }) {
   const [filter, setFilter] = useState("Tümü");
   const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
   const [showAll, setShowAll] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const [cleanMsg, setCleanMsg] = useState("");
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "" });
+
+  // Yalnız (orphan) paket finance kayıtlarını temizle
+  const reconcileOrphans = () => {
+    const allChildren = (members||[]).flatMap(p => p.children || []);
+    // Geçerli paket finance ID'lerini topla: activePackage + packageHistory
+    const validIds = new Set();
+    allChildren.forEach(child => {
+      (child.enrollments || []).forEach(enr => {
+        const eid = enr.id;
+        if (enr.activePackage) validIds.add("pkg_" + eid + "_" + enr.activePackage.id);
+        (enr.packageHistory || []).forEach(p => validIds.add("pkg_" + eid + "_" + p.id));
+      });
+    });
+    // "pkg_" prefix ile başlayan ama validIds'de olmayan kayıtları bul
+    const orphans = (finance||[]).filter(f => {
+      const sid = String(f.id);
+      return sid.startsWith("pkg_") && !validIds.has(sid);
+    });
+    if (orphans.length === 0) { setCleanMsg("✅ Yalnız kayıt bulunamadı."); setTimeout(() => setCleanMsg(""), 3000); return; }
+    if (!window.confirm(`${orphans.length} yalnız paket kaydı bulundu ve silinecek. Devam?`)) return;
+    setFinance(prev => (prev||[]).filter(f => !orphans.find(o => o.id === f.id)));
+    setCleanMsg(`✅ ${orphans.length} yalnız kayıt temizlendi.`);
+    setTimeout(() => setCleanMsg(""), 4000);
+  };
 
   const currentYM = new Date().toISOString().slice(0, 7);
   const viewFinance = showAll ? finance : finance.filter(f => (f.date || "").startsWith(monthFilter));
@@ -2621,9 +2657,15 @@ function FinancePage({ finance, setFinance }) {
                 style={filter === f ? btnStyle(col) : btnOutlineStyle(col)}>{f}</button>
             ))}
           </div>
-          <button style={btnStyle(C.yellow + "ee")} onClick={() => setShowAdd(!showAdd)}>
-            <span style={{ color: C.text }}>+ İşlem Ekle</span>
-          </button>
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            <button style={btnStyle(C.yellow + "ee")} onClick={() => setShowAdd(!showAdd)}>
+              <span style={{ color: C.text }}>+ İşlem Ekle</span>
+            </button>
+            <button style={btnOutlineStyle(C.red)} onClick={reconcileOrphans} title="Silinmiş paketlerin finance kayıtlarını temizle">
+              🧹 Yalnız Kayıtları Temizle
+            </button>
+            {cleanMsg && <span style={{ fontWeight:700, color:C.green, fontSize:12, alignSelf:"center" }}>{cleanMsg}</span>}
+          </div>
         </div>
 
         {showAdd && (
@@ -5725,7 +5767,7 @@ function App() {
     dashboard: <AdminDashboard members={members} finance={finance} staff={staff} />,
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} />,
     staff: null, // StaffPage is rendered persistently outside this object
-    finance: <FinancePage finance={finance} setFinance={setFinance} />,
+    finance: <FinancePage finance={finance} setFinance={setFinance} members={members} />,
     reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
     calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} currentUser={user} canAdd={true} branches={branches} />,
