@@ -861,24 +861,30 @@ function LoginPage({ onLogin, dbStatus }) {
 // ── ADMIN DASHBOARD ───────────────────────────────────────
 function AdminDashboard({ members, finance, staff }) {
   const isMobile = useIsMobile(600);
-  const totalIncome = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
-  const totalExpense = finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+  const currentYM = new Date().toISOString().slice(0, 7); // "2026-03"
+  const monthlyFinance = finance.filter(f => (f.date || "").startsWith(currentYM));
+  const totalIncome = monthlyFinance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
+  const totalExpense = monthlyFinance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+  // Toplam kasa (tüm zamanlar)
+  const kasaBalance = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0)
+                    - finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
   const allChildren = members.flatMap(p => p.children || []);
   const active = allChildren.filter(c => c.status === "Aktif").length;
   const net = totalIncome - totalExpense;
+  const monthName = new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
 
   return (
     <div className="fade-in">
       <div style={{ marginBottom: isMobile ? 14 : 24 }}>
         <div className="ks-page-title" style={{ color: C.text }}>Merhaba, Yönetici! 👋</div>
-        <div style={{ fontSize: isMobile ? 12 : 15, color: C.textDim, marginTop: 4, fontWeight: 600 }}>Kids Station — Mart 2026 özeti</div>
+        <div style={{ fontSize: isMobile ? 12 : 15, color: C.textDim, marginTop: 4, fontWeight: 600 }}>Kids Station — {monthName} özeti</div>
       </div>
 
       <div className="stat-cards">
         <StatCard label="Kayıtlı Çocuk" value={allChildren.length} sub={`${active} aktif`} color={C.blue} icon="👥" />
         <StatCard label="Personel" value={staff.length} sub="Tüm ekip" color={C.orange} icon="🏅" />
-        <StatCard label="Aylık Gelir" value={`₺${totalIncome.toLocaleString()}`} color={C.green} icon="💰" />
-        <StatCard label="Aylık Gider" value={`₺${totalExpense.toLocaleString()}`} color={C.red} icon="📉" />
+        <StatCard label="Bu Ay Gelir" value={`₺${totalIncome.toLocaleString()}`} sub={`Kasa: ₺${kasaBalance.toLocaleString()}`} color={C.green} icon="💰" />
+        <StatCard label="Bu Ay Gider" value={`₺${totalExpense.toLocaleString()}`} sub={`Net bu ay: ₺${net.toLocaleString()}`} color={C.red} icon="📉" />
       </div>
 
       <div className="grid-2col" style={{ gap: 18 }}>
@@ -896,13 +902,16 @@ function AdminDashboard({ members, finance, staff }) {
         </Card>
 
         <Card>
-          <CardTitle color={C.orange} icon="💹">Net Kâr</CardTitle>
+          <CardTitle color={C.orange} icon="💹">Bu Ay Net Kâr</CardTitle>
           <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: net >= 0 ? C.green : C.red, marginBottom: 10 }}>
             ₺{net.toLocaleString()}
           </div>
-          <div style={{ fontSize: 14, color: C.textMid, marginBottom: 14, fontWeight: 700 }}>
+          <div style={{ fontSize: 14, color: C.textMid, marginBottom: 6, fontWeight: 700 }}>
             Gelir: <span style={{ color: C.green }}>₺{totalIncome.toLocaleString()}</span> &nbsp;|&nbsp;
             Gider: <span style={{ color: C.red }}>₺{totalExpense.toLocaleString()}</span>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 800, color: kasaBalance >= 0 ? C.green : C.red, background: kasaBalance >= 0 ? "#f0fff4" : "#fff0f0", borderRadius: 10, padding: "8px 12px", marginBottom: 14 }}>
+            🏦 Toplam Kasa: ₺{kasaBalance.toLocaleString()}
           </div>
           <div style={{ height: 14, background: "#eef2ff", borderRadius: 99, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${Math.min((totalIncome / (totalIncome + totalExpense)) * 100, 100)}%`, background: `linear-gradient(90deg, ${C.green}, ${C.yellow})`, borderRadius: 99 }} />
@@ -955,6 +964,8 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
   const [showEditPackage, setShowEditPackage] = useState(false);
   const [editPkgForm, setEditPkgForm] = useState({});
   const [showAddAtt, setShowAddAtt] = useState(false);
+  const [showSinglePay, setShowSinglePay] = useState(false);
+  const [singlePayForm, setSinglePayForm] = useState({ date: new Date().toISOString().slice(0,10), desc: "", amount: "" });
   // enrollForm.branchName initial değeri "Futbol" — dinamik branşlar yüklenince seçili değer
   // o listede yoksa ilk geçerli branşa sıfırla (aksi halde state "Futbol" kalır, select başkasını gösterir)
   const _availBranches = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b => b.name) : BRANCHES;
@@ -994,6 +1005,17 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
 
   const removeEnrollment = (enrollId) => {
     if (!window.confirm("Bu branşı silmek istediğinize emin misiniz?")) return;
+    // Kritik düzeltme: silinen branştaki TÜM paket finance kayıtlarını temizle
+    if (setFinance) {
+      const enroll = enrollments.find(e => e.id === enrollId);
+      if (enroll) {
+        const pkgIds = [];
+        if (enroll.activePackage) pkgIds.push(enroll.activePackage.id);
+        (enroll.packageHistory || []).forEach(p => pkgIds.push(p.id));
+        const removeIds = new Set(pkgIds.map(pid => "pkg_" + enrollId + "_" + pid));
+        setFinance(prev => (prev||[]).filter(f => !removeIds.has(String(f.id))));
+      }
+    }
     const newEnrollments = enrollments.filter(e => e.id !== enrollId);
     updateChild({ enrollments: newEnrollments });
     setActiveTab(newEnrollments[0]?.id || null);
@@ -1008,7 +1030,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
     // Ödeme yapıldıysa finansa otomatik gir
     if (pkgForm.paid && Number(pkgForm.amount) > 0 && setFinance) {
       const financeId = "pkg_" + activeEnrollment.id + "_" + pkgId;
-      const entry = { id: financeId, date: pkgForm.startDate || new Date().toISOString().slice(0,10), desc: "Paket Ödemesi — " + freshChild.name + " (" + activeEnrollment.branchName + " · " + pkgForm.name + ")", type: "Gelir", amount: Number(pkgForm.amount), autoGenerated: true };
+      const entry = { id: financeId, date: pkgForm.startDate || new Date().toISOString().slice(0,10), desc: "Paket Ödemesi — " + freshChild.name + " (" + activeEnrollment.branchName + " · " + pkgForm.name + ")", type: "Gelir", amount: Number(pkgForm.amount), autoGenerated: true, source: "package", referenceId: String(pkgId), studentId: freshChild.id, parentId: parent.id, status: "active" };
       setFinance(prev => [...(prev||[]).filter(f => f.id !== financeId), entry]);
     }
     setPkgForm({ name: "Aylık 12 Ders", totalLessons: 12, startDate: new Date().toISOString().slice(0,10), endDate: "", amount: "", paid: false });
@@ -1032,7 +1054,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
     // Finans kaydını da güncelle (tutar değişmiş olabilir)
     if (setFinance && updated.paymentStatus === "odendi") {
       const financeId = "pkg_" + activeEnrollment.id + "_" + updated.id;
-      const entry = { id: financeId, date: updated.startDate || new Date().toISOString().slice(0,10), desc: "Paket Ödemesi — " + freshChild.name + " (" + activeEnrollment.branchName + " · " + updated.name + ")", type: "Gelir", amount: Number(updated.amount||0), autoGenerated: true };
+      const entry = { id: financeId, date: updated.startDate || new Date().toISOString().slice(0,10), desc: "Paket Ödemesi — " + freshChild.name + " (" + activeEnrollment.branchName + " · " + updated.name + ")", type: "Gelir", amount: Number(updated.amount||0), autoGenerated: true, source: "package", referenceId: String(updated.id), studentId: freshChild.id, parentId: parent.id, status: "active" };
       setFinance(prev => [...(prev||[]).filter(f => f.id !== financeId), entry]);
     }
     setShowEditPackage(false);
@@ -1050,12 +1072,32 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       const financeId = "pkg_" + enrollId + "_" + enroll.activePackage.id;
       const today = new Date().toISOString().slice(0,10);
       if (newStatus === "odendi" && oldStatus !== "odendi") {
-        const entry = { id: financeId, date: paymentDate || today, desc: "Paket Ödemesi — " + freshChild.name + " (" + enroll.branchName + " · " + enroll.activePackage.name + ")", type: "Gelir", amount: Number(enroll.activePackage.amount || 0), autoGenerated: true };
+        const entry = { id: financeId, date: paymentDate || today, desc: "Paket Ödemesi — " + freshChild.name + " (" + enroll.branchName + " · " + enroll.activePackage.name + ")", type: "Gelir", amount: Number(enroll.activePackage.amount || 0), autoGenerated: true, source: "package", referenceId: String(enroll.activePackage.id), studentId: freshChild.id, parentId: parent.id, status: "active" };
         setFinance(prev => [...(prev||[]).filter(f => f.id !== financeId), entry]);
       } else if (newStatus !== "odendi" && oldStatus === "odendi") {
         setFinance(prev => (prev||[]).filter(f => f.id !== financeId));
       }
     }
+  };
+
+  const addSinglePayment = () => {
+    if (!singlePayForm.amount || !singlePayForm.desc.trim()) return;
+    const spId = "sp_" + freshChild.id + "_" + Date.now();
+    const entry = {
+      id: spId,
+      date: singlePayForm.date || new Date().toISOString().slice(0,10),
+      desc: "Tekil Ödeme — " + freshChild.name + ": " + singlePayForm.desc,
+      type: "Gelir",
+      amount: Number(singlePayForm.amount),
+      autoGenerated: true,
+      source: "lesson",
+      studentId: freshChild.id,
+      parentId: parent.id,
+      status: "active",
+    };
+    if (setFinance) setFinance(prev => [...(prev||[]), entry]);
+    setSinglePayForm({ date: new Date().toISOString().slice(0,10), desc: "", amount: "" });
+    setShowSinglePay(false);
   };
 
   const addAttendance = () => {
@@ -1503,6 +1545,89 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
         }
       </Card>
 
+      {/* Tekil Ödeme */}
+      <Card>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+          <CardTitle color={C.green} icon="💳">Tekil Ödeme</CardTitle>
+          <button style={btnStyle(C.green)} onClick={() => setShowSinglePay(!showSinglePay)}>+ Ödeme Ekle</button>
+        </div>
+        {showSinglePay && (
+          <div style={{ background:"#f0fff4", borderRadius:14, padding:16, marginBottom:16, border:`2px dashed ${C.green}55` }}>
+            <div style={{ fontWeight:900, color:C.green, marginBottom:12, fontSize:14 }}>➕ Tekil / Ders Ödemesi</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%,200px),1fr))", gap:10 }}>
+              <div>
+                <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Tarih</div>
+                <input style={inputStyle} type="date" value={singlePayForm.date} onChange={e => setSinglePayForm({...singlePayForm, date:e.target.value})} />
+              </div>
+              <div>
+                <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Tutar (₺)</div>
+                <input style={inputStyle} type="number" placeholder="0" value={singlePayForm.amount} onChange={e => setSinglePayForm({...singlePayForm, amount:e.target.value})} />
+              </div>
+              <div style={{ gridColumn:"1 / -1" }}>
+                <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Açıklama</div>
+                <input style={inputStyle} placeholder="Örn: Ders ödemesi, bireysel seans..." value={singlePayForm.desc} onChange={e => setSinglePayForm({...singlePayForm, desc:e.target.value})} />
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:10, marginTop:12 }}>
+              <button style={btnStyle(C.green)} onClick={addSinglePayment}>✓ Kaydet</button>
+              <button style={btnOutlineStyle(C.red)} onClick={() => setShowSinglePay(false)}>İptal</button>
+            </div>
+          </div>
+        )}
+        {(() => {
+          const spPayments = (finance||[]).filter(f => f.source === "lesson" && String(f.studentId) === String(freshChild.id));
+          if (spPayments.length === 0) return <div style={{ color:C.textDim, fontSize:13, fontWeight:600 }}>Henüz tekil ödeme eklenmemiş.</div>;
+          return spPayments.map(f => (
+            <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+              <div>
+                <div style={{ fontWeight:800, fontSize:13, color:C.text }}>{f.desc}</div>
+                <div style={{ fontSize:11, color:C.textDim, marginTop:2, fontWeight:600 }}>{f.date}</div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontWeight:900, color:C.green }}>+₺{Number(f.amount).toLocaleString()}</span>
+                <button onClick={() => setFinance && setFinance(prev => (prev||[]).filter(x => x.id !== f.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"4px 8px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>
+              </div>
+            </div>
+          ));
+        })()}
+      </Card>
+
+      {/* Ödeme Geçmişi */}
+      <Card>
+        <CardTitle color={C.blue} icon="📋">Ödeme Geçmişi</CardTitle>
+        {(() => {
+          const childPayments = (finance||[])
+            .filter(f => String(f.studentId) === String(freshChild.id) && f.type === "Gelir")
+            .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+          const totalPaid = childPayments.reduce((s, f) => s + Number(f.amount), 0);
+          if (childPayments.length === 0) return (
+            <div style={{ textAlign:"center", padding:"20px 0", color:C.textDim, fontSize:13, fontWeight:600 }}>
+              <div style={{ fontSize:32, marginBottom:6 }}>📂</div>Henüz ödeme kaydı yok.
+            </div>
+          );
+          return (
+            <div>
+              <div style={{ background:`${C.blue}11`, borderRadius:12, padding:"10px 14px", marginBottom:14, display:"flex", justifyContent:"space-between" }}>
+                <span style={{ fontWeight:800, color:C.blue }}>Toplam Ödeme</span>
+                <span style={{ fontWeight:900, color:C.green }}>₺{totalPaid.toLocaleString()}</span>
+              </div>
+              {childPayments.map(f => (
+                <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontWeight:800, fontSize:13, color:C.text }}>{f.desc}</div>
+                    <div style={{ display:"flex", gap:6, marginTop:4 }}>
+                      <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{f.date}</span>
+                      <Badge color={f.source === "lesson" ? C.orange : C.blue}>{f.source === "lesson" ? "Tekil" : "Paket"}</Badge>
+                    </div>
+                  </div>
+                  <span style={{ fontWeight:900, color:C.green, fontSize:14 }}>+₺{Number(f.amount).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </Card>
+
       {/* Antrenör Notu */}
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
@@ -1666,6 +1791,43 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
           )}
         </div>
       </Card>
+
+      {/* Veli Finans Özeti */}
+      {finance && (() => {
+        const currentYM = new Date().toISOString().slice(0, 7);
+        const parentPayments = (finance||[]).filter(f => f.type === "Gelir" && String(f.parentId) === String(freshParent.id));
+        const totalAll = parentPayments.reduce((s, f) => s + Number(f.amount), 0);
+        const totalMonth = parentPayments.filter(f => (f.date||"").startsWith(currentYM)).reduce((s, f) => s + Number(f.amount), 0);
+        if (parentPayments.length === 0) return null;
+        return (
+          <Card>
+            <CardTitle color={C.green} icon="💰">Finansal Özet</CardTitle>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(min(100%,200px),1fr))", gap:12, marginBottom:14 }}>
+              <div style={{ background:`${C.green}11`, borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontSize:11, color:C.textDim, fontWeight:800, textTransform:"uppercase", marginBottom:4 }}>Toplam Kazandırdı</div>
+                <div style={{ fontWeight:900, fontSize:20, color:C.green }}>₺{totalAll.toLocaleString()}</div>
+                <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2 }}>{parentPayments.length} işlem</div>
+              </div>
+              <div style={{ background:`${C.blue}11`, borderRadius:12, padding:"14px 16px" }}>
+                <div style={{ fontSize:11, color:C.textDim, fontWeight:800, textTransform:"uppercase", marginBottom:4 }}>Bu Ay Ödedi</div>
+                <div style={{ fontWeight:900, fontSize:20, color:C.blue }}>₺{totalMonth.toLocaleString()}</div>
+                <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2 }}>{new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}</div>
+              </div>
+            </div>
+            <div style={{ maxHeight:200, overflowY:"auto" }}>
+              {parentPayments.sort((a,b) => (b.date||"").localeCompare(a.date||"")).slice(0,8).map(f => (
+                <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:12, color:C.text }}>{f.desc}</div>
+                    <div style={{ fontSize:11, color:C.textDim, marginTop:1 }}>{f.date}</div>
+                  </div>
+                  <span style={{ fontWeight:900, color:C.green, fontSize:13 }}>+₺{Number(f.amount).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
 
       {/* Çocuklar */}
       <Card>
@@ -2404,17 +2566,29 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, branches:
 // ── FİNANS ────────────────────────────────────────────────
 function FinancePage({ finance, setFinance }) {
   const [filter, setFilter] = useState("Tümü");
+  const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
+  const [showAll, setShowAll] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ date: "", desc: "", type: "Gelir", amount: "" });
+  const [form, setForm] = useState({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "" });
 
-  const filtered = finance.filter(f => filter === "Tümü" || f.type === filter);
-  const totalIncome = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
-  const totalExpense = finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+  const currentYM = new Date().toISOString().slice(0, 7);
+  const viewFinance = showAll ? finance : finance.filter(f => (f.date || "").startsWith(monthFilter));
+  const filtered = viewFinance.filter(f => filter === "Tümü" || f.type === filter);
+  const monthlyIncome = viewFinance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
+  const monthlyExpense = viewFinance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+  // Kasa = tüm zamanlar
+  const kasaBalance = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0)
+                    - finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+
+  // Ay listesi (mevcut verilerdeki unique YYYY-MM'ler)
+  const availMonths = [...new Set(finance.map(f => (f.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+  if (!availMonths.includes(monthFilter) && availMonths.length > 0) availMonths.unshift(monthFilter);
 
   const addEntry = () => {
     if (!form.desc || !form.amount) return;
-    setFinance([...finance, { id: finance.length + 1, ...form, amount: Number(form.amount) }]);
-    setForm({ date: "", desc: "", type: "Gelir", amount: "" });
+    const newEntry = { id: "manual_" + Date.now(), ...form, amount: Number(form.amount), source: "manual", status: "active" };
+    setFinance([...(finance||[]), newEntry]);
+    setForm({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "" });
     setShowAdd(false);
   };
 
@@ -2424,14 +2598,24 @@ function FinancePage({ finance, setFinance }) {
       <div style={{ fontSize: 14, color: C.textDim, marginBottom: 22, fontWeight: 600 }}>Finansal işlem takibi</div>
 
       <div className="stat-cards">
-        <StatCard label="Toplam Gelir" value={`₺${totalIncome.toLocaleString()}`} color={C.green} icon="📈" />
-        <StatCard label="Toplam Gider" value={`₺${totalExpense.toLocaleString()}`} color={C.red} icon="📉" />
-        <StatCard label="Net Kâr" value={`₺${(totalIncome - totalExpense).toLocaleString()}`} color={C.orange} icon="⭐" />
+        <StatCard label={showAll ? "Toplam Gelir" : "Bu Ay Gelir"} value={`₺${monthlyIncome.toLocaleString()}`} color={C.green} icon="📈" />
+        <StatCard label={showAll ? "Toplam Gider" : "Bu Ay Gider"} value={`₺${monthlyExpense.toLocaleString()}`} color={C.red} icon="📉" />
+        <StatCard label={showAll ? "Net Kâr" : "Bu Ay Net"} value={`₺${(monthlyIncome - monthlyExpense).toLocaleString()}`} color={C.orange} icon="⭐" />
+        <StatCard label="Toplam Kasa" value={`₺${kasaBalance.toLocaleString()}`} color={kasaBalance >= 0 ? C.green : C.red} icon="🏦" />
       </div>
 
       <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, flexWrap: "wrap", gap: 10 }}>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <select value={showAll ? "" : monthFilter} onChange={e => { setMonthFilter(e.target.value); setShowAll(!e.target.value); }}
+              style={{ ...inputStyle, width:"auto", padding:"6px 10px", fontSize:13, fontWeight:700 }}>
+              <option value="">Tüm Zamanlar</option>
+              {availMonths.map(m => {
+                const [y, mo] = m.split("-");
+                const label = new Date(Number(y), Number(mo)-1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+                return <option key={m} value={m}>{label}</option>;
+              })}
+            </select>
             {[["Tümü", C.blue], ["Gelir", C.green], ["Gider", C.red]].map(([f, col]) => (
               <button key={f} onClick={() => setFilter(f)}
                 style={filter === f ? btnStyle(col) : btnOutlineStyle(col)}>{f}</button>
@@ -2497,23 +2681,66 @@ function FinancePage({ finance, setFinance }) {
 }
 
 // ── RAPORLAR ──────────────────────────────────────────────
-function ReportsPage({ members, finance, staff }) {
-  const totalIncome = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
-  const totalExpense = finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+function ReportsPage({ members, finance, staff, reports, setReports }) {
+  const currentYM = new Date().toISOString().slice(0, 7);
+  const [selMonth, setSelMonth] = useState(currentYM);
+  const [snapMsg, setSnapMsg] = useState("");
+
+  // Ay listesi
+  const availMonths = [...new Set(finance.map(f => (f.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+  if (!availMonths.includes(currentYM)) availMonths.unshift(currentYM);
+
+  const mFinance = finance.filter(f => (f.date||"").startsWith(selMonth));
+  const totalIncome = mFinance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
+  const totalExpense = mFinance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+  const kasaBalance = finance.filter(f => f.type === "Gelir").reduce((s,f) => s+f.amount, 0) - finance.filter(f => f.type === "Gider").reduce((s,f) => s+f.amount, 0);
   const allChildren = members.flatMap(p => p.children || []);
   const active = allChildren.filter(m => m.status === "Aktif").length;
   const paid = allChildren.filter(m => (m.enrollments||[]).some(e => e.activePackage?.paid)).length;
   const planColors = [C.blue, C.orange, C.green];
 
+  const monthLabel = (ym) => {
+    const [y, mo] = ym.split("-");
+    return new Date(Number(y), Number(mo)-1).toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+  };
+
+  const takeSnapshot = () => {
+    if (!setReports) return;
+    const snap = {
+      id: "snap_" + selMonth,
+      month: selMonth,
+      label: monthLabel(selMonth),
+      totalIncome,
+      totalExpense,
+      net: totalIncome - totalExpense,
+      activeMembers: active,
+      totalMembers: allChildren.length,
+      createdAt: new Date().toISOString(),
+    };
+    setReports(prev => [...(prev||[]).filter(r => r.id !== snap.id), snap]);
+    setSnapMsg(`✅ ${monthLabel(selMonth)} raporu kaydedildi!`);
+    setTimeout(() => setSnapMsg(""), 3000);
+  };
+
   return (
     <div className="fade-in">
       <div className="ks-page-title" style={{ marginBottom: 4, color: C.text }}>📊 Raporlar</div>
-      <div style={{ fontSize: 14, color: C.textDim, marginBottom: 22, fontWeight: 600 }}>İşletme performans özeti</div>
+      <div style={{ fontSize: 14, color: C.textDim, marginBottom: 16, fontWeight: 600 }}>Aylık finansal ve işletme raporu</div>
+
+      {/* Ay seçici */}
+      <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:20, flexWrap:"wrap" }}>
+        <select value={selMonth} onChange={e => setSelMonth(e.target.value)} style={{ ...inputStyle, width:"auto", padding:"8px 12px", fontWeight:800, fontSize:14 }}>
+          {availMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
+        </select>
+        <button style={btnStyle(C.blue)} onClick={takeSnapshot}>📸 Ay Sonu Raporu Kaydet</button>
+        {snapMsg && <span style={{ fontWeight:700, color:C.green, fontSize:13 }}>{snapMsg}</span>}
+      </div>
 
       <div className="stat-cards">
-        <StatCard label="Aktif Üye" value={`%${allChildren.length ? Math.round((active / allChildren.length) * 100) : 0}`} sub={`${active}/${allChildren.length}`} color={C.green} icon="✅" />
-        <StatCard label="Ödeme Oranı" value={`%${allChildren.length ? Math.round((paid / allChildren.length) * 100) : 0}`} sub={`${paid}/${allChildren.length}`} color={C.yellow} icon="💳" />
-        <StatCard label="Kâr Marjı" value={`%${Math.round(((totalIncome - totalExpense) / totalIncome) * 100)}`} color={C.orange} icon="📊" />
+        <StatCard label="Gelir" value={`₺${totalIncome.toLocaleString()}`} sub={monthLabel(selMonth)} color={C.green} icon="📈" />
+        <StatCard label="Gider" value={`₺${totalExpense.toLocaleString()}`} sub={monthLabel(selMonth)} color={C.red} icon="📉" />
+        <StatCard label="Net Kâr" value={`₺${(totalIncome - totalExpense).toLocaleString()}`} color={C.orange} icon="⭐" />
+        <StatCard label="Toplam Kasa" value={`₺${kasaBalance.toLocaleString()}`} color={kasaBalance >= 0 ? C.green : C.red} icon="🏦" />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 18 }}>
@@ -2533,6 +2760,10 @@ function ReportsPage({ members, finance, staff }) {
               </div>
             );
           })}
+          <div style={{ marginTop:8, fontSize:12, color:C.textDim, fontWeight:700 }}>
+            <span>Aktif Üye: </span><span style={{ color:C.green }}>{active}/{allChildren.length}</span>
+            <span style={{ marginLeft:12 }}>Ödemeli: </span><span style={{ color:C.blue }}>{paid}/{allChildren.length}</span>
+          </div>
         </Card>
 
         <Card>
@@ -2544,6 +2775,29 @@ function ReportsPage({ members, finance, staff }) {
             </div>
           ))}
         </Card>
+
+        {/* Kaydedilmiş Raporlar */}
+        {(reports||[]).length > 0 && (
+          <Card style={{ gridColumn: "1 / -1" }}>
+            <CardTitle color={C.orange} icon="📁">Kaydedilmiş Aylık Raporlar</CardTitle>
+            <div style={{ display:"grid", gap:10 }}>
+              {(reports||[]).sort((a,b) => b.month.localeCompare(a.month)).map(r => (
+                <div key={r.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:"#f5f8ff", borderRadius:12, padding:"12px 16px", border:`1.5px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{r.label}</div>
+                    <div style={{ fontSize:12, color:C.textDim, marginTop:2 }}>
+                      Gelir: <span style={{ color:C.green }}>₺{(r.totalIncome||0).toLocaleString()}</span>
+                      &nbsp;|&nbsp;Gider: <span style={{ color:C.red }}>₺{(r.totalExpense||0).toLocaleString()}</span>
+                      &nbsp;|&nbsp;Net: <span style={{ color:(r.net||0)>=0?C.green:C.red }}>₺{(r.net||0).toLocaleString()}</span>
+                    </div>
+                    <div style={{ fontSize:11, color:C.textDim, marginTop:2 }}>Üye: {r.activeMembers}/{r.totalMembers} · {r.createdAt?.slice(0,10)}</div>
+                  </div>
+                  <button onClick={() => setReports && setReports(prev => (prev||[]).filter(x => x.id !== r.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"5px 9px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )}
       </div>
     </div>
   );
@@ -5212,6 +5466,7 @@ function App() {
   const [branches, setBranchesRaw] = useState([]);
   const [groups, setGroupsRaw] = useState([]);
   const [attendance, setAttendanceRaw] = useState([]);
+  const [reports, setReportsRaw] = useState([]);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showProfile, setShowProfile] = useState(false);
@@ -5300,13 +5555,13 @@ function App() {
   useEffect(() => {
     const unsubs = [];
     const loaded = new Set();
-    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance"];
+    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance","reports"];
     const setters = {
       members: setMembersRaw, staff: setStaffRaw, finance: setFinanceRaw,
       announcements: setAnnouncementsRaw, schedule: setScheduleRaw,
       channels: setChannelsRaw, channelMessages: setChannelMessagesRaw,
       dismissedNotifs: setDismissedNotifsRaw, readNotifs: setReadNotifsRaw,
-      branches: setBranchesRaw, groups: setGroupsRaw, attendance: setAttendanceRaw,
+      branches: setBranchesRaw, groups: setGroupsRaw, attendance: setAttendanceRaw, reports: setReportsRaw,
     };
     const snap2arr = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
     const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
@@ -5381,6 +5636,11 @@ function App() {
     const next = typeof val === "function" ? val(groups) : val;
     setGroupsRaw(next);
     fsSave("groups", next);
+  };
+  const setReports = (val) => {
+    const next = typeof val === "function" ? val(reports) : val;
+    setReportsRaw(next);
+    fsSave("reports", next);
   };
   const setAttendance = (val) => {
     const next = typeof val === "function" ? val(attendance) : val;
@@ -5466,7 +5726,7 @@ function App() {
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} />,
-    reports: <ReportsPage members={members} finance={finance} staff={staff} />,
+    reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
     calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} currentUser={user} canAdd={true} branches={branches} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
