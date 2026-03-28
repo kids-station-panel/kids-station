@@ -3640,8 +3640,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
   const todayAtt = attendance.filter(a => a.date === selectedDate && !a.type);
 
-  const grpStatusColor = (s) => s === "Geldi" ? C.green : s === "Gelmedi" ? C.red : s === "İzinli" ? C.orange : s === "Telafi" ? C.blue : s === "Geç" ? "#7c3aed" : C.textDim;
-  const grpStatusIcon = (s) => s === "Geldi" ? "✅" : s === "Gelmedi" ? "❌" : s === "İzinli" ? "🟡" : s === "Telafi" ? "🔵" : s === "Geç" ? "⏰" : "○";
+  const grpStatusColor = (s) => s === "Geldi" ? C.green : s === "Gelmedi" ? C.red : s === "İzinli" ? C.orange : C.textDim;
+  const grpStatusIcon = (s) => s === "Geldi" ? "✅" : s === "Gelmedi" ? "❌" : s === "İzinli" ? "🟡" : "○";
 
   const openGroupAtt = (g, groupStudents, dateStr) => {
     setGroupAttMode(g.id);
@@ -4021,18 +4021,17 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                                   </div>
                                 </div>
                                 <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-                                  {[["Geldi",C.green,"✅"],["Gelmedi",C.red,"❌"],["İzinli",C.orange,"🟡"],["Telafi",C.blue,"🔵"],["Geç","#7c3aed","⏰"]].map(([s,col,icon]) => (
+                                  {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange]].map(([s,col]) => (
                                     <button key={s} onClick={() => setGroupAttForm({...groupAttForm, [child.id]: s})}
                                       style={{
-                                        padding: isMobile ? "9px 11px" : "8px 13px",
-                                        borderRadius:10, fontWeight:800, fontSize: isMobile ? 16 : 11,
-                                        cursor:"pointer", fontFamily:"inherit", lineHeight:1,
+                                        padding: "10px 16px",
+                                        borderRadius:10, fontWeight:800, fontSize:13,
+                                        cursor:"pointer", fontFamily:"inherit",
                                         background: status===s ? col : "#eef2ff",
                                         color: status===s ? "#fff" : C.textDim,
                                         border: `1.5px solid ${status===s ? col : "transparent"}`,
                                         transition:"all 0.12s",
-                                        minWidth: isMobile ? 42 : "auto"
-                                      }} title={s}>{isMobile ? icon : s}</button>
+                                      }}>{s}</button>
                                   ))}
                                 </div>
                               </div>
@@ -4163,14 +4162,14 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       <div style={{ fontSize: 12, color: C.textDim, fontWeight: 600 }}>{(m.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
                     </div>
                     <div style={{ display: "flex", gap: 8 }}>
-                      {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange],["Telafi",C.blue],["İptal","#94a3b8"]].map(([s,col]) => (
+                      {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange]].map(([s,col]) => (
                         <button key={s} onClick={() => setAttForm({ ...attForm, [m.id]: s })}
                           style={{
-                            padding: "7px 10px", borderRadius: 10, fontWeight: 800, fontSize: 11,
+                            padding: "10px 16px", borderRadius: 10, fontWeight: 800, fontSize: 13,
                             cursor: "pointer", fontFamily: "inherit",
                             background: val === s ? col : "#eef2ff",
                             color: val === s ? "#fff" : C.textDim,
-                            border: "none",
+                            border: `1.5px solid ${val===s ? col : "transparent"}`,
                           }}>{s}</button>
                       ))}
                     </div>
@@ -4183,7 +4182,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
               <Card>
                 <CardTitle color={C.orange} icon="📋">Bugünün Özeti (Bireysel)</CardTitle>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange],["Telafi",C.blue],["İptal","#94a3b8"]].map(([s, col]) => (
+                  {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange]].map(([s, col]) => (
                     <div key={s} style={{ background: col + "14", border: `1.5px solid ${col}33`, borderRadius: 12, padding: "10px 14px", textAlign: "center" }}>
                       <div style={{ fontSize: 20, fontWeight: 900, color: col }}>{todayAtt.filter(a => a.status === s).length}</div>
                       <div style={{ fontSize: 11, color: C.textDim, fontWeight: 700 }}>{s}</div>
