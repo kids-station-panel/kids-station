@@ -1505,8 +1505,11 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                     : [...att].sort((a,b) => b.date.localeCompare(a.date)).map(a => (
                       <div key={a.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"9px 0", borderBottom:`1px solid ${C.border}` }}>
                         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                          <span style={{ fontSize:16 }}>{a.status==="Geldi"?"✅":a.status==="Gelmedi"?"❌":"🟡"}</span>
-                          <span style={{ fontWeight:700, fontSize:14, color:C.text }}>{a.date}</span>
+                          <span style={{ fontSize:16 }}>{a.status==="Geldi"?"✅":a.status==="Gelmedi"?"❌":a.status==="Telafi"?"🔵":a.status==="Geç"?"⏰":"🟡"}</span>
+                          <div>
+                            <span style={{ fontWeight:700, fontSize:14, color:C.text }}>{a.date}</span>
+                            {a.source === "group" && <div style={{ fontSize:10, color:C.blue, fontWeight:700, marginTop:1 }}>👥 Grup dersi{a.teacherName ? " · "+a.teacherName : ""}</div>}
+                          </div>
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                           <Badge color={statusColor(a.status)}>{a.status}</Badge>
@@ -3581,6 +3584,11 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [noteText, setNoteText] = useState("");
   const [noteDate, setNoteDate] = useState(() => new Date().toISOString().slice(0,10));
   const [devForm, setDevForm] = useState({});
+  // Group attendance state
+  const [groupAttMode, setGroupAttMode] = useState(null);
+  const [groupAttDate, setGroupAttDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [groupAttForm, setGroupAttForm] = useState({});
+  const [groupAttMsg, setGroupAttMsg] = useState({ groupId: null, text: "" });
 
   // myClasses removed — class field deprecated, using groups collection instead
 
@@ -3630,7 +3638,78 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     setAttendance([...attendance.filter(a => a.date !== selectedDate), ...newEntries]);
   };
 
-  const todayAtt = attendance.filter(a => a.date === selectedDate);
+  const todayAtt = attendance.filter(a => a.date === selectedDate && !a.type);
+
+  const grpStatusColor = (s) => s === "Geldi" ? C.green : s === "Gelmedi" ? C.red : s === "İzinli" ? C.orange : s === "Telafi" ? C.blue : s === "Geç" ? "#7c3aed" : C.textDim;
+  const grpStatusIcon = (s) => s === "Geldi" ? "✅" : s === "Gelmedi" ? "❌" : s === "İzinli" ? "🟡" : s === "Telafi" ? "🔵" : s === "Geç" ? "⏰" : "○";
+
+  const openGroupAtt = (g, groupStudents, dateStr) => {
+    setGroupAttMode(g.id);
+    setGroupAttDate(dateStr);
+    const pre = {};
+    groupStudents.forEach(child => {
+      const prev = (attendance||[]).find(a => a.type === "group" && a.groupId === g.id && a.date === dateStr && String(a.childId) === String(child.id));
+      pre[child.id] = prev?.status || "Geldi";
+    });
+    setGroupAttForm(pre);
+    setGroupAttMsg({ groupId: null, text: "" });
+  };
+
+  const saveGroupAttendance = (g, groupStudents, branchName) => {
+    const dateStr = groupAttDate;
+    const teacherId = myStaff?.id || user.id;
+    const teacherName = user.name || user.email || "Öğretmen";
+    // Build global attendance records
+    const newRecords = groupStudents.map(child => ({
+      id: `grp_${g.id}_${child.id}_${dateStr}`,
+      type: "group",
+      groupId: g.id,
+      groupName: g.name,
+      branchName,
+      childId: child.id,
+      childName: child.name,
+      parentId: (allParents||[]).find(p => (p.children||[]).some(c => String(c.id) === String(child.id)))?.id || null,
+      teacherId,
+      teacherName,
+      date: dateStr,
+      status: groupAttForm[child.id] || "Geldi",
+      note: "",
+      createdAt: new Date().toISOString(),
+    }));
+    // Replace existing records for this group+date
+    const filteredAtt = (attendance||[]).filter(a => !(a.type === "group" && a.groupId === g.id && a.date === dateStr));
+    setAttendance([...filteredAtt, ...newRecords]);
+    // Update enrollment attendance in allParents
+    const updatedParents = (allParents||[]).map(parent => {
+      const updatedChildren = (parent.children||[]).map(child => {
+        const status = groupAttForm[child.id];
+        if (status === undefined) return child;
+        const attId = `grp_${g.id}_${child.id}_${dateStr}`;
+        const updatedEnrollments = (child.enrollments||[]).map(enr => {
+          if (enr.branchName !== branchName) return enr;
+          const existingEntry = (enr.attendance||[]).find(a => a.id === attId);
+          const newEntry = { id: attId, date: dateStr, status, source: "group", groupId: g.id, teacherId };
+          const updatedAtt = existingEntry
+            ? (enr.attendance||[]).map(a => a.id === attId ? newEntry : a)
+            : [...(enr.attendance||[]), newEntry];
+          let updatedPkg = enr.activePackage;
+          if (updatedPkg) {
+            const wasGeldi = existingEntry?.status === "Geldi";
+            const isGeldi = status === "Geldi";
+            if (isGeldi && !wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.min(updatedPkg.usedLessons + 1, updatedPkg.totalLessons) };
+            else if (!isGeldi && wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.max(updatedPkg.usedLessons - 1, 0) };
+          }
+          return { ...enr, attendance: updatedAtt, activePackage: updatedPkg };
+        });
+        return { ...child, enrollments: updatedEnrollments };
+      });
+      return { ...parent, children: updatedChildren };
+    });
+    setAllParents(updatedParents);
+    setGroupAttMode(null);
+    setGroupAttMsg({ groupId: g.id, text: `✅ ${groupStudents.length} öğrenci için ${dateStr} yoklaması kaydedildi.` });
+    setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 4000);
+  };
 
   const saveSessionNote = () => {
     if (!selectedStudent || !noteText.trim()) return;
@@ -3828,7 +3907,15 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         {page === "groups" && (
           <div className="fade-in">
             <div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 4 }}>👥 Grup Derslerim</div>
-            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Size atanan gruplar ve öğrenciler</div>
+            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 16, fontWeight: 600 }}>Atandığınız gruplar · yoklama alın ve kaydedin</div>
+
+            {/* Başarı mesajı */}
+            {groupAttMsg.text && (
+              <div style={{ background: C.green+"14", border:`1.5px solid ${C.green}44`, borderRadius:12, padding:"10px 16px", marginBottom:14, fontWeight:700, color:C.green, fontSize:13 }}>
+                {groupAttMsg.text}
+              </div>
+            )}
+
             {myGroups.length === 0 ? (
               <Card>
                 <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}>
@@ -3838,46 +3925,191 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 </div>
               </Card>
             ) : myGroups.map(g => {
-              const branchName = (branches||[]).find(b => b.id === g.branchId)?.name || "-";
+              const branchName = (branches||[]).find(b => b.id === g.branchId)?.name || g.branchName || "-";
               const groupStudents = (g.studentIds||[]).map(sid => allChildren.find(c => String(c.id) === String(sid))).filter(Boolean);
+              const isAttMode = groupAttMode === g.id;
+              const todayStr = new Date().toISOString().slice(0,10);
+              const savedToday = (attendance||[]).some(a => a.type === "group" && a.groupId === g.id && a.date === todayStr);
+              const savedOnDate = (attendance||[]).some(a => a.type === "group" && a.groupId === g.id && a.date === groupAttDate);
+
               return (
-                <Card key={g.id}>
+                <Card key={g.id} style={{ marginBottom:16 }}>
+                  {/* Kart başlığı */}
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                    <div>
+                    <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:18, fontWeight:900, color:C.text }}>{g.name}</div>
-                      <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>{branchName} · {g.type === "individual" ? "Bireysel" : "Grup"}</div>
+                      <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>{branchName} · {g.type === "individual" ? "Bireysel" : "Grup Dersi"}</div>
                       <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
                         <Badge color={C.blue}>{branchName}</Badge>
                         <Badge color={C.orange}>{groupStudents.length} öğrenci</Badge>
+                        {savedToday && <Badge color={C.green}>✅ Bugün yoklandı</Badge>}
                       </div>
                     </div>
-                    <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
+                    <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end", flexShrink:0, marginLeft:8 }}>
+                      <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
+                      {!isAttMode && groupStudents.length > 0 && g.isActive && (
+                        <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"8px 14px", marginTop:4 }}
+                          onClick={() => openGroupAtt(g, groupStudents, todayStr)}>
+                          📅 Yoklama Al
+                        </button>
+                      )}
+                      {isAttMode && (
+                        <button style={{ ...btnOutlineStyle(C.red), fontSize:12, padding:"7px 12px", marginTop:4 }}
+                          onClick={() => setGroupAttMode(null)}>✕ İptal</button>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>Öğrenciler</div>
-                    {groupStudents.length === 0 ? (
-                      <div style={{ fontSize:13, color:C.textDim }}>Bu grupta öğrenci yok.</div>
-                    ) : (
-                      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+
+                  {/* YOKLAMA MODU */}
+                  {isAttMode && (
+                    <div style={{ background:"#f0f4ff", borderRadius:14, padding:14, marginBottom:14, border:`2px solid ${C.blue}33` }}>
+                      {/* Tarih + toplu işlem */}
+                      <div style={{ display:"flex", gap:10, alignItems:"flex-end", marginBottom:14, flexWrap:"wrap" }}>
+                        <div style={{ flex:1, minWidth:120 }}>
+                          <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Ders Tarihi</div>
+                          <input style={{ ...inputStyle, padding:"9px 12px", fontWeight:800 }} type="date" value={groupAttDate}
+                            onChange={e => {
+                              const d = e.target.value;
+                              setGroupAttDate(d);
+                              const pre = {};
+                              groupStudents.forEach(child => {
+                                const prev = (attendance||[]).find(a => a.type==="group" && a.groupId===g.id && a.date===d && String(a.childId)===String(child.id));
+                                pre[child.id] = prev?.status || "Geldi";
+                              });
+                              setGroupAttForm(pre);
+                            }} />
+                        </div>
+                        <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                          <button style={{ ...btnStyle(C.green), fontSize:12, padding:"9px 14px" }}
+                            onClick={() => { const all={}; groupStudents.forEach(c => all[c.id]="Geldi"); setGroupAttForm(all); }}>
+                            ✅ Tümü Geldi
+                          </button>
+                          <button style={{ ...btnStyle(C.red), fontSize:12, padding:"9px 14px" }}
+                            onClick={() => { const all={}; groupStudents.forEach(c => all[c.id]="Gelmedi"); setGroupAttForm(all); }}>
+                            ❌ Tümü Gelmedi
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Uyarı: üzerine yazma */}
+                      {savedOnDate && (
+                        <div style={{ background:C.orange+"14", border:`1.5px solid ${C.orange}44`, borderRadius:10, padding:"8px 12px", marginBottom:12, fontSize:12, fontWeight:700, color:C.orange }}>
+                          ⚠️ Bu tarih için yoklama zaten girilmiş. Kaydetmek mevcut kaydın üzerine yazacak.
+                        </div>
+                      )}
+
+                      {/* Öğrenci satırları */}
+                      <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                         {groupStudents.map(child => {
+                          const status = groupAttForm[child.id] || "Geldi";
                           const age = calcAge(child.birthDate);
-                          const remaining = (child.enrollments||[]).reduce((s,e) => s+(e.activePackage?e.activePackage.totalLessons-e.activePackage.usedLessons:0),0);
+                          const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
+                          const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
+                          const borderCol = grpStatusColor(status);
                           return (
-                            <div key={child.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#f5f8ff", borderRadius:10 }}>
-                              <div>
-                                <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
-                                <div style={{ fontSize:12, color:C.textDim, marginTop:2, fontWeight:600 }}>{age} yaş · {(child.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
-                              </div>
-                              <div style={{ display:"flex", gap:6 }}>
-                                <Badge color={child.status === "Aktif" ? C.green : C.red}>{child.status}</Badge>
-                                <Badge color={remaining<=3?C.red:C.blue}>📚 {remaining}</Badge>
+                            <div key={child.id} style={{ background:"#fff", borderRadius:12, padding:"10px 12px", border:`1.5px solid ${borderCol}44`, transition:"border-color 0.15s" }}>
+                              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
+                                  <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2 }}>
+                                    {age} yaş
+                                    {remaining !== null && (
+                                      <span style={{ marginLeft:8, color:remaining<=3?C.red:C.blue, fontWeight:800 }}>
+                                        📚 {remaining} ders kaldı
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                                  {[["Geldi",C.green,"✅"],["Gelmedi",C.red,"❌"],["İzinli",C.orange,"🟡"],["Telafi",C.blue,"🔵"],["Geç","#7c3aed","⏰"]].map(([s,col,icon]) => (
+                                    <button key={s} onClick={() => setGroupAttForm({...groupAttForm, [child.id]: s})}
+                                      style={{
+                                        padding: isMobile ? "9px 11px" : "8px 13px",
+                                        borderRadius:10, fontWeight:800, fontSize: isMobile ? 16 : 11,
+                                        cursor:"pointer", fontFamily:"inherit", lineHeight:1,
+                                        background: status===s ? col : "#eef2ff",
+                                        color: status===s ? "#fff" : C.textDim,
+                                        border: `1.5px solid ${status===s ? col : "transparent"}`,
+                                        transition:"all 0.12s",
+                                        minWidth: isMobile ? 42 : "auto"
+                                      }} title={s}>{isMobile ? icon : s}</button>
+                                  ))}
+                                </div>
                               </div>
                             </div>
                           );
                         })}
                       </div>
-                    )}
-                  </div>
+
+                      {/* Kaydet */}
+                      <button
+                        style={{ ...btnStyle(C.green), width:"100%", marginTop:14, padding:"13px 16px", fontSize:15, fontWeight:900 }}
+                        onClick={() => saveGroupAttendance(g, groupStudents, branchName)}>
+                        💾 Yoklamayı Kaydet ({groupStudents.length} öğrenci · {groupAttDate})
+                      </button>
+                    </div>
+                  )}
+
+                  {/* ÖĞRENCİ LİSTESİ (yoklama modu kapalı) */}
+                  {!isAttMode && (
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>Öğrenciler</div>
+                      {groupStudents.length === 0 ? (
+                        <div style={{ fontSize:13, color:C.textDim, padding:"10px 0" }}>Bu grupta öğrenci yok.</div>
+                      ) : (
+                        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                          {groupStudents.map(child => {
+                            const age = calcAge(child.birthDate);
+                            const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
+                            const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
+                            const todayRec = (attendance||[]).find(a => a.type==="group" && a.groupId===g.id && String(a.childId)===String(child.id) && a.date===todayStr);
+                            return (
+                              <div key={child.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#f5f8ff", borderRadius:10, border:`1px solid ${C.border}` }}>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
+                                  <div style={{ fontSize:12, color:C.textDim, marginTop:2, fontWeight:600 }}>
+                                    {age} yaş
+                                    {remaining !== null && <span style={{ marginLeft:6, color:remaining<=3?C.red:C.blue }}> · 📚 {remaining} ders</span>}
+                                  </div>
+                                </div>
+                                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                                  {todayRec && <Badge color={grpStatusColor(todayRec.status)}>{grpStatusIcon(todayRec.status)} {todayRec.status}</Badge>}
+                                  <Badge color={child.status === "Aktif" ? C.green : C.red}>{child.status}</Badge>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* SON YOKLAMALAR (son 3 kayıt) */}
+                  {!isAttMode && (() => {
+                    const recentDates = [...new Set((attendance||[]).filter(a => a.type==="group" && a.groupId===g.id).map(a => a.date))].sort().reverse().slice(0,3);
+                    if (recentDates.length === 0) return null;
+                    return (
+                      <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
+                        <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>📋 Son Yoklamalar</div>
+                        {recentDates.map(d => {
+                          const recs = (attendance||[]).filter(a => a.type==="group" && a.groupId===g.id && a.date===d);
+                          const geldi = recs.filter(r => r.status==="Geldi").length;
+                          const gelmedi = recs.filter(r => r.status==="Gelmedi").length;
+                          const other = recs.length - geldi - gelmedi;
+                          return (
+                            <div key={d} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
+                              <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{d}</span>
+                              <div style={{ display:"flex", gap:6 }}>
+                                <Badge color={C.green}>✅ {geldi}</Badge>
+                                <Badge color={C.red}>❌ {gelmedi}</Badge>
+                                {other > 0 && <Badge color={C.orange}>🟡 {other}</Badge>}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </Card>
               );
             })}
@@ -3949,7 +4181,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
             {todayAtt.length > 0 && (
               <Card>
-                <CardTitle color={C.orange} icon="📋">Bugünün Özeti</CardTitle>
+                <CardTitle color={C.orange} icon="📋">Bugünün Özeti (Bireysel)</CardTitle>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange],["Telafi",C.blue],["İptal","#94a3b8"]].map(([s, col]) => (
                     <div key={s} style={{ background: col + "14", border: `1.5px solid ${col}33`, borderRadius: 12, padding: "10px 14px", textAlign: "center" }}>
@@ -3960,6 +4192,52 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 </div>
               </Card>
             )}
+
+            {/* Grup Yoklama Geçmişi */}
+            {(() => {
+              const myId = myStaff?.id || user.id;
+              const grpRecs = (attendance||[]).filter(a => a.type === "group" && String(a.teacherId) === String(myId));
+              if (grpRecs.length === 0) return null;
+              const grpDates = [...new Set(grpRecs.map(a => a.date))].sort().reverse().slice(0, 14);
+              return (
+                <Card>
+                  <CardTitle color={C.blue} icon="👥">Grup Yoklama Geçmişi</CardTitle>
+                  <div style={{ display:"flex", flexDirection:"column", gap:10, marginTop:8 }}>
+                    {grpDates.map(d => {
+                      const dayRecs = grpRecs.filter(a => a.date === d);
+                      const byGroup = {};
+                      dayRecs.forEach(r => {
+                        if (!byGroup[r.groupId]) byGroup[r.groupId] = { name: r.groupName, branchName: r.branchName, recs: [] };
+                        byGroup[r.groupId].recs.push(r);
+                      });
+                      return (
+                        <div key={d}>
+                          <div style={{ fontWeight:800, fontSize:13, color:C.textMid, marginBottom:6 }}>📅 {d}</div>
+                          {Object.entries(byGroup).map(([gid, gdata]) => {
+                            const geldi = gdata.recs.filter(r => r.status==="Geldi").length;
+                            const gelmedi = gdata.recs.filter(r => r.status==="Gelmedi").length;
+                            const other = gdata.recs.length - geldi - gelmedi;
+                            return (
+                              <div key={gid} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 12px", background:"#f5f8ff", borderRadius:10, marginBottom:4 }}>
+                                <div>
+                                  <div style={{ fontWeight:800, fontSize:13, color:C.text }}>{gdata.name}</div>
+                                  <div style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{gdata.branchName}</div>
+                                </div>
+                                <div style={{ display:"flex", gap:5 }}>
+                                  <Badge color={C.green}>✅ {geldi}</Badge>
+                                  <Badge color={C.red}>❌ {gelmedi}</Badge>
+                                  {other > 0 && <Badge color={C.orange}>🟡 {other}</Badge>}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              );
+            })()}
           </div>
         )}
 
