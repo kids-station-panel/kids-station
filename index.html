@@ -3605,7 +3605,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
   // Bu öğretmene atanmış gruplar
   const myGroups = (groups||[]).filter(g =>
-    g.isActive && (g.teacherIds||[]).some(tid => String(tid) === String(user.id) || String(tid) === String(myStaff?.id))
+    g.isActive !== false && (g.teacherIds||[]).some(tid => String(tid) === String(user.id) || String(tid) === String(myStaff?.id))
   );
 
   const navItems = [
@@ -3947,7 +3947,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     </div>
                     <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end", flexShrink:0, marginLeft:8 }}>
                       <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
-                      {!isAttMode && groupStudents.length > 0 && g.isActive && (
+                      {!isAttMode && groupStudents.length > 0 && g.isActive !== false && (
                         <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"8px 14px", marginTop:4 }}
                           onClick={() => openGroupAtt(g, groupStudents, todayStr)}>
                           📅 Yoklama Al
