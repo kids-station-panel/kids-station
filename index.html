@@ -2061,7 +2061,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 }
 
 // ── PERSONEL ──────────────────────────────────────────────
-function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, allParents }) {
+function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, allParents, branches: dynamicBranches }) {
   const fresh = staff.find(s => s.id === member.id) || member;
   const allChildren = (allParents||[]).flatMap(p => p.children||[]);
   const [editing, setEditing]   = useState(false);
@@ -2076,7 +2076,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
 
   const assignStudent = () => {
     if (!assignForm.childId) return;
-    const newEntry = { id: Date.now(), childId: Number(assignForm.childId), days: assignForm.days, time: assignForm.time, branch: assignForm.branch };
+    const newEntry = { id: Date.now(), childId: assignForm.childId, days: assignForm.days, time: assignForm.time, branch: assignForm.branch };
     update({ individualStudents: [...(fresh.individualStudents||[]), newEntry] });
     setAssignForm({ childId:"", days:[], time:"", branch:"" });
     setShowAssign(false);
@@ -2257,7 +2257,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
                   )}
                   <select style={inputStyle} value={assignForm.childId} onChange={e => {
                     const cid = e.target.value;
-                    const child = allChildren.find(c => c.id === Number(cid));
+                    const child = allChildren.find(c => String(c.id) === String(cid));
                     const firstBranch = child ? ((child.enrollments||[])[0]?.branchName || "") : "";
                     setAssignForm({...assignForm, childId: cid, branch: firstBranch || assignForm.branch});
                   }}>
@@ -2295,7 +2295,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
                     <select style={inputStyle} value={assignForm.branch} onChange={e => setAssignForm({...assignForm, branch:e.target.value})}>
                       <option value="">-- Branş Seçin --</option>
                       {(() => {
-                        const child = allChildren.find(c => c.id === Number(assignForm.childId));
+                        const child = allChildren.find(c => String(c.id) === String(assignForm.childId));
                         const enrBranches = (child?.enrollments||[]).map(e=>e.branchName).filter(Boolean);
                         const dynamicBranchNames = (dynamicBranches && dynamicBranches.length > 0) ? dynamicBranches.map(b=>b.name) : BRANCHES; const opts = enrBranches.length > 0 ? enrBranches : dynamicBranchNames;
                         return opts.map(b => <option key={b} value={b}>{b}</option>);
@@ -2320,7 +2320,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
             </div>
           ) : (
             (fresh.individualStudents||[]).map(s => {
-              const child = allChildren.find(c => c.id === Number(s.childId));
+              const child = allChildren.find(c => String(c.id) === String(s.childId));
               if (!child) return null;
               const pkg = (child.enrollments||[]).find(e=>e.activePackage)?.activePackage || null;
               const remaining = pkg ? (pkg.totalLessons - pkg.usedLessons) : 0;
@@ -2492,7 +2492,7 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, branches:
 
   if (selectedStaff) {
     const fresh = staff.find(s => s.id === selectedStaff.id) || selectedStaff;
-    return <StaffDetail member={fresh} onBack={() => setSelected(null)} staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={allParents} />;
+    return <StaffDetail member={fresh} onBack={() => setSelected(null)} staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={allParents} branches={dynamicBranches} />;
   }
 
   return (
@@ -3800,7 +3800,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 </div>
               </Card>
             ) : myStudents.map(s => {
-              const child = allChildren.find(c => c.id === Number(s.childId));
+              const child = allChildren.find(c => String(c.id) === String(s.childId));
               if (!child) return null;
               const activeEnrs = (child.enrollments||[]).filter(e => e.activePackage);
               const pkg = activeEnrs[0]?.activePackage || null;
@@ -4636,7 +4636,7 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentU
   const autoSlots = [];
   (staff||[]).forEach(s => {
     (s.individualStudents||[]).forEach(assign => {
-      const child = allChildren.find(c => c.id === Number(assign.childId));
+      const child = allChildren.find(c => String(c.id) === String(assign.childId));
       if (!child) return;
       (assign.days||[]).forEach(d => {
         autoSlots.push({ id:"auto_"+s.id+"_"+assign.childId+"_"+d, day:d, time:assign.time||"09:00", endTime:"", title:child.name, branch:assign.branch||child.branch||"-", teacher:s.name, type:"Bireysel", notes:"", isAuto:true });
