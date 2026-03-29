@@ -190,7 +190,7 @@
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 // ── MOBİL ALGILAMA ────────────────────────────────────────
 function useIsMobile(bp = 600) {
@@ -5807,7 +5807,7 @@ async function fsSave(col, items) {
     });
     await batch.commit();
   } catch(e) { console.warn("Firestore kayıt hatası:", e); }
-  finally { setTimeout(() => { delete _fsWriting[col]; }, 2500); }
+  finally { setTimeout(() => { delete _fsWriting[col]; }, 500); }
 }
 
 function App() {
@@ -5926,19 +5926,51 @@ function App() {
     const snap2arr = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
     const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
 
+    // Tüm koleksiyonları Firestore'dan tek seferlik çek (yeniden bağlanma veya polling için)
+    const refreshAll = () => {
+      COLS.forEach(col => {
+        if (_fsWriting[col]) return;
+        db.collection(col).get()
+          .then(snap => setters[col](snap2arr(snap)))
+          .catch(() => {});
+      });
+    };
+
     COLS.forEach(col => {
-      unsubs.push(
-        db.collection(col).onSnapshot(
+      const attach = () => {
+        const unsub = db.collection(col).onSnapshot(
           snap => {
             if (!_fsWriting[col]) setters[col](snap2arr(snap));
             if (!loaded.has(col)) { loaded.add(col); markLoaded(); }
           },
-          () => { if (!loaded.has(col)) { loaded.add(col); markLoaded(); } }
-        )
-      );
+          () => {
+            // Listener hata verdi — 3 saniye sonra yeniden bağlan
+            if (!loaded.has(col)) { loaded.add(col); markLoaded(); }
+            setTimeout(attach, 3000);
+          }
+        );
+        unsubs.push(unsub);
+      };
+      attach();
     });
 
-    return () => unsubs.forEach(u => u());
+    // Tab odağa geldiğinde verileri yenile (arka plandan döndüğünde)
+    const onVisible = () => { if (!document.hidden) refreshAll(); };
+    document.addEventListener('visibilitychange', onVisible);
+
+    // İnternet bağlantısı geri geldiğinde verileri yenile
+    const onOnline = () => refreshAll();
+    window.addEventListener('online', onOnline);
+
+    // 30 saniyede bir polling fallback (WebSocket bağlantısı kesilse bile çalışır)
+    const pollTimer = setInterval(refreshAll, 30000);
+
+    return () => {
+      unsubs.forEach(u => typeof u === 'function' && u());
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+      clearInterval(pollTimer);
+    };
   }, []);
 
   // Wrapper setter'lar — state güncelle + Firestore'a kaydet
