@@ -6247,6 +6247,7 @@ function App() {
   };
 
   return (
+  <React.Fragment>
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: C.bg, maxWidth: "100vw", overflow: "hidden" }}>
       {showProfile && <ProfileModal user={user} onClose={() => setShowProfile(false)} onLogout={() => { firebase.auth().signOut(); setUser(null); }} onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />}
       {/* Header */}
@@ -6296,6 +6297,7 @@ function App() {
       </div>
     </div>
     <KsToast />
+  </React.Fragment>
   );
 }
 
