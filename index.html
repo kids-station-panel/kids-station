@@ -192,6 +192,24 @@
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
 
+// ── GLOBAL TOAST SİSTEMİ ─────────────────────────────────
+const _ksToastListeners = [];
+function showKsToast(msg, color) {
+  _ksToastListeners.forEach(fn => fn({ msg, color: color || "#22c55e" }));
+}
+function KsToast() {
+  const [t, setT] = useState(null);
+  useEffect(() => {
+    const fn = (item) => { setT(item); setTimeout(() => setT(null), 3500); };
+    _ksToastListeners.push(fn);
+    return () => { const i = _ksToastListeners.indexOf(fn); if (i >= 0) _ksToastListeners.splice(i, 1); };
+  }, []);
+  if (!t) return null;
+  return React.createElement('div', {
+    style: { position:'fixed', bottom:28, left:'50%', transform:'translateX(-50%)', background:t.color, color:'#fff', padding:'13px 28px', borderRadius:14, fontWeight:700, fontSize:15, zIndex:99999, boxShadow:'0 4px 24px rgba(0,0,0,0.18)', pointerEvents:'none', textAlign:'center', maxWidth:'90vw', whiteSpace:'pre-line' }
+  }, t.msg);
+}
+
 // ── MOBİL ALGILAMA ────────────────────────────────────────
 function useIsMobile(bp = 600) {
   const [mob, setMob] = useState(typeof window !== "undefined" && window.innerWidth <= bp);
@@ -964,6 +982,15 @@ function calcAge(birthDate) {
   return age;
 }
 
+// GG/AA/YYYY formatında tarih gösterimi (depolama formatı YYYY-MM-DD korunur)
+function fmtDate(d) {
+  if (!d) return "";
+  const s = String(d).slice(0, 10);
+  const [y, mo, day] = s.split("-");
+  if (!y || !mo || !day) return s;
+  return `${day}/${mo}/${y}`;
+}
+
 // ── ÇOCUK DETAY SAYFASI ──────────────────────────────────────
 function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches }) {
   const freshChild = parents.find(p => p.id === parent.id)?.children.find(c => c.id === child.id) || child;
@@ -1118,7 +1145,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
   const addAttendance = () => {
     if (!activeEnrollment || !attForm.date) return;
     const att = activeEnrollment.attendance || [];
-    if (att.find(a => a.date === attForm.date)) { alert("Bu tarihe ait yoklama zaten girilmiş!"); return; }
+    if (att.find(a => a.date === attForm.date)) { showKsToast("Bu tarihe ait yoklama zaten girilmiş!", "#ef4444"); return; }
     const newAtt = { id: Date.now(), date: attForm.date, status: attForm.status };
     const updatedAtt = [...att, newAtt].sort((a, b) => a.date.localeCompare(b.date));
     let updatedPkg = activeEnrollment.activePackage ? { ...activeEnrollment.activePackage } : null;
@@ -1507,7 +1534,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                           <span style={{ fontSize:16 }}>{a.status==="Geldi"?"✅":a.status==="Gelmedi"?"❌":a.status==="Telafi"?"🔵":a.status==="Geç"?"⏰":"🟡"}</span>
                           <div>
-                            <span style={{ fontWeight:700, fontSize:14, color:C.text }}>{a.date}</span>
+                            <span style={{ fontWeight:700, fontSize:14, color:C.text }}>{fmtDate(a.date)}</span>
                             {a.source === "group" && <div style={{ fontSize:10, color:C.blue, fontWeight:700, marginTop:1 }}>👥 Grup dersi{a.teacherName ? " · "+a.teacherName : ""}</div>}
                           </div>
                         </div>
@@ -1599,7 +1626,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
             <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
               <div>
                 <div style={{ fontWeight:800, fontSize:13, color:C.text }}>{f.desc}</div>
-                <div style={{ fontSize:11, color:C.textDim, marginTop:2, fontWeight:600 }}>{f.date}</div>
+                <div style={{ fontSize:11, color:C.textDim, marginTop:2, fontWeight:600 }}>{fmtDate(f.date)}</div>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontWeight:900, color:C.green }}>+₺{Number(f.amount).toLocaleString()}</span>
@@ -1634,7 +1661,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                   <div>
                     <div style={{ fontWeight:800, fontSize:13, color:C.text }}>{f.desc}</div>
                     <div style={{ display:"flex", gap:6, marginTop:4 }}>
-                      <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{f.date}</span>
+                      <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{fmtDate(f.date)}</span>
                       <Badge color={f.source === "lesson" ? C.orange : C.blue}>{f.source === "lesson" ? "Tekil" : "Paket"}</Badge>
                     </div>
                   </div>
@@ -1683,7 +1710,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                 <span style={{ fontSize:24 }}>{r.data?.startsWith("data:application/pdf")?"📄":"🖼️"}</span>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{r.name}</div>
-                  <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{r.date}</div>
+                  <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{fmtDate(r.date)}</div>
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <a href={r.data} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle(C.blue), fontSize:12, padding:"7px 12px", textDecoration:"none" }}>👁️ Aç</a>
@@ -1848,7 +1875,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
                 <div key={f.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
                   <div>
                     <div style={{ fontWeight:700, fontSize:12, color:C.text }}>{f.desc}</div>
-                    <div style={{ fontSize:11, color:C.textDim, marginTop:1 }}>{f.date}</div>
+                    <div style={{ fontSize:11, color:C.textDim, marginTop:1 }}>{fmtDate(f.date)}</div>
                   </div>
                   <span style={{ fontWeight:900, color:C.green, fontSize:13 }}>+₺{Number(f.amount).toLocaleString()}</span>
                 </div>
@@ -2061,7 +2088,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 }
 
 // ── PERSONEL ──────────────────────────────────────────────
-function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, allParents, branches: dynamicBranches }) {
+function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, allParents, setAllParents, branches: dynamicBranches }) {
   const fresh = staff.find(s => s.id === member.id) || member;
   const allChildren = (allParents||[]).flatMap(p => p.children||[]);
   const [editing, setEditing]   = useState(false);
@@ -2405,7 +2432,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
             <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
               <div>
                 <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{p.desc}</div>
-                <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>{p.date}</div>
+                <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>{fmtDate(p.date)}</div>
               </div>
               <div style={{ textAlign:"right" }}>
                 <div style={{ fontWeight:900, color:C.red, fontSize:16 }}>₺{Number(p.amount).toLocaleString()}</div>
@@ -2453,19 +2480,23 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
               Veli bu QR'ı okutunca ders otomatik onaylanır ve paketten 1 ders düşer.
             </div>
             <QRApproveButton qrData={qrModal.qrData} qrModal={qrModal} allParents={allParents} onApprove={(childId) => {
-              // Update child attendance & package in parents state
+              const assignBranch = qrModal.assignment?.branch;
+              const newAtt = { id: Date.now(), date: new Date().toISOString().slice(0,10), status: "Geldi", approvedByParent: true };
               const updatedParents = (allParents||[]).map(p => ({
                 ...p,
                 children: p.children.map(c => {
-                  if (c.id !== childId) return c;
-                  const newAtt = { id: Date.now(), date: new Date().toISOString().slice(0,10), status: "Geldi", approvedByParent: true };
-                  const updEnrs = (c.enrollments||[]).map((enr,i) => i===0 && enr.activePackage ? { ...enr, activePackage: { ...enr.activePackage, usedLessons: Math.min(enr.activePackage.usedLessons+1, enr.activePackage.totalLessons) }, attendance: [...(enr.attendance||[]), newAtt] } : enr);
+                  if (String(c.id) !== String(childId)) return c;
+                  const updEnrs = (c.enrollments||[]).map(enr => {
+                    const matches = assignBranch ? enr.branchName === assignBranch : enr.activePackage;
+                    if (!matches || !enr.activePackage) return enr;
+                    return { ...enr, activePackage: { ...enr.activePackage, usedLessons: Math.min(enr.activePackage.usedLessons+1, enr.activePackage.totalLessons) }, attendance: [...(enr.attendance||[]), newAtt] };
+                  });
                   return { ...c, enrollments: updEnrs };
                 })
               }));
-              // We can't call setParents here directly - need to pass it up
+              if (setAllParents) setAllParents(updatedParents);
               setQrModal(null);
-              alert("✅ Ders onaylandı! Paketten 1 ders düşüldü.");
+              showKsToast("✅ Ders onaylandı! Paketten 1 ders düşüldü.");
             }} />
             <button style={{ ...btnOutlineStyle(C.red), marginTop:10, width:"100%" }} onClick={() => setQrModal(null)}>Kapat</button>
           </div>
@@ -2475,7 +2506,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
   );
 }
 
-function StaffPage({ staff, setStaff, finance, setFinance, allParents, branches: dynamicBranches }) {
+function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllParents, branches: dynamicBranches }) {
   const [showAdd, setShowAdd]         = useState(false);
   const [selectedStaff, setSelected]  = useState(null);
   const [form, setForm]               = useState({ name:"", role:"Antrenör", employmentType:"Tam Zamanlı", shift:"Sabah", phone:"", salary:"", branches:"" });
@@ -2492,7 +2523,7 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, branches:
 
   if (selectedStaff) {
     const fresh = staff.find(s => s.id === selectedStaff.id) || selectedStaff;
-    return <StaffDetail member={fresh} onBack={() => setSelected(null)} staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={allParents} branches={dynamicBranches} />;
+    return <StaffDetail member={fresh} onBack={() => setSelected(null)} staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={allParents} setAllParents={setAllParents} branches={dynamicBranches} />;
   }
 
   return (
@@ -2599,6 +2630,7 @@ function FinancePage({ finance, setFinance, members }) {
   const [showAll, setShowAll] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [cleanMsg, setCleanMsg] = useState("");
+  const [sortAsc, setSortAsc] = useState(false);
   const [form, setForm] = useState({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "" });
 
   // Yalnız (orphan) paket finance kayıtlarını temizle
@@ -2627,7 +2659,9 @@ function FinancePage({ finance, setFinance, members }) {
 
   const currentYM = new Date().toISOString().slice(0, 7);
   const viewFinance = showAll ? finance : finance.filter(f => (f.date || "").startsWith(monthFilter));
-  const filtered = viewFinance.filter(f => filter === "Tümü" || f.type === filter);
+  const filtered = viewFinance
+    .filter(f => filter === "Tümü" || f.type === filter)
+    .slice().sort((a, b) => sortAsc ? (a.date||"").localeCompare(b.date||"") : (b.date||"").localeCompare(a.date||""));
   const monthlyIncome = viewFinance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
   const monthlyExpense = viewFinance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
   // Kasa = tüm zamanlar
@@ -2674,6 +2708,11 @@ function FinancePage({ finance, setFinance, members }) {
               <button key={f} onClick={() => setFilter(f)}
                 style={filter === f ? btnStyle(col) : btnOutlineStyle(col)}>{f}</button>
             ))}
+            <button onClick={() => setSortAsc(a => !a)}
+              style={{ ...btnOutlineStyle(C.blue), display:"flex", alignItems:"center", gap:4, fontSize:12 }}
+              title="Tarihe göre sırala">
+              📅 {sortAsc ? "Eskiden yeniye ↑" : "Yeniden eskiye ↓"}
+            </button>
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
             <button style={btnStyle(C.yellow + "ee")} onClick={() => setShowAdd(!showAdd)}>
@@ -2720,7 +2759,7 @@ function FinancePage({ finance, setFinance, members }) {
           <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "13px 0", borderBottom: `1px solid ${C.border}` }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 800, fontSize: 14, color: C.text }}>{f.desc}</div>
-              <div style={{ fontSize: 12, color: C.textDim, marginTop: 3, fontWeight: 600 }}>{f.date}</div>
+              <div style={{ fontSize: 12, color: C.textDim, marginTop: 3, fontWeight: 600 }}>{fmtDate(f.date)}</div>
             </div>
             <div style={{ textAlign: "right", display: "flex", alignItems: "center", gap: 10 }}>
               <div>
@@ -3025,7 +3064,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
             <Card key={a.id} style={{ marginBottom:12 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
                 <div style={{ fontWeight:900, fontSize:15, color:C.text }}>{a.title}</div>
-                <div style={{ fontSize:11, color:C.textDim, fontWeight:600, flexShrink:0, marginLeft:8 }}>{a.date}</div>
+                <div style={{ fontSize:11, color:C.textDim, fontWeight:600, flexShrink:0, marginLeft:8 }}>{fmtDate(a.date)}</div>
               </div>
               <div style={{ fontSize:13, color:C.textMid, fontWeight:600, lineHeight:1.6 }}>{a.content}</div>
               {a.important && <Badge color={C.red} style={{ marginTop:8 }}>❗ Önemli</Badge>}
@@ -3589,6 +3628,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [groupAttDate, setGroupAttDate] = useState(() => new Date().toISOString().slice(0,10));
   const [groupAttForm, setGroupAttForm] = useState({});
   const [groupAttMsg, setGroupAttMsg] = useState({ groupId: null, text: "" });
+  const [grpFilterUnattended, setGrpFilterUnattended] = useState(false);
 
   // myClasses removed — class field deprecated, using groups collection instead
 
@@ -3854,7 +3894,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>Son Yoklamalar</div>
                       {[...att].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5).map((a,i) => (
                         <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
-                          <span style={{ fontSize:14, fontWeight:700, color:C.text }}>{a.date}</span>
+                          <span style={{ fontSize:14, fontWeight:700, color:C.text }}>{fmtDate(a.date)}</span>
                           <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                             <Badge color={a.status==="Geldi"?C.green:a.status==="Gelmedi"?C.red:C.orange}>{a.status}</Badge>
                             {a.approvedByParent && <span style={{ fontSize:11, color:C.green, fontWeight:700 }}>✓ Veli Onaylı</span>}
@@ -3893,7 +3933,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       }));
                       setAllParents(updParents);
                       setQrModal(null);
-                      alert("✅ Veli onayı alındı! Ders tamamlandı, paketten 1 ders düşüldü.");
+                      showKsToast("✅ Veli onayı alındı! Ders tamamlandı, paketten 1 ders düşüldü.");
                     }}>
                     ✅ Velinin QR'ı Okuttuğunu Simüle Et
                   </button>
@@ -4050,38 +4090,66 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                   )}
 
                   {/* ÖĞRENCİ LİSTESİ (yoklama modu kapalı) */}
-                  {!isAttMode && (
-                    <div>
-                      <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>Öğrenciler</div>
-                      {groupStudents.length === 0 ? (
-                        <div style={{ fontSize:13, color:C.textDim, padding:"10px 0" }}>Bu grupta öğrenci yok.</div>
-                      ) : (
-                        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                          {groupStudents.map(child => {
-                            const age = calcAge(child.birthDate);
-                            const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
-                            const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
-                            const todayRec = (attendance||[]).find(a => a.type==="group" && a.groupId===g.id && String(a.childId)===String(child.id) && a.date===todayStr);
-                            return (
-                              <div key={child.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#f5f8ff", borderRadius:10, border:`1px solid ${C.border}` }}>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
-                                  <div style={{ fontSize:12, color:C.textDim, marginTop:2, fontWeight:600 }}>
-                                    {age} yaş
-                                    {remaining !== null && <span style={{ marginLeft:6, color:remaining<=3?C.red:C.blue }}> · 📚 {remaining} ders</span>}
+                  {!isAttMode && (() => {
+                    const attRecs = groupStudents.map(child => ({
+                      child,
+                      rec: (attendance||[]).find(a => a.type==="group" && a.groupId===g.id && String(a.childId)===String(child.id) && a.date===groupAttDate),
+                    }));
+                    const attendedCount = attRecs.filter(r => r.rec).length;
+                    const visibleRecs = grpFilterUnattended ? attRecs.filter(r => !r.rec) : attRecs;
+                    return (
+                      <div>
+                        {/* Özet satırı */}
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8, flexWrap:"wrap", gap:6 }}>
+                          <div style={{ fontSize:12, fontWeight:800, color:C.textMid, textTransform:"uppercase" }}>
+                            Öğrenciler
+                            <span style={{ marginLeft:8, fontWeight:700, color: attendedCount===groupStudents.length && groupStudents.length>0 ? C.green : C.orange, fontSize:12, textTransform:"none" }}>
+                              · {attendedCount}/{groupStudents.length} yoklama alındı
+                            </span>
+                          </div>
+                          {groupStudents.length > 0 && (
+                            <button onClick={() => setGrpFilterUnattended(f => !f)} style={{ fontSize:11, fontWeight:800, padding:"4px 10px", borderRadius:8, border:`1.5px solid ${grpFilterUnattended ? C.orange : C.border}`, background: grpFilterUnattended ? C.orange+"22" : "transparent", color: grpFilterUnattended ? C.orange : C.textDim, cursor:"pointer", fontFamily:"inherit" }}>
+                              {grpFilterUnattended ? "Tümünü Göster" : "Sadece Alınmayanlar"}
+                            </button>
+                          )}
+                        </div>
+                        {groupStudents.length === 0 ? (
+                          <div style={{ fontSize:13, color:C.textDim, padding:"10px 0" }}>Bu grupta öğrenci yok.</div>
+                        ) : visibleRecs.length === 0 ? (
+                          <div style={{ fontSize:13, color:C.green, padding:"10px 0", fontWeight:700 }}>✅ Tüm öğrencilerin yoklaması alındı!</div>
+                        ) : (
+                          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                            {visibleRecs.map(({ child, rec }) => {
+                              const age = calcAge(child.birthDate);
+                              const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
+                              const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
+                              const dotColor = rec ? grpStatusColor(rec.status) : "#d1d5db";
+                              return (
+                                <div key={child.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background: rec ? "#f0fdf4" : "#f5f8ff", borderRadius:10, border:`1.5px solid ${rec ? grpStatusColor(rec.status)+"55" : C.border}` }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:8, flex:1, minWidth:0 }}>
+                                    <div style={{ width:10, height:10, borderRadius:"50%", background:dotColor, flexShrink:0, boxShadow: rec ? `0 0 0 3px ${dotColor}33` : "none" }} />
+                                    <div>
+                                      <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
+                                      <div style={{ fontSize:12, color:C.textDim, marginTop:2, fontWeight:600 }}>
+                                        {age} yaş
+                                        {remaining !== null && <span style={{ marginLeft:6, color:remaining<=3?C.red:C.blue }}> · 📚 {remaining} ders</span>}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                                    {rec
+                                      ? <Badge color={grpStatusColor(rec.status)}>{grpStatusIcon(rec.status)} {rec.status}</Badge>
+                                      : <span style={{ fontSize:12, color:C.textDim, fontWeight:700 }}>— alınmadı</span>
+                                    }
                                   </div>
                                 </div>
-                                <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                                  {todayRec && <Badge color={grpStatusColor(todayRec.status)}>{grpStatusIcon(todayRec.status)} {todayRec.status}</Badge>}
-                                  <Badge color={child.status === "Aktif" ? C.green : C.red}>{child.status}</Badge>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* SON YOKLAMALAR (son 3 kayıt) */}
                   {!isAttMode && (() => {
@@ -4097,7 +4165,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                           const other = recs.length - geldi - gelmedi;
                           return (
                             <div key={d} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
-                              <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{d}</span>
+                              <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{fmtDate(d)}</span>
                               <div style={{ display:"flex", gap:6 }}>
                                 <Badge color={C.green}>✅ {geldi}</Badge>
                                 <Badge color={C.red}>❌ {gelmedi}</Badge>
@@ -4211,7 +4279,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       });
                       return (
                         <div key={d}>
-                          <div style={{ fontWeight:800, fontSize:13, color:C.textMid, marginBottom:6 }}>📅 {d}</div>
+                          <div style={{ fontWeight:800, fontSize:13, color:C.textMid, marginBottom:6 }}>📅 {fmtDate(d)}</div>
                           {Object.entries(byGroup).map(([gid, gdata]) => {
                             const geldi = gdata.recs.filter(r => r.status==="Geldi").length;
                             const gelmedi = gdata.recs.filter(r => r.status==="Gelmedi").length;
@@ -4275,7 +4343,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                   {notes.slice(0,6).map(n => (
                     <div key={n.id} style={{ padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
                       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
-                        <span style={{ fontSize: 12, fontWeight: 800, color: C.textMid }}>{n.date}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: C.textMid }}>{fmtDate(n.date)}</span>
                         <span style={{ fontSize: 11, color: C.textDim, fontWeight: 600 }}>{n.staffName}</span>
                       </div>
                       <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>{n.note}</div>
@@ -4393,7 +4461,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     {a.important && <Badge color={C.red}>Önemli</Badge>}
                   </div>
                   <div style={{ fontSize: 14, color: C.textMid, lineHeight: 1.6, fontWeight: 600 }}>{a.content}</div>
-                  <div style={{ fontSize: 12, color: C.textDim, marginTop: 10, fontWeight: 600 }}>{a.date} · {a.author}</div>
+                  <div style={{ fontSize: 12, color: C.textDim, marginTop: 10, fontWeight: 600 }}>{fmtDate(a.date)} · {a.author}</div>
                 </div>
               ))}
             </Card>
@@ -4428,7 +4496,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     <div key={m.id} style={{ padding:"10px 12px", marginBottom:8, borderRadius:10, background:ch.color+"0d", border:`1px solid ${ch.color}22` }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
                         <span style={{ fontWeight:800, fontSize:12, color:ch.color }}>👤 {m.author}</span>
-                        <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{m.date}</span>
+                        <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{fmtDate(m.date)}</span>
                       </div>
                       <div style={{ fontSize:14, color:C.text, lineHeight:1.5 }}>{m.text}</div>
                     </div>
@@ -5265,7 +5333,7 @@ function MessagesPage({ members, channels, setChannels, channelMessages, setChan
                     <div key={m.id} style={{ background:"#fff", borderRadius:12, padding:"12px 14px", boxShadow:"0 1px 6px rgba(0,0,0,0.06)", border:`1px solid ${C.border}` }}>
                       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                         <span style={{ fontWeight:800, fontSize:13, color:activeChannel?.color||C.blue }}>👤 {m.author}</span>
-                        <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{m.date}</span>
+                        <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{fmtDate(m.date)}</span>
                       </div>
                       <div style={{ fontSize:14, color:C.text, lineHeight:1.5 }}>{m.text}</div>
                     </div>
@@ -5352,7 +5420,7 @@ function MessagesPage({ members, channels, setChannels, channelMessages, setChan
                 <div key={s.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
                   <div>
                     <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{s.childName}</div>
-                    <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.phone} · {s.date}</div>
+                    <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{s.phone} · {fmtDate(s.date)}</div>
                   </div>
                   <Badge color={C.green}>Gönderildi</Badge>
                 </div>
@@ -5927,13 +5995,16 @@ function App() {
     const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
 
     // Tüm koleksiyonları Firestore'dan tek seferlik çek (yeniden bağlanma veya polling için)
+    let _refreshBusy = false;
     const refreshAll = () => {
-      COLS.forEach(col => {
-        if (_fsWriting[col]) return;
-        db.collection(col).get()
+      if (_refreshBusy) return;
+      _refreshBusy = true;
+      Promise.all(COLS.map(col => {
+        if (_fsWriting[col]) return Promise.resolve();
+        return db.collection(col).get()
           .then(snap => setters[col](snap2arr(snap)))
           .catch(() => {});
-      });
+      })).finally(() => { _refreshBusy = false; });
     };
 
     COLS.forEach(col => {
@@ -6219,11 +6290,12 @@ function App() {
 
       <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "22px 16px 30px", overflowY: "auto" }}>
         <div style={{ display: page === "staff" ? "block" : "none" }}>
-          <StaffPage staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} branches={branches} />
+          <StaffPage staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} setAllParents={setMembers} branches={branches} />
         </div>
         {page !== "staff" && pages[page]}
       </div>
     </div>
+    <KsToast />
   );
 }
 
