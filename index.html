@@ -1975,12 +1975,39 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   const [showAdd, setShowAdd] = useState(false);
   const [selectedParent, setSelectedParent] = useState(null);
   const [form, setForm] = useState({ parent1Name: "", parent1Phone: "", parent2Name: "", parent2Phone: "", email: "", address: "" });
+  const [statusFilter, setStatusFilter] = useState("Aktif");
+  const [confirmPassive, setConfirmPassive] = useState(null);
 
-  const filtered = parents.filter(p =>
+  const allChildren = parents.flatMap(p => p.children || []);
+  const activeParents = parents.filter(p => p.isActive !== false);
+  const passiveParents = parents.filter(p => p.isActive === false);
+  const totalChildCount = allChildren.length;
+  const activeChildCount = activeParents.flatMap(p => p.children || []).filter(c => c.status === "Aktif").length;
+  const passiveChildCount = totalChildCount - activeChildCount;
+  const unpaidChildren = allChildren.filter(c => (c.enrollments||[]).some(e => e.activePackage && !e.activePackage.paid)).length;
+
+  const searchFiltered = parents.filter(p =>
     p.name?.toLowerCase().includes(search.toLowerCase()) ||
     p.parent1Phone?.includes(search) ||
     p.children?.some(c => c.name.toLowerCase().includes(search.toLowerCase()))
   );
+  const filtered = searchFiltered.filter(p => {
+    if (statusFilter === "Aktif") return p.isActive !== false;
+    if (statusFilter === "Pasif") return p.isActive === false;
+    return true;
+  });
+
+  const togglePassive = (p) => {
+    const nowActive = p.isActive !== false;
+    const updatedParents = parents.map(x => {
+      if (x.id !== p.id) return x;
+      const newIsActive = !nowActive;
+      const updatedChildren = (x.children || []).map(c => ({ ...c, status: newIsActive ? "Aktif" : "Pasif" }));
+      return { ...x, isActive: newIsActive, children: updatedChildren };
+    });
+    setParents(updatedParents);
+    showKsToast(nowActive ? `"${p.parent1Name||p.name}" pasife alındı.` : `"${p.parent1Name||p.name}" aktife alındı.`, nowActive ? C.orange : C.green);
+  };
 
   const addParent = () => {
     if (!form.parent1Name.trim()) return;
@@ -1988,6 +2015,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
       id: Date.now(),
       name: form.parent1Name,
       phone: form.parent1Phone,
+      isActive: true,
       ...form,
       children: [],
     };
@@ -2001,25 +2029,70 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
     return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} />;
   }
 
-  const allChildren = parents.flatMap(p => p.children || []);
-  const activeChildren = allChildren.filter(c => c.status === "Aktif").length;
-  const unpaidChildren = allChildren.filter(c => (c.enrollments||[]).some(e => e.activePackage && !e.activePackage.paid)).length;
+  const statItems = [
+    { label: "Toplam Çocuk", value: totalChildCount, filter: "Tümü", color: C.blue, icon: "👦" },
+    { label: "Aktif Çocuk", value: activeChildCount, filter: "Aktif", color: C.green, icon: "✅" },
+    { label: "Pasif Çocuk", value: passiveChildCount, filter: "Pasif", color: "#94a3b8", icon: "⏸" },
+  ];
 
   return (
     <div className="fade-in">
+
+      {confirmPassive && (() => {
+        const p = confirmPassive;
+        const nowActive = p.isActive !== false;
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center" }}
+            onClick={() => setConfirmPassive(null)}>
+            <div style={{ background:"#fff", borderRadius:18, padding:28, maxWidth:380, width:"90%", boxShadow:"0 8px 40px rgba(0,0,0,0.22)" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ fontWeight:900, fontSize:17, color:C.text, marginBottom:10 }}>
+                {nowActive ? "⏸ Pasife Al" : "▶ Aktife Al"}
+              </div>
+              <div style={{ color:C.textMid, fontSize:14, marginBottom:18, lineHeight:1.6 }}>
+                <b>{p.parent1Name||p.name}</b> velisi ve tüm çocukları <b>{nowActive ? "pasif" : "aktif"}</b> duruma alınacak. Tüm geçmiş veriler korunur.
+              </div>
+              <div style={{ display:"flex", gap:10 }}>
+                <button style={btnStyle(nowActive ? C.orange : C.green)} onClick={() => { togglePassive(p); setConfirmPassive(null); }}>
+                  {nowActive ? "⏸ Pasife Al" : "▶ Aktife Al"}
+                </button>
+                <button style={btnOutlineStyle(C.textDim)} onClick={() => setConfirmPassive(null)}>İptal</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="ks-page-title" style={{ marginBottom: 4, color: C.text }}>👥 Üye Yönetimi</div>
       <div style={{ fontSize: 14, color: C.textDim, marginBottom: 18, fontWeight: 600 }}>Veliler ve çocuk profilleri</div>
 
       <div className="stat-cards">
         <StatCard label="Toplam Veli" value={parents.length} color={C.blue} icon="👨‍👩‍👧" />
-        <StatCard label="Aktif Çocuk" value={activeChildren} sub={`${allChildren.length} toplam`} color={C.green} icon="👦" />
+        {statItems.map(item => (
+          <div key={item.filter} onClick={() => setStatusFilter(item.filter)}
+            style={{ cursor:"pointer", borderRadius:18, outline: statusFilter===item.filter ? `3px solid #fff` : "none",
+              boxShadow: statusFilter===item.filter ? `0 0 0 3px ${item.color}` : "none", transition:"box-shadow 0.2s" }}>
+            <StatCard label={item.label} value={item.value} color={item.color} icon={item.icon} />
+          </div>
+        ))}
         <StatCard label="Ödeme Bekleyen" value={unpaidChildren} color={C.orange} icon="⏳" />
       </div>
 
       <Card>
-        <div style={{ display: "flex", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
           <input style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder="🔍  Veli adı, telefon veya çocuk adı ara..." value={search} onChange={e => setSearch(e.target.value)} />
           <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Veli</button>
+        </div>
+
+        <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
+          {["Tümü","Aktif","Pasif"].map(f => (
+            <button key={f} onClick={() => setStatusFilter(f)}
+              style={{ padding:"6px 18px", borderRadius:20, border:`1.5px solid ${statusFilter===f ? C.blue : C.border}`,
+                background: statusFilter===f ? C.blue : "transparent", color: statusFilter===f ? "#fff" : C.textMid,
+                fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s" }}>
+              {f === "Tümü" ? `Tümü (${searchFiltered.length})` : f === "Aktif" ? `Aktif (${searchFiltered.filter(p=>p.isActive!==false).length})` : `Pasif (${searchFiltered.filter(p=>p.isActive===false).length})`}
+            </button>
+          ))}
         </div>
 
         {showAdd && (
@@ -2049,27 +2122,40 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
         )}
 
         {filtered.map(p => {
+          const isPassive = p.isActive === false;
           const childCount = (p.children || []).length;
           const unpaid = (p.children || []).filter(c => (c.enrollments||[]).some(e => e.activePackage && !e.activePackage.paid)).length;
           return (
             <div key={p.id} className="card-hover" onClick={() => setSelectedParent(p)}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 10px", borderBottom: `1px solid ${C.border}`, cursor: "pointer", borderRadius: 10 }}
-              onMouseEnter={e => e.currentTarget.style.background = "#f0f4ff"}
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 10px",
+                borderBottom: `1px solid ${C.border}`, cursor: "pointer", borderRadius: 10,
+                opacity: isPassive ? 0.55 : 1, filter: isPassive ? "grayscale(0.4)" : "none" }}
+              onMouseEnter={e => e.currentTarget.style.background = isPassive ? "#f5f5f5" : "#f0f4ff"}
               onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 15, color: C.text }}>👨‍👩‍👧 {p.parent1Name || p.name}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ fontWeight: 900, fontSize: 15, color: C.text }}>👨‍👩‍👧 {p.parent1Name || p.name}</div>
+                  {isPassive && <Badge color="#94a3b8">PASİF</Badge>}
+                </div>
                 {p.parent2Name && <div style={{ fontSize: 13, color: C.textDim, fontWeight: 600 }}>& {p.parent2Name}</div>}
                 <div style={{ fontSize: 13, color: C.textDim, marginTop: 2, fontWeight: 600 }}>{p.parent1Phone}</div>
                 <div style={{ display: "flex", gap: 6, marginTop: 7, flexWrap: "wrap" }}>
                   <Badge color={C.blue}>👦 {childCount} çocuk</Badge>
-                  {unpaid > 0 && <Badge color={C.orange}>⏳ {unpaid} ödeme bekliyor</Badge>}
+                  {unpaid > 0 && !isPassive && <Badge color={C.orange}>⏳ {unpaid} ödeme bekliyor</Badge>}
                   {(p.children || []).map(c => (
-                    <Badge key={c.id} color={c.status === "Aktif" ? C.green : C.red}>{c.name}</Badge>
+                    <Badge key={c.id} color={c.status === "Aktif" ? C.green : "#94a3b8"}>{c.name}</Badge>
                   ))}
                 </div>
               </div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                 <div style={{ color: C.textDim, fontSize: 20 }}>›</div>
+                <button style={{ background: isPassive ? C.green+"15" : C.orange+"15",
+                  border:`1px solid ${isPassive ? C.green : C.orange}44`,
+                  color: isPassive ? C.green : C.orange,
+                  borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}
+                  onClick={e => { e.stopPropagation(); setConfirmPassive(p); }}>
+                  {isPassive ? "▶ Aktife Al" : "⏸ Pasife Al"}
+                </button>
                 <button style={{ background:C.red+"15", border:`1px solid ${C.red}44`, color:C.red, borderRadius:8, padding:"4px 8px", fontSize:12, fontWeight:700, cursor:"pointer" }}
                   onClick={e => {
                     e.stopPropagation();
@@ -2081,7 +2167,12 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
             </div>
           );
         })}
-        <div style={{ marginTop: 12, fontSize: 13, color: C.textDim, fontWeight: 700 }}>Toplam {filtered.length} veli · Detay için tıklayın</div>
+        {filtered.length === 0 && (
+          <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontWeight:700, fontSize:14 }}>
+            {statusFilter === "Pasif" ? "Pasif veli bulunamadı." : statusFilter === "Aktif" ? "Aktif veli bulunamadı." : "Veli bulunamadı."}
+          </div>
+        )}
+        <div style={{ marginTop: 12, fontSize: 13, color: C.textDim, fontWeight: 700 }}>{filtered.length} veli gösteriliyor · Detay için tıklayın</div>
       </Card>
     </div>
   );
