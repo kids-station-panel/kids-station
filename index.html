@@ -2068,13 +2068,23 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 
       <div className="stat-cards">
         <StatCard label="Toplam Veli" value={parents.length} color={C.blue} icon="👨‍👩‍👧" />
-        {statItems.map(item => (
-          <div key={item.filter} onClick={() => setStatusFilter(item.filter)}
-            style={{ cursor:"pointer", borderRadius:18, outline: statusFilter===item.filter ? `3px solid #fff` : "none",
-              boxShadow: statusFilter===item.filter ? `0 0 0 3px ${item.color}` : "none", transition:"box-shadow 0.2s" }}>
-            <StatCard label={item.label} value={item.value} color={item.color} icon={item.icon} />
+        <div style={{ background: C.green, borderRadius: 18, padding: "16px 20px", boxShadow: `0 6px 20px ${C.green}44`, position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-14, top:-14, width:60, height:60, borderRadius:"50%", background:"rgba(255,255,255,0.14)" }} />
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:12, fontWeight:800 }}>👦 Çocuklar</div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:0 }}>
+            {statItems.map((item, i) => (
+              <div key={item.filter} onClick={() => setStatusFilter(item.filter)}
+                style={{ textAlign:"center", cursor:"pointer", padding:"4px 0",
+                  borderRight: i < 2 ? "1.5px solid rgba(255,255,255,0.25)" : "none",
+                  background: statusFilter===item.filter ? "rgba(255,255,255,0.18)" : "transparent",
+                  borderRadius: i===0 ? "8px 0 0 8px" : i===2 ? "0 8px 8px 0" : 0,
+                  transition:"background 0.15s" }}>
+                <div style={{ fontSize:22, fontWeight:900, color:"#fff", lineHeight:1 }}>{item.value}</div>
+                <div style={{ fontSize:10, color:"rgba(255,255,255,0.8)", fontWeight:700, marginTop:4, letterSpacing:0.5 }}>{item.label.replace(" Çocuk","")}</div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
         <StatCard label="Ödeme Bekleyen" value={unpaidChildren} color={C.orange} icon="⏳" />
       </div>
 
