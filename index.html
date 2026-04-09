@@ -1999,13 +1999,12 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 
   const togglePassive = (p) => {
     const nowActive = p.isActive !== false;
-    const updatedParents = parents.map(x => {
-      if (x.id !== p.id) return x;
-      const newIsActive = !nowActive;
+    const newIsActive = !nowActive;
+    setParents(prev => prev.map(x => {
+      if (String(x.id) !== String(p.id)) return x;
       const updatedChildren = (x.children || []).map(c => ({ ...c, status: newIsActive ? "Aktif" : "Pasif" }));
       return { ...x, isActive: newIsActive, children: updatedChildren };
-    });
-    setParents(updatedParents);
+    }));
     showKsToast(nowActive ? `"${p.parent1Name||p.name}" pasife alındı.` : `"${p.parent1Name||p.name}" aktife alındı.`, nowActive ? C.orange : C.green);
   };
 
@@ -5972,10 +5971,16 @@ async function fsSave(col, items) {
     existing.docs.forEach(d => batch.delete(d.ref));
     items.forEach((item, idx) => {
       const ref = item.id ? db.collection(col).doc(String(item.id)) : db.collection(col).doc();
-      batch.set(ref, { ...item, _order: idx });
+      const clean = JSON.parse(JSON.stringify(item));
+      batch.set(ref, { ...clean, _order: idx });
     });
     await batch.commit();
-  } catch(e) { console.warn("Firestore kayıt hatası:", e); }
+    return true;
+  } catch(e) {
+    console.warn("Firestore kayıt hatası:", e);
+    showKsToast("⚠️ Kayıt hatası! İnternet bağlantınızı kontrol edin.", "#ef4444");
+    return false;
+  }
   finally { setTimeout(() => { delete _fsWriting[col]; }, 500); }
 }
 
@@ -6147,9 +6152,10 @@ function App() {
 
   // Wrapper setter'lar — state güncelle + Firestore'a kaydet
   const setMembers = (val) => {
+    const prev = members;
     const next = typeof val === "function" ? val(members) : val;
     setMembersRaw(next);
-    fsSave("members", next);
+    fsSave("members", next).then(ok => { if (!ok) setMembersRaw(prev); });
   };
   const setStaff = (val) => {
     const next = typeof val === "function" ? val(staff) : val;
