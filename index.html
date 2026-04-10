@@ -992,7 +992,7 @@ function fmtDate(d) {
 }
 
 // ── ÇOCUK DETAY SAYFASI ──────────────────────────────────────
-function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches }) {
+function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches, canEdit = true }) {
   const freshChild = parents.find(p => p.id === parent.id)?.children.find(c => c.id === child.id) || child;
   const enrollments = freshChild.enrollments || [];
 
@@ -1241,8 +1241,8 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
           <div style={{ fontSize: 22, fontWeight: 900, color: C.text }}>{freshChild.name}</div>
           <div style={{ fontSize: 13, color: C.textDim, fontWeight: 600 }}>{age} yaşında · {enrollments.length} branş</div>
         </div>
-        <button style={btnStyle(C.blue)} onClick={() => { setEditChild({...freshChild}); setEditing(true); }}>✏️ Düzenle</button>
-        <button style={btnStyle(C.red)} onClick={() => {
+        {canEdit && <button style={btnStyle(C.blue)} onClick={() => { setEditChild({...freshChild}); setEditing(true); }}>✏️ Düzenle</button>}
+        {canEdit && <button style={btnStyle(C.red)} onClick={() => {
           if (window.confirm(`"${freshChild.name}" öğrencisini silmek istediğinize emin misiniz?\nTüm kayıt ve devamsızlık bilgileri silinecek!`)) {
             setParents(parents.map(p => p.id === parent.id
               ? { ...p, children: p.children.filter(c => c.id !== child.id) }
@@ -1250,7 +1250,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
             ));
             onBack();
           }
-        }}>🗑️ Sil</button>
+        }}>🗑️ Sil</button>}
       </div>
 
       {/* Uyarılar */}
@@ -1261,7 +1261,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
             <div style={{ fontWeight: 900, color: C.red }}>{activeEnrollment?.branchName} — Paket Tükendi!</div>
             <div style={{ fontSize: 13, color: C.textMid, fontWeight: 600 }}>Tüm dersler kullanıldı. Yeni paket tanımlayın.</div>
           </div>
-          <button style={btnStyle(C.red)} onClick={() => setShowAddPackage(true)}>+ Yeni Paket</button>
+          {canEdit && <button style={btnStyle(C.red)} onClick={() => setShowAddPackage(true)}>+ Yeni Paket</button>}
         </div>
       )}
       {pkg && daysLeft !== null && daysLeft <= 7 && daysLeft > 0 && (
@@ -1318,7 +1318,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <CardTitle color={C.orange} icon="⚽">Branşlar & Paket Takibi</CardTitle>
-          <button style={btnStyle(C.orange)} onClick={() => setShowAddEnrollment(!showAddEnrollment)}>+ Branş Ekle</button>
+          {canEdit && <button style={btnStyle(C.orange)} onClick={() => setShowAddEnrollment(!showAddEnrollment)}>+ Branş Ekle</button>}
         </div>
 
         {/* Branş Ekleme Formu */}
@@ -1376,7 +1376,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                     <span style={{ fontWeight: 900, fontSize: 16, color: C.text }}>⚽ {activeEnrollment.branchName}</span>
                     <Badge color={activeEnrollment.lessonType === "Bireysel" ? C.blue : C.green} style={{ marginLeft: 8 }}>{activeEnrollment.lessonType}</Badge>
                   </div>
-                  <button onClick={() => removeEnrollment(activeEnrollment.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontWeight: 700, fontSize: 13 }}>🗑️ Branşı Sil</button>
+                  {canEdit && <button onClick={() => removeEnrollment(activeEnrollment.id)} style={{ background: "none", border: "none", cursor: "pointer", color: C.red, fontWeight: 700, fontSize: 13 }}>🗑️ Branşı Sil</button>}
                 </div>
 
                 {/* PAKET BÖLÜMÜ */}
@@ -1389,10 +1389,10 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                     <div style={{ fontWeight: 900, fontSize: 14, color: C.text }}>📦 Aktif Paket</div>
                     <div style={{ display:"flex", gap:8 }}>
-                      {activeEnrollment.activePackage && !isMediatopia && (
+                      {canEdit && activeEnrollment.activePackage && !isMediatopia && (
                         <button style={{ ...btnOutlineStyle(C.blue), fontSize: 12, padding: "8px 14px" }} onClick={() => { if (showEditPackage) { setShowEditPackage(false); } else { openEditPackage(); } }}>✏️ Düzenle</button>
                       )}
-                      {!isMediatopia && <button style={{ ...btnStyle(C.orange), fontSize: 12, padding: "8px 14px" }} onClick={() => { setShowAddPackage(!showAddPackage); setShowEditPackage(false); }}>+ Yeni Paket</button>}
+                      {canEdit && !isMediatopia && <button style={{ ...btnStyle(C.orange), fontSize: 12, padding: "8px 14px" }} onClick={() => { setShowAddPackage(!showAddPackage); setShowEditPackage(false); }}>+ Yeni Paket</button>}
                     </div>
                   </div>
 
@@ -1541,7 +1541,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                 <div style={{ background:"#fafbff", borderRadius:14, padding:16, border:`1.5px solid ${C.border}` }}>
                   <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
                     <div style={{ fontWeight:900, fontSize:14, color:C.text }}>📋 Yoklama</div>
-                    <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"8px 14px" }} onClick={() => setShowAddAtt(!showAddAtt)}>+ Yoklama Ekle</button>
+                    {canEdit && <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"8px 14px" }} onClick={() => setShowAddAtt(!showAddAtt)}>+ Yoklama Ekle</button>}
                   </div>
 
                   {showAddAtt && (
@@ -1598,7 +1598,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                           <Badge color={statusColor(a.status)}>{a.status}</Badge>
                           {a.status==="Geldi" && <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>−1 ders</span>}
-                          <button onClick={() => deleteAttendance(a.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.textDim, fontSize:15, padding:"2px 4px" }}>🗑️</button>
+                          {canEdit && <button onClick={() => deleteAttendance(a.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.textDim, fontSize:15, padding:"2px 4px" }}>🗑️</button>}
                         </div>
                       </div>
                     ))
@@ -1634,13 +1634,13 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                     <Badge color={cfg.c}>{cfg.l}</Badge>
                   </div>
                 </div>
-                <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:8 }}>
+                {canEdit && <div style={{ display:"flex", gap:5, flexWrap:"wrap", marginBottom:8 }}>
                   {[["bekliyor","⏳ Bekliyor",C.orange],["kismi","🔶 Kısmi","#f59e0b"],["odendi","✅ Ödendi",C.green],["gecikti","🔴 Gecikmeli",C.red],["iptal","⛔ İptal",C.textDim]].map(([s,lbl,col]) => (
                     <button key={s} onClick={() => updatePayment(e.id, s, s==="odendi"?new Date().toISOString().slice(0,10):"")}
                       style={{ padding:"5px 10px", borderRadius:20, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit", border:"1.5px solid "+col, background:pStatus===s?col:"transparent", color:pStatus===s?"#fff":col, transition:"all 0.15s" }}>{lbl}</button>
                   ))}
-                </div>
-                <button onClick={() => openEditPackage(e)} style={{ padding:"5px 12px", borderRadius:20, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit", border:`1.5px solid ${C.blue}`, background:"transparent", color:C.blue }}>✏️ Paketi Düzenle</button>
+                </div>}
+                {canEdit && <button onClick={() => openEditPackage(e)} style={{ padding:"5px 12px", borderRadius:20, fontWeight:700, fontSize:11, cursor:"pointer", fontFamily:"inherit", border:`1.5px solid ${C.blue}`, background:"transparent", color:C.blue }}>✏️ Paketi Düzenle</button>}
               </div>
             );
           })
@@ -1652,7 +1652,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
         <Card>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
             <CardTitle color="#7c3aed" icon="🤝">Mediatopia Check-in</CardTitle>
-            <button style={btnStyle("#7c3aed")} onClick={() => setShowCheckin(!showCheckin)}>+ Check-in Ekle</button>
+            {canEdit && <button style={btnStyle("#7c3aed")} onClick={() => setShowCheckin(!showCheckin)}>+ Check-in Ekle</button>}
           </div>
           <div style={{ background:"#7c3aed18", borderRadius:10, padding:"10px 14px", marginBottom:14, fontSize:13, color:"#7c3aed", fontWeight:700 }}>
             ℹ️ Bu üye Mediatopia üzerinden ödeme yapmaktadır. Her check-in 650 TL olarak kaydedilir.
@@ -1678,7 +1678,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                   <span style={{ fontWeight:900, color:C.green }}>+₺{Number(f.amount).toLocaleString()}</span>
-                  <button onClick={() => setFinance && setFinance(prev => (prev||[]).filter(x => x.id !== f.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"4px 8px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>
+                  {canEdit && <button onClick={() => setFinance && setFinance(prev => (prev||[]).filter(x => x.id !== f.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"4px 8px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>}
                 </div>
               </div>
             ));
@@ -1690,7 +1690,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       {!isMediatopia && <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <CardTitle color={C.green} icon="💳">Tekil Ödeme</CardTitle>
-          <button style={btnStyle(C.green)} onClick={() => setShowSinglePay(!showSinglePay)}>+ Ödeme Ekle</button>
+          {canEdit && <button style={btnStyle(C.green)} onClick={() => setShowSinglePay(!showSinglePay)}>+ Ödeme Ekle</button>}
         </div>
         {showSinglePay && (
           <div style={{ background:"#f0fff4", borderRadius:14, padding:16, marginBottom:16, border:`2px dashed ${C.green}55` }}>
@@ -1736,7 +1736,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                 <span style={{ fontWeight:900, color:C.green }}>+₺{Number(f.amount).toLocaleString()}</span>
-                <button onClick={() => setFinance && setFinance(prev => (prev||[]).filter(x => x.id !== f.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"4px 8px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>
+                {canEdit && <button onClick={() => setFinance && setFinance(prev => (prev||[]).filter(x => x.id !== f.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"4px 8px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>}
               </div>
             </div>
           ));
@@ -1783,7 +1783,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <CardTitle color={C.blue} icon="📝">Antrenör Notu</CardTitle>
-          <button style={btnOutlineStyle(C.blue)} onClick={() => { setNoteText(freshChild.trainerNote||""); setNoteEdit(!noteEdit); }}>{noteEdit?"İptal":"✏️ Düzenle"}</button>
+          {canEdit && <button style={btnOutlineStyle(C.blue)} onClick={() => { setNoteText(freshChild.trainerNote||""); setNoteEdit(!noteEdit); }}>{noteEdit?"İptal":"✏️ Düzenle"}</button>}
         </div>
         {noteEdit ? (
           <div>
@@ -1801,9 +1801,9 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <CardTitle color={C.green} icon="📊">Aylık Gelişim Raporları</CardTitle>
-          <label style={{ ...btnStyle(C.green), cursor:"pointer", display:"inline-block" }}>
+          {canEdit && <label style={{ ...btnStyle(C.green), cursor:"pointer", display:"inline-block" }}>
             📎 Rapor Yükle<input type="file" accept="application/pdf,image/*" style={{ display:"none" }} onChange={handleReportUpload} />
-          </label>
+          </label>}
         </div>
         {(freshChild.reports||[]).length===0 ? (
           <div style={{ textAlign:"center", padding:"24px 0", color:C.textDim, fontSize:14, fontWeight:600 }}>
@@ -1820,7 +1820,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                 </div>
                 <div style={{ display:"flex", gap:8 }}>
                   <a href={r.data} target="_blank" rel="noopener noreferrer" style={{ ...btnStyle(C.blue), fontSize:12, padding:"7px 12px", textDecoration:"none" }}>👁️ Aç</a>
-                  <button style={{ ...btnOutlineStyle(C.red), fontSize:12, padding:"6px 10px" }} onClick={() => deleteReport(r.id)}>🗑️</button>
+                  {canEdit && <button style={{ ...btnOutlineStyle(C.red), fontSize:12, padding:"6px 10px" }} onClick={() => deleteReport(r.id)}>🗑️</button>}
                 </div>
               </div>
             ))}
@@ -1833,7 +1833,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
 
 
 // ── VELİ DETAY SAYFASI ──────────────────────────────────────
-function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches }) {
+function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches, canEdit = true }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ ...parent });
   const [selectedChild, setSelectedChild] = useState(null);
@@ -1875,7 +1875,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
 
   if (selectedChild) {
     const freshChild = freshParent.children.find(c => c.id === selectedChild.id) || selectedChild;
-    return <ChildDetail child={freshChild} parent={freshParent} onBack={() => setSelectedChild(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} />;
+    return <ChildDetail child={freshChild} parent={freshParent} onBack={() => setSelectedChild(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} canEdit={canEdit} />;
   }
 
   return (
@@ -1886,8 +1886,8 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
           <div style={{ fontSize: 22, fontWeight: 900, color: C.text }}>{freshParent.name}</div>
           <div style={{ fontSize: 13, color: C.textDim, fontWeight: 600 }}>{freshParent.children.length} çocuk kayıtlı</div>
         </div>
-        <button style={btnStyle(C.blue)} onClick={() => { setEditForm({...freshParent}); setEditing(true); }}>✏️ Düzenle</button>
-        <button style={btnStyle(C.red)} onClick={() => {
+        {canEdit && <button style={btnStyle(C.blue)} onClick={() => { setEditForm({...freshParent}); setEditing(true); }}>✏️ Düzenle</button>}
+        {canEdit && <button style={btnStyle(C.red)} onClick={() => {
           if (window.confirm(`"${freshParent.name}" velisini ve tüm çocuklarını silmek istediğinize emin misiniz?\nBu işlem geri alınamaz!`)) {
             // Veli silinirken tüm çocukların paket finance kayıtlarını temizle
             if (setFinance) {
@@ -1903,7 +1903,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
             setParents(parents.filter(p => p.id !== parent.id));
             onBack();
           }
-        }}>🗑️ Veli Sil</button>
+        }}>🗑️ Veli Sil</button>}
       </div>
 
       {/* Veli Düzenleme Formu */}
@@ -1995,7 +1995,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
       <Card>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
           <CardTitle color={C.orange} icon="👦">Kayıtlı Çocuklar</CardTitle>
-          <button style={btnStyle(C.orange)} onClick={() => setShowAddChild(!showAddChild)}>+ Çocuk Ekle</button>
+          {canEdit && <button style={btnStyle(C.orange)} onClick={() => setShowAddChild(!showAddChild)}>+ Çocuk Ekle</button>}
         </div>
 
         {showAddChild && (
@@ -2056,7 +2056,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
               </div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                 <div style={{ color: C.textDim, fontSize: 20 }}>›</div>
-                <button style={{ background:C.red+"15", border:`1px solid ${C.red}44`, color:C.red, borderRadius:8, padding:"4px 8px", fontSize:12, fontWeight:700, cursor:"pointer" }}
+                {canEdit && <button style={{ background:C.red+"15", border:`1px solid ${C.red}44`, color:C.red, borderRadius:8, padding:"4px 8px", fontSize:12, fontWeight:700, cursor:"pointer" }}
                   onClick={e => {
                     e.stopPropagation();
                     if (window.confirm(`"${child.name}" öğrencisini silmek istiyor musunuz?`)) {
@@ -2065,7 +2065,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
                         : p
                       ));
                     }
-                  }}>🗑️</button>
+                  }}>🗑️</button>}
               </div>
             </div>
           );
@@ -2076,7 +2076,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
 }
 
 // ── VELİ LİSTESİ (ANA ÜYELER SAYFASI) ──────────────────────
-function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches }) {
+function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, canEdit = true }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedParent, setSelectedParent] = useState(null);
@@ -2134,7 +2134,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 
   if (selectedParent) {
     const fresh = parents.find(p => p.id === selectedParent.id) || selectedParent;
-    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} />;
+    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} canEdit={canEdit} />;
   }
 
   const statItems = [
@@ -2200,7 +2200,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
       <Card>
         <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
           <input style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder="🔍  Veli adı, telefon veya çocuk adı ara..." value={search} onChange={e => setSearch(e.target.value)} />
-          <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Veli</button>
+          {canEdit && <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Veli</button>}
         </div>
 
         <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
@@ -2289,20 +2289,20 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
               </div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                 <div style={{ color: C.textDim, fontSize: 20 }}>›</div>
-                <button style={{ background: isPassive ? C.green+"15" : C.orange+"15",
+                {canEdit && <button style={{ background: isPassive ? C.green+"15" : C.orange+"15",
                   border:`1px solid ${isPassive ? C.green : C.orange}44`,
                   color: isPassive ? C.green : C.orange,
                   borderRadius:8, padding:"4px 10px", fontSize:11, fontWeight:700, cursor:"pointer", whiteSpace:"nowrap" }}
                   onClick={e => { e.stopPropagation(); setConfirmPassive(p); }}>
                   {isPassive ? "▶ Aktife Al" : "⏸ Pasife Al"}
-                </button>
-                <button style={{ background:C.red+"15", border:`1px solid ${C.red}44`, color:C.red, borderRadius:8, padding:"4px 8px", fontSize:12, fontWeight:700, cursor:"pointer" }}
+                </button>}
+                {canEdit && <button style={{ background:C.red+"15", border:`1px solid ${C.red}44`, color:C.red, borderRadius:8, padding:"4px 8px", fontSize:12, fontWeight:700, cursor:"pointer" }}
                   onClick={e => {
                     e.stopPropagation();
                     if (window.confirm(`"${p.parent1Name||p.name}" velisini ve tüm çocuklarını silmek istiyor musunuz?`)) {
                       setParents(parents.filter(x => x.id !== p.id));
                     }
-                  }}>🗑️</button>
+                  }}>🗑️</button>}
               </div>
             </div>
           );
@@ -2319,7 +2319,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 }
 
 // ── PERSONEL ──────────────────────────────────────────────
-function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, allParents, setAllParents, branches: dynamicBranches }) {
+function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, allParents, setAllParents, branches: dynamicBranches, canEdit = true }) {
   const fresh = staff.find(s => s.id === member.id) || member;
   const allChildren = (allParents||[]).flatMap(p => p.children||[]);
   const [editing, setEditing]   = useState(false);
@@ -2385,13 +2385,13 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
           <div style={{ fontSize:22, fontWeight:900, color:C.text }}>{fresh.name}</div>
           <div style={{ fontSize:13, color:C.textDim, fontWeight:600 }}>{fresh.role} · {fresh.employmentType} · {fresh.shift} Vardiyası</div>
         </div>
-        <button style={btnStyle(C.blue)} onClick={() => { setEditForm({...fresh}); setEditing(true); }}>✏️ Düzenle</button>
-        <button style={btnStyle(C.red)} onClick={() => {
+        {canEdit && <button style={btnStyle(C.blue)} onClick={() => { setEditForm({...fresh}); setEditing(true); }}>✏️ Düzenle</button>}
+        {canEdit && <button style={btnStyle(C.red)} onClick={() => {
           if (window.confirm(`"${fresh.name}" personelini silmek istediğinize emin misiniz?\nTüm maaş ve ders kayıtları silinecek!`)) {
             setStaff(staff.filter(s => s.id !== member.id));
             onBack();
           }
-        }}>🗑️ Personel Sil</button>
+        }}>🗑️ Personel Sil</button>}
       </div>
 
       {/* Düzenleme */}
@@ -2498,7 +2498,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
         <Card>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
             <CardTitle color={C.blue} icon="📚">Bireysel Ders Çizelgesi</CardTitle>
-            <button style={btnStyle(C.blue)} onClick={() => setShowAssign(!showAssign)}>+ Öğrenci Ata</button>
+            {canEdit && <button style={btnStyle(C.blue)} onClick={() => setShowAssign(!showAssign)}>+ Öğrenci Ata</button>}
           </div>
 
           {/* Öğrenci Atama Formu */}
@@ -2592,7 +2592,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
                     </div>
                     <div style={{ display:"flex", gap:6 }}>
                       <button onClick={() => generateQR(s, child)} style={btnStyle(C.blue)}>📱 QR</button>
-                      <button onClick={() => removeStudent(s.id)} style={{ ...btnOutlineStyle(C.red), padding:"8px 10px" }}>🗑️</button>
+                      {canEdit && <button onClick={() => removeStudent(s.id)} style={{ ...btnOutlineStyle(C.red), padding:"8px 10px" }}>🗑️</button>}
                     </div>
                   </div>
                   <div style={{ display:"flex", gap:10, marginBottom:10 }}>
@@ -2620,7 +2620,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
           <CardTitle color={C.green} icon="💳">Maaş & Ödemeler</CardTitle>
-          <button style={btnStyle(C.green)} onClick={() => setShowPay(!showPay)}>+ Ödeme Ekle</button>
+          {canEdit && <button style={btnStyle(C.green)} onClick={() => setShowPay(!showPay)}>+ Ödeme Ekle</button>}
         </div>
 
         {showPay && (
@@ -2678,9 +2678,9 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <CardTitle color={C.blue} icon="📝">Notlar</CardTitle>
-          <button style={btnOutlineStyle(C.blue)} onClick={() => { setNoteText(fresh.notes||""); setNoteEdit(!noteEdit); }}>
+          {canEdit && <button style={btnOutlineStyle(C.blue)} onClick={() => { setNoteText(fresh.notes||""); setNoteEdit(!noteEdit); }}>
             {noteEdit?"İptal":"✏️ Düzenle"}
-          </button>
+          </button>}
         </div>
         {noteEdit ? (
           <div>
@@ -2737,7 +2737,7 @@ function StaffDetail({ member, onBack, staff, setStaff, finance, setFinance, all
   );
 }
 
-function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllParents, branches: dynamicBranches }) {
+function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllParents, branches: dynamicBranches, canEdit = true }) {
   const [showAdd, setShowAdd]         = useState(false);
   const [selectedStaff, setSelected]  = useState(null);
   const [form, setForm]               = useState({ name:"", role:"Antrenör", employmentType:"Tam Zamanlı", shift:"Sabah", phone:"", salary:"", branches:"" });
@@ -2754,7 +2754,7 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllPar
 
   if (selectedStaff) {
     const fresh = staff.find(s => s.id === selectedStaff.id) || selectedStaff;
-    return <StaffDetail member={fresh} onBack={() => setSelected(null)} staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={allParents} setAllParents={setAllParents} branches={dynamicBranches} />;
+    return <StaffDetail member={fresh} onBack={() => setSelected(null)} staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={allParents} setAllParents={setAllParents} branches={dynamicBranches} canEdit={canEdit} />;
   }
 
   return (
@@ -2771,7 +2771,7 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllPar
       <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
           <CardTitle color={C.orange} icon="📋">Personel Listesi</CardTitle>
-          <button style={btnStyle(C.orange)} onClick={() => setShowAdd(!showAdd)}>+ Personel Ekle</button>
+          {canEdit && <button style={btnStyle(C.orange)} onClick={() => setShowAdd(!showAdd)}>+ Personel Ekle</button>}
         </div>
 
         {showAdd && (
@@ -2838,13 +2838,13 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllPar
               <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>aylık</div>
               <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                 <div style={{ color:C.textDim, fontSize:18 }}>›</div>
-                <button style={{ background:C.red+"15", border:`1px solid ${C.red}44`, color:C.red, borderRadius:8, padding:"4px 8px", fontSize:12, fontWeight:700, cursor:"pointer" }}
+                {canEdit && <button style={{ background:C.red+"15", border:`1px solid ${C.red}44`, color:C.red, borderRadius:8, padding:"4px 8px", fontSize:12, fontWeight:700, cursor:"pointer" }}
                   onClick={e => {
                     e.stopPropagation();
                     if (window.confirm(`"${s.name}" personelini silmek istiyor musunuz?`)) {
                       setStaff(staff.filter(x => x.id !== s.id));
                     }
-                  }}>🗑️</button>
+                  }}>🗑️</button>}
               </div>
             </div>
           </div>
@@ -2855,7 +2855,7 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllPar
   );
 }
 // ── FİNANS ────────────────────────────────────────────────
-function FinancePage({ finance, setFinance, members }) {
+function FinancePage({ finance, setFinance, members, canEdit = true }) {
   const [filter, setFilter] = useState("Tümü");
   const [payTypeFilter, setPayTypeFilter] = useState("Tümü");
   const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
@@ -3009,14 +3009,14 @@ function FinancePage({ finance, setFinance, members }) {
             )}
           </div>
           <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
-            {filter !== "Mediatopia" && (
+            {canEdit && filter !== "Mediatopia" && (
               <button style={btnStyle(C.yellow + "ee")} onClick={() => setShowAdd(!showAdd)}>
                 <span style={{ color: C.text }}>+ İşlem Ekle</span>
               </button>
             )}
-            <button style={btnOutlineStyle(C.red)} onClick={reconcileOrphans} title="Silinmiş paketlerin finance kayıtlarını temizle">
+            {canEdit && <button style={btnOutlineStyle(C.red)} onClick={reconcileOrphans} title="Silinmiş paketlerin finance kayıtlarını temizle">
               🧹 Temizle
-            </button>
+            </button>}
             {cleanMsg && <span style={{ fontWeight:700, color:C.green, fontSize:12, alignSelf:"center" }}>{cleanMsg}</span>}
           </div>
         </div>
@@ -3098,9 +3098,9 @@ function FinancePage({ finance, setFinance, members }) {
                   )}
                   {mtInvoicePaid ? (
                     <div style={{ background:C.green, color:"#fff", borderRadius:10, padding:"8px 16px", fontWeight:800, fontSize:13 }}>✅ Fatura Ödendi</div>
-                  ) : (
+                  ) : canEdit ? (
                     <button style={btnStyle("#7c3aed")} onClick={markMtInvoicePaid}>✅ Fatura Ödendi İşaretle</button>
-                  )}
+                  ) : null}
                 </div>
               </div>
               {/* Aylık özet */}
@@ -3177,9 +3177,9 @@ function FinancePage({ finance, setFinance, members }) {
                   {f.type === "Gelir" ? "+" : "-"}₺{Number(f.amount||0).toLocaleString()}
                 </div>
               </div>
-              <button onClick={() => setFinance((finance||[]).filter(x => x.id !== f.id))}
+              {canEdit && <button onClick={() => setFinance((finance||[]).filter(x => x.id !== f.id))}
                 style={{ background: "transparent", border: `1.5px solid ${C.red}44`, borderRadius: 8, padding: "6px 10px", cursor: "pointer", color: C.red, fontSize: 15, lineHeight: 1 }}
-                title="Sil">🗑️</button>
+                title="Sil">🗑️</button>}
             </div>
           </div>
         )})}
@@ -3572,7 +3572,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
 }
 
 // ── KULLANICI YÖNETİMİ (ADMIN) ────────────────────────────
-function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacherEdited, branches: dynamicBranches }) {
+function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacherEdited, branches: dynamicBranches, canEdit = true }) {
   const [users, setUsers]               = useState([]);
   const [loading, setLoading]           = useState(true);
   const [searchQ, setSearchQ]           = useState("");
@@ -3873,10 +3873,10 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
           <div className="ks-page-title" style={{ color:C.text }}>👤 Kullanıcı Yönetimi</div>
           <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>Tüm sistem kullanıcıları — oluştur, düzenle, yönet</div>
         </div>
-        <button onClick={() => { setShowCreate(!showCreate); setCreateError(""); }}
+        {canEdit && <button onClick={() => { setShowCreate(!showCreate); setCreateError(""); }}
           style={{ ...btnStyle(C.blue), display:"flex", alignItems:"center", gap:7 }}>
           {showCreate ? "Kapat" : "Yeni Kullanıcı Oluştur"}
-        </button>
+        </button>}
       </div>
 
       {/* Stats */}
@@ -3997,7 +3997,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
                 }
               </div>
             </div>
-            <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
+            {canEdit && <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
               <button onClick={() => { setEditUser(u); setEditForm({ name:u.name, phone:u.phone||"", role:u.role }); setEditError(""); }}
                 title="Düzenle" style={{ width:34, height:34, borderRadius:10, background:C.blue+"14", border:`1.5px solid ${C.blue}22`, color:C.blue, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✏️</button>
               <button onClick={() => setConfirmAction({ user:u, action:"password_reset", label:`"${u.name}" kullanıcısına şifre sıfırlama bağlantısı gönderilecek (${u.email}).`, color:"#92400e" })}
@@ -4011,7 +4011,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
               )}
               <button onClick={() => setConfirmAction({ user:u, action:"deleted", label:`"${u.name}" silinecek. Giriş yapamayacak!`, color:C.red })}
                 title="Sil" style={{ width:34, height:34, borderRadius:10, background:"#fee2e2", border:"1.5px solid #fca5a5", color:"#b91c1c", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>
-            </div>
+            </div>}
           </div>
         ))}
       </Card>
@@ -5951,7 +5951,7 @@ function QRApproveButton({ qrData, qrModal, allParents, onApprove }) {
 }
 
 // ── BRANŞLAR SAYFASI ──────────────────────────────────────
-function BranchesPage({ branches, setBranches }) {
+function BranchesPage({ branches, setBranches, canEdit = true }) {
   const [form, setForm] = React.useState({ name: "", description: "" });
   const [editId, setEditId] = React.useState(null);
   const [editForm, setEditForm] = React.useState({});
@@ -5983,10 +5983,10 @@ function BranchesPage({ branches, setBranches }) {
           <div style={{ fontSize: 24, fontWeight: 900, color: C.text }}>⚽ Branş Yönetimi</div>
           <div style={{ fontSize: 14, color: C.textDim, fontWeight: 600 }}>{branches.length} branş tanımlı</div>
         </div>
-        <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Branş</button>
+        {canEdit && <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Branş</button>}
       </div>
 
-      {showAdd && (
+      {showAdd && canEdit && (
         <Card style={{ border: "2px dashed " + C.blue + "44", background: "#f0f4ff", marginBottom: 16 }}>
           <CardTitle color={C.blue} icon="➕">Yeni Branş Ekle</CardTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12 }}>
@@ -6044,11 +6044,11 @@ function BranchesPage({ branches, setBranches }) {
                     </div>
                     <Badge color={b.isActive ? C.green : C.red}>{b.isActive ? "Aktif" : "Pasif"}</Badge>
                   </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {canEdit && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button style={btnOutlineStyle(C.blue)} onClick={() => { setEditId(b.id); setEditForm({ name: b.name, description: b.description||"" }); }}>✏️ Düzenle</button>
                     <button style={btnOutlineStyle(b.isActive ? C.orange : C.green)} onClick={() => toggleActive(b.id)}>{b.isActive ? "⏸ Pasif" : "▶ Aktif"}</button>
                     <button style={btnOutlineStyle(C.red)} onClick={() => deleteBranch(b.id)}>🗑️ Sil</button>
-                  </div>
+                  </div>}
                 </div>
               )}
             </Card>
@@ -6060,7 +6060,7 @@ function BranchesPage({ branches, setBranches }) {
 }
 
 // ── GRUPLAR SAYFASI ────────────────────────────────────────
-function GroupsPage({ groups, setGroups, branches, staff, members }) {
+function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = true }) {
   const [form, setForm] = React.useState({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [] });
   const [showAdd, setShowAdd] = React.useState(false);
   const [editId, setEditId] = React.useState(null);
@@ -6099,10 +6099,10 @@ function GroupsPage({ groups, setGroups, branches, staff, members }) {
           <div style={{ fontSize: 24, fontWeight: 900, color: C.text }}>👥 Grup Yönetimi</div>
           <div style={{ fontSize: 14, color: C.textDim, fontWeight: 600 }}>{groups.length} grup tanımlı</div>
         </div>
-        <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Grup</button>
+        {canEdit && <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Grup</button>}
       </div>
 
-      {showAdd && (
+      {showAdd && canEdit && (
         <Card style={{ border: "2px dashed " + C.blue + "44", background: "#f0f4ff", marginBottom: 16 }}>
           <CardTitle color={C.blue} icon="➕">Yeni Grup Oluştur</CardTitle>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 12 }}>
@@ -6240,10 +6240,10 @@ function GroupsPage({ groups, setGroups, branches, staff, members }) {
                         (g.studentIds||[]).map(sid => React.createElement(Badge, { key: sid, color: C.orange }, getStudentName(sid)))}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {canEdit && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <button style={btnOutlineStyle(C.blue)} onClick={() => { setEditId(g.id); setEditForm({ name: g.name, branchId: g.branchId||"", type: g.type||"group", teacherIds: [...(g.teacherIds||[])], studentIds: [...(g.studentIds||[])] }); }}>✏️ Düzenle</button>
                     <button style={btnOutlineStyle(C.red)} onClick={() => deleteGroup(g.id)}>🗑️ Sil</button>
-                  </div>
+                  </div>}
                 </div>
               )}
             </Card>
@@ -6272,7 +6272,22 @@ async function fsLoad(col, fallback) {
 
 const _fsWriting = {}; // onSnapshot'ın fsSave sırasında state'i sıfırlamasını engeller
 
+// ── YETKİ SİSTEMİ ─────────────────────────────────────────────────────────
+// Merkezi yetki kontrolü: yeni rol eklenince sadece bu fonksiyonu güncelle
+function hasPermission(role, action) {
+  if (role === 'admin') return true;           // Tam yetki
+  if (role === 'yönetici') return action === 'view'; // Sadece görüntüleme
+  if (role === 'manager') return true;         // Tam yetki
+  if (role === 'teacher') return action === 'view';  // Sadece görüntüleme
+  return false;
+}
+let _activeUserRole = null; // fsSave rol koruması için
+
 async function fsSave(col, items) {
+  if (_activeUserRole && !hasPermission(_activeUserRole, 'edit')) {
+    showKsToast("Bu işlem için yetkiniz bulunmamaktadır.", "#ef4444");
+    return false;
+  }
   _fsWriting[col] = true;
   try {
     const batch = db.batch();
@@ -6313,6 +6328,9 @@ function App() {
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showProfile, setShowProfile] = useState(false);
+
+  // Aktif kullanıcı rolünü global değişkende sakla (fsSave koruması)
+  useEffect(() => { _activeUserRole = user?.role || null; }, [user]);
 
   // Firebase oturum kontrolü — Beni Hatırla aktifse otomatik giriş
   useEffect(() => {
@@ -6604,19 +6622,21 @@ function App() {
   const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange];
 
   const alertCount = useNotifications(members, finance, staff).filter(a=>a.type==="danger"||a.type==="warning").length;
+  // Yönetici rolü için yetki kontrolü
+  const canEdit = hasPermission(user?.role, 'edit');
 
   const pages = {
     dashboard: <AdminDashboard members={members} finance={finance} staff={staff} />,
-    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} />,
+    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} canEdit={canEdit} />,
     staff: null, // StaffPage is rendered persistently outside this object
-    finance: <FinancePage finance={finance} setFinance={setFinance} members={members} />,
+    finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} />,
     reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
-    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={true} currentUser={user} canAdd={true} branches={branches} />,
+    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
-    messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={true} currentUser={user} />,
+    messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
-    users: <UserManagementPage
+    users: <UserManagementPage canEdit={canEdit}
       onTeacherCreated={(uid, name, email, phone, branch) => {
         const today = new Date().toISOString().slice(0, 10);
         const newStaffRecord = {
@@ -6658,8 +6678,8 @@ function App() {
       }}
     branches={branches}
     />,
-    branches: <BranchesPage branches={branches} setBranches={setBranches} />,
-    groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff} members={members} />,
+    branches: <BranchesPage branches={branches} setBranches={setBranches} canEdit={canEdit} />,
+    groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff} members={members} canEdit={canEdit} />,
   };
 
   return (
@@ -6707,7 +6727,7 @@ function App() {
 
       <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "22px 16px 30px", overflowY: "auto" }}>
         <div style={{ display: page === "staff" ? "block" : "none" }}>
-          <StaffPage staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} setAllParents={setMembers} branches={branches} />
+          <StaffPage staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} setAllParents={setMembers} branches={branches} canEdit={canEdit} />
         </div>
         {page !== "staff" && pages[page]}
       </div>
