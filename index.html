@@ -3818,8 +3818,8 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
               <div style={{ marginBottom:18 }}>
                 <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol</div>
                 <select style={inputStyle} value={editForm.role||"teacher"} onChange={e => setEditForm(p => ({...p, role: e.target.value}))}>
-                  <option value="yönetici">👑 Admin (tam yetki)</option>
-                  <option value="manager">🔑 Yönetici (görüntüleme)</option>
+                  <option value="yönetici">👁️ Yönetici (salt okunur)</option>
+                  <option value="manager">🔑 Manager (özel panel)</option>
                   <option value="teacher">👩‍🏫 Öğretmen</option>
                 </select>
               </div>
@@ -3911,8 +3911,8 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
             <div>
               <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:6, textTransform:"uppercase", letterSpacing:0.8 }}>Rol *</div>
               <select style={inputStyle} value={form.role} onChange={e => setForm(p => ({...p, role: e.target.value}))}>
-                <option value="yönetici">👑 Admin (tam yetki)</option>
-                <option value="manager">🔑 Yönetici (görüntüleme)</option>
+                <option value="yönetici">👁️ Yönetici (salt okunur)</option>
+                <option value="manager">🔑 Manager (özel panel)</option>
                 <option value="teacher">👩‍🏫 Öğretmen</option>
               </select>
             </div>
@@ -6724,6 +6724,17 @@ function App() {
           })}
         </div>
       </div>
+
+      {!canEdit && (
+        <div style={{ background:"#fef3c7", borderBottom:"2px solid #f59e0b", padding:"8px 16px", display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+          <span style={{ fontSize:18 }}>🔒</span>
+          <div>
+            <span style={{ fontWeight:900, fontSize:13, color:"#78350f" }}>SALT OKUNUR MOD</span>
+            <span style={{ fontSize:12, color:"#92400e", marginLeft:8, fontWeight:600 }}>Yönetici olarak giriş yaptınız — veri değişikliği yapılamaz.</span>
+          </div>
+          <span style={{ marginLeft:"auto", fontSize:11, color:"#a16207", fontWeight:700, background:"#fde68a", padding:"2px 8px", borderRadius:20 }}>Rol: {user?.role}</span>
+        </div>
+      )}
 
       <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "22px 16px 30px", overflowY: "auto" }}>
         <div style={{ display: page === "staff" ? "block" : "none" }}>
