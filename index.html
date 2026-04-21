@@ -3189,7 +3189,7 @@ function FinancePage({ finance, setFinance, members, canEdit = true }) {
 }
 
 // ── RAPORLAR ──────────────────────────────────────────────
-function ReportsPage({ members, finance, staff, reports, setReports }) {
+function ReportsPage({ members, finance, staff, reports, setReports, canEdit = true }) {
   const currentYM = new Date().toISOString().slice(0, 7);
   const [selMonth, setSelMonth] = useState(currentYM);
   const [snapMsg, setSnapMsg] = useState("");
@@ -3240,7 +3240,7 @@ function ReportsPage({ members, finance, staff, reports, setReports }) {
         <select value={selMonth} onChange={e => setSelMonth(e.target.value)} style={{ ...inputStyle, width:"auto", padding:"8px 12px", fontWeight:800, fontSize:14 }}>
           {availMonths.map(m => <option key={m} value={m}>{monthLabel(m)}</option>)}
         </select>
-        <button style={btnStyle(C.blue)} onClick={takeSnapshot}>📸 Ay Sonu Raporu Kaydet</button>
+        {canEdit && <button style={btnStyle(C.blue)} onClick={takeSnapshot}>📸 Ay Sonu Raporu Kaydet</button>}
         {snapMsg && <span style={{ fontWeight:700, color:C.green, fontSize:13 }}>{snapMsg}</span>}
       </div>
 
@@ -3300,7 +3300,7 @@ function ReportsPage({ members, finance, staff, reports, setReports }) {
                     </div>
                     <div style={{ fontSize:11, color:C.textDim, marginTop:2 }}>Üye: {r.activeMembers}/{r.totalMembers} · {r.createdAt?.slice(0,10)}</div>
                   </div>
-                  <button onClick={() => setReports && setReports(prev => (prev||[]).filter(x => x.id !== r.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"5px 9px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>
+                  {canEdit && <button onClick={() => setReports && setReports(prev => (prev||[]).filter(x => x.id !== r.id))} style={{ background:"transparent", border:`1.5px solid ${C.red}44`, borderRadius:8, padding:"5px 9px", cursor:"pointer", color:C.red, fontSize:13 }}>🗑️</button>}
                 </div>
               ))}
             </div>
@@ -6278,7 +6278,7 @@ function hasPermission(role, action) {
   if (role === 'admin') return true;           // Tam yetki
   if (role === 'yönetici') return action === 'view'; // Sadece görüntüleme
   if (role === 'manager') return true;         // Tam yetki
-  if (role === 'teacher') return action === 'view';  // Sadece görüntüleme
+  if (role === 'teacher') return true;         // Mevcut yetkiler korunsun
   return false;
 }
 let _activeUserRole = null; // fsSave rol koruması için
@@ -6630,7 +6630,7 @@ function App() {
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} canEdit={canEdit} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} />,
-    reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} />,
+    reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} canEdit={canEdit} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
     calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
