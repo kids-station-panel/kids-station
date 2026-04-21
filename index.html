@@ -6290,22 +6290,39 @@ async function fsSave(col, items) {
   }
   _fsWriting[col] = true;
   try {
-    const batch = db.batch();
-    const existing = await db.collection(col).get();
-    existing.docs.forEach(d => batch.delete(d.ref));
-    items.forEach((item, idx) => {
-      const ref = item.id ? db.collection(col).doc(String(item.id)) : db.collection(col).doc();
-      const clean = JSON.parse(JSON.stringify(item));
-      batch.set(ref, { ...clean, _order: idx });
-    });
-    await batch.commit();
+    // Mevcut Firestore durumunu oku
+    const existingSnap = await db.collection(col).get();
+    const newIds = new Set(items.map(i => i.id ? String(i.id) : null).filter(Boolean));
+
+    // Sadece silinmesi gereken dökümanları bul (yeni listede olmayan eskiler)
+    const toDelete = existingSnap.docs.filter(d => !newIds.has(d.id)).map(d => d.ref);
+
+    // Tüm operasyonları 490'lık batch'lere böl (Firestore limiti 500)
+    const allOps = [
+      ...items.map((item, idx) => ({ type: 'set', item, idx })),
+      ...toDelete.map(ref => ({ type: 'del', ref })),
+    ];
+
+    for (let i = 0; i < allOps.length; i += 490) {
+      const batch = db.batch();
+      allOps.slice(i, i + 490).forEach(op => {
+        if (op.type === 'set') {
+          const ref = op.item.id ? db.collection(col).doc(String(op.item.id)) : db.collection(col).doc();
+          batch.set(ref, { ...JSON.parse(JSON.stringify(op.item)), _order: op.idx });
+        } else {
+          batch.delete(op.ref);
+        }
+      });
+      await batch.commit();
+    }
     return true;
   } catch(e) {
     console.warn("Firestore kayıt hatası:", e);
     showKsToast("⚠️ Kayıt hatası! İnternet bağlantınızı kontrol edin.", "#ef4444");
     return false;
+  } finally {
+    setTimeout(() => { delete _fsWriting[col]; }, 500);
   }
-  finally { setTimeout(() => { delete _fsWriting[col]; }, 500); }
 }
 
 function App() {
@@ -6485,34 +6502,40 @@ function App() {
     fsSave("members", next).then(ok => { if (!ok) setMembersRaw(prev); });
   };
   const setStaff = (val) => {
+    const prev = staff;
     const next = typeof val === "function" ? val(staff) : val;
     setStaffRaw(next);
-    fsSave("staff", next);
+    fsSave("staff", next).then(ok => { if (!ok) setStaffRaw(prev); });
   };
   const setFinance = (val) => {
+    const prev = finance;
     const next = typeof val === "function" ? val(finance) : val;
     setFinanceRaw(next);
-    fsSave("finance", next);
+    fsSave("finance", next).then(ok => { if (!ok) setFinanceRaw(prev); });
   };
   const setAnnouncements = (val) => {
+    const prev = announcements;
     const next = typeof val === "function" ? val(announcements) : val;
     setAnnouncementsRaw(next);
-    fsSave("announcements", next);
+    fsSave("announcements", next).then(ok => { if (!ok) setAnnouncementsRaw(prev); });
   };
   const setSchedule = (val) => {
+    const prev = schedule;
     const next = typeof val === "function" ? val(schedule) : val;
     setScheduleRaw(next);
-    fsSave("schedule", next);
+    fsSave("schedule", next).then(ok => { if (!ok) setScheduleRaw(prev); });
   };
   const setChannels = (val) => {
+    const prev = channels;
     const next = typeof val === "function" ? val(channels) : val;
     setChannelsRaw(next);
-    fsSave("channels", next);
+    fsSave("channels", next).then(ok => { if (!ok) setChannelsRaw(prev); });
   };
   const setChannelMessages = (val) => {
+    const prev = channelMessages;
     const next = typeof val === "function" ? val(channelMessages) : val;
     setChannelMessagesRaw(next);
-    fsSave("channelMessages", next);
+    fsSave("channelMessages", next).then(ok => { if (!ok) setChannelMessagesRaw(prev); });
   };
   const setDismissedNotifs = (val) => {
     const next = typeof val === "function" ? val(dismissedNotifs) : val;
@@ -6525,24 +6548,28 @@ function App() {
     fsSave("readNotifs", next);
   };
   const setBranches = (val) => {
+    const prev = branches;
     const next = typeof val === "function" ? val(branches) : val;
     setBranchesRaw(next);
-    fsSave("branches", next);
+    fsSave("branches", next).then(ok => { if (!ok) setBranchesRaw(prev); });
   };
   const setGroups = (val) => {
+    const prev = groups;
     const next = typeof val === "function" ? val(groups) : val;
     setGroupsRaw(next);
-    fsSave("groups", next);
+    fsSave("groups", next).then(ok => { if (!ok) setGroupsRaw(prev); });
   };
   const setReports = (val) => {
+    const prev = reports;
     const next = typeof val === "function" ? val(reports) : val;
     setReportsRaw(next);
-    fsSave("reports", next);
+    fsSave("reports", next).then(ok => { if (!ok) setReportsRaw(prev); });
   };
   const setAttendance = (val) => {
+    const prev = attendance;
     const next = typeof val === "function" ? val(attendance) : val;
     setAttendanceRaw(next);
-    fsSave("attendance", next);
+    fsSave("attendance", next).then(ok => { if (!ok) setAttendanceRaw(prev); });
   };
 
   if (!dbReady) return (
