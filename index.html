@@ -6277,7 +6277,7 @@ const _fsWriting = {}; // onSnapshot'ın fsSave sırasında state'i sıfırlamas
 function hasPermission(role, action) {
   if (role === 'admin') return true;           // Tam yetki
   if (role === 'yönetici') return action === 'view'; // Sadece görüntüleme
-  if (role === 'manager') return true;         // Tam yetki
+  if (role === 'manager') return action === 'view';  // Sadece görüntüleme (yönetici ile aynı)
   if (role === 'teacher') return true;         // Mevcut yetkiler korunsun
   return false;
 }
@@ -6574,8 +6574,9 @@ function App() {
     );
   }
 
-  if (user.role === "yönetici" || user.role === "admin") {
+  if (user.role === "yönetici" || user.role === "admin" || user.role === "manager") {
     // Admin paneline düş (aşağıdaki adminNav bloğuna geç)
+    // manager rolü de yönetici gibi admin panelini görür ama sadece view yetkisiyle
   } else if (user.role === "teacher") {
     // Bu öğretmenin staff kaydını bul
     const myStaff = staff.find(s => s.userId === user.id || s.email === user.email);
@@ -6594,15 +6595,7 @@ function App() {
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
   }
 
-  if (user.role === "manager") {
-    return <ManagerPanel user={user} members={members} staff={staff} finance={finance}
-      schedule={schedule} onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))}
-      announcements={announcements} channels={channels} setChannels={setChannels}
-      channelMessages={channelMessages} setChannelMessages={setChannelMessages}
-      groups={groups} branches={branches}
-      dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs}
-      readNotifs={readNotifs} setReadNotifs={setReadNotifs} />;
-  }
+  // manager rolü artık admin paneline yönlendiriliyor (yukarıdaki if bloğunda yakalandı)
 
   const adminNav = [
     { key: "dashboard", label: "Anasayfa", icon: "🏠" },
