@@ -2997,15 +2997,6 @@ function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar 
 
       {/* Kasa Özeti */}
       <div className="stat-cards">
-        <div style={{ background: kasaTotal >= 0 ? C.green : C.red, borderRadius: 18, padding: "16px 20px", boxShadow: `0 6px 20px ${C.green}44`, position:"relative", overflow:"hidden", minWidth:0 }}>
-          <div style={{ position:"absolute", right:-14, top:-14, width:60, height:60, borderRadius:"50%", background:"rgba(255,255,255,0.14)" }} />
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:6, fontWeight:800 }}>🏦 Toplam Kasa</div>
-          <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{kasaTotal.toLocaleString()}</div>
-        </div>
-        <div style={{ background: C.green, borderRadius: 18, padding: "16px 20px", boxShadow: `0 6px 20px ${C.green}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:6, fontWeight:800 }}>💵 Nakit</div>
-          <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{kasaNakit.toLocaleString()}</div>
-        </div>
         <div style={{ background: C.blue, borderRadius: 18, padding: "16px 20px", boxShadow: `0 6px 20px ${C.blue}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:6, fontWeight:800 }}>🏦 Banka</div>
           <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{kasaBanka.toLocaleString()}</div>
