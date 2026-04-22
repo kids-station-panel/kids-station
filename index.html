@@ -2855,7 +2855,7 @@ function StaffPage({ staff, setStaff, finance, setFinance, allParents, setAllPar
   );
 }
 // ── FİNANS ────────────────────────────────────────────────
-function FinancePage({ finance, setFinance, members, canEdit = true }) {
+function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar = [], setFinAyarlar }) {
   const [filter, setFilter] = useState("Tümü");
   const [payTypeFilter, setPayTypeFilter] = useState("Tümü");
   const [monthFilter, setMonthFilter] = useState(new Date().toISOString().slice(0, 7));
@@ -2863,8 +2863,10 @@ function FinancePage({ finance, setFinance, members, canEdit = true }) {
   const [showAdd, setShowAdd] = useState(false);
   const [cleanMsg, setCleanMsg] = useState("");
   const [sortAsc, setSortAsc] = useState(false);
-  const [form, setForm] = useState({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "", paymentType: "nakit" });
+  const [form, setForm] = useState({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "", paymentType: "nakit", memberId: "" });
   const [mtInvoiceMonth, setMtInvoiceMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [editingBalance, setEditingBalance] = useState(null); // "nakit" | "banka"
+  const [editVal, setEditVal] = useState("");
 
   const reconcileOrphans = () => {
     const allChildren = (members||[]).flatMap(p => p.children || []);
@@ -2918,12 +2920,47 @@ function FinancePage({ finance, setFinance, members, canEdit = true }) {
   const kasaTotal = kasaNakit + kasaBanka;
   const mtThisMonth = (finance||[]).filter(f => f.source === "mediatopia_checkin" && (f.date||"").startsWith(currentYM)).reduce((s,f) => s+Number(f.amount||0), 0);
 
+  // Açılış bakiyeleri
+  const ayarDoc = (finAyarlar||[])[0] || {};
+  const nakitAcilis = Number(ayarDoc.nakitAcilis || 0);
+  const bankaAcilis = Number(ayarDoc.bankaAcilis || 0);
+  const isNakitPayType = f => f.paymentType === "nakit" || (!f.paymentType && f.source !== "mediatopia_checkin" && f.source !== "mediatopia_invoice");
+  const thisMonthFin = (finance||[]).filter(f => (f.date||"").startsWith(currentYM));
+  const nakitBuAyNet = thisMonthFin.filter(f => isNakitPayType(f) && f.type === "Gelir").reduce((s,f) => s+Number(f.amount||0), 0)
+    - thisMonthFin.filter(f => isNakitPayType(f) && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
+  const bankaBuAyNet = thisMonthFin.filter(f => f.paymentType === "banka" && f.type === "Gelir").reduce((s,f) => s+Number(f.amount||0), 0)
+    - thisMonthFin.filter(f => f.paymentType === "banka" && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
+  const nakitToplam = nakitAcilis + nakitBuAyNet;
+  const bankaToplam = bankaAcilis + bankaBuAyNet;
+  const genelToplam = nakitToplam + bankaToplam;
+
+  const saveBalance = (field, val) => {
+    const num = parseFloat(String(val).replace(",",".")) || 0;
+    const current = ayarDoc;
+    const updated = [{ ...current, id: "settings", [field]: num }];
+    if (setFinAyarlar) setFinAyarlar(updated);
+    setEditingBalance(null);
+    showKsToast("✅ Açılış bakiyesi kaydedildi!", C.green);
+  };
+
   const addEntry = () => {
     if (!form.desc || !form.amount || !form.paymentType) { showKsToast("Lütfen tüm alanları doldurun.", C.orange); return; }
-    const newEntry = { id: "manual_" + Date.now(), ...form, amount: Number(form.amount), source: "manual", status: "active" };
+    const isMt = form.paymentType === "mediatopia";
+    const mtMember = isMt && form.memberId ? (members||[]).flatMap(p => [{...p, _type:"parent"}, ...(p.children||[]).map(c => ({...c, _type:"child", parentId:p.id}))]).find(x => String(x.id) === form.memberId) : null;
+    const newEntry = {
+      id: isMt ? ("mt_manual_" + Date.now()) : ("manual_" + Date.now()),
+      ...form,
+      amount: Number(form.amount),
+      source: isMt ? "mediatopia_checkin" : "manual",
+      status: "active",
+      month: form.date.slice(0, 7),
+      ...(isMt && mtMember ? { studentId: mtMember.id, parentId: mtMember.parentId || mtMember.id } : {}),
+    };
+    delete newEntry.memberId;
     setFinance([...(finance||[]), newEntry]);
-    setForm({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "", paymentType: "nakit" });
+    setForm({ date: new Date().toISOString().slice(0,10), desc: "", type: "Gelir", amount: "", paymentType: "nakit", memberId: "" });
     setShowAdd(false);
+    showKsToast(isMt ? "✅ Mediatopia check-in eklendi!" : "✅ İşlem kaydedildi!", C.green);
   };
 
   // paymentType badge config
@@ -2983,6 +3020,48 @@ function FinancePage({ finance, setFinance, members, canEdit = true }) {
         <StatCard label={showAll ? "Toplam Gelir" : "Bu Ay Gelir"} value={`₺${monthlyIncome.toLocaleString()}`} color={C.green} icon="📈" />
         <StatCard label={showAll ? "Toplam Gider" : "Bu Ay Gider"} value={`₺${monthlyExpense.toLocaleString()}`} color={C.red} icon="📉" />
         <StatCard label={showAll ? "Net Kâr" : "Bu Ay Net"} value={`₺${(monthlyIncome - monthlyExpense).toLocaleString()}`} color={C.orange} icon="⭐" />
+      </div>
+
+      {/* Açılış Bakiyesi + Güncel Toplam Kartlar */}
+      <div className="stat-cards" style={{ marginTop:8 }}>
+        {[
+          { key:"nakit", label:"NAKİT TOPLAM", icon:"💵", color:"#16a34a", field:"nakitAcilis", acilis: nakitAcilis, toplam: nakitToplam, buAy: nakitBuAyNet },
+          { key:"banka", label:"BANKA TOPLAM", icon:"🏦", color:C.blue, field:"bankaAcilis", acilis: bankaAcilis, toplam: bankaToplam, buAy: bankaBuAyNet },
+        ].map(({ key, label, icon, color, field, acilis, toplam, buAy }) => (
+          <div key={key} style={{ background: color, borderRadius:18, padding:"16px 20px", boxShadow:`0 6px 20px ${color}44`, position:"relative", overflow:"hidden", minWidth:0 }}>
+            <div style={{ position:"absolute", right:-14, top:-14, width:60, height:60, borderRadius:"50%", background:"rgba(255,255,255,0.14)" }} />
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.85)", textTransform:"uppercase", letterSpacing:1, fontWeight:800 }}>{icon} {label}</div>
+              {canEdit && editingBalance !== key && (
+                <button onClick={() => { setEditingBalance(key); setEditVal(String(acilis)); }}
+                  style={{ background:"rgba(255,255,255,0.22)", border:"none", borderRadius:7, padding:"2px 8px", cursor:"pointer", color:"#fff", fontSize:13, fontWeight:700, lineHeight:1.4 }}
+                  title="Açılış bakiyesini düzenle">✏️</button>
+              )}
+            </div>
+            {editingBalance === key ? (
+              <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:4 }}>
+                <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") saveBalance(field, editVal); if (e.key === "Escape") setEditingBalance(null); }}
+                  style={{ width:100, padding:"4px 8px", borderRadius:8, border:"2px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.18)", color:"#fff", fontWeight:800, fontSize:16, fontFamily:"inherit", outline:"none" }} />
+                <button onClick={() => saveBalance(field, editVal)}
+                  style={{ background:"rgba(255,255,255,0.28)", border:"none", borderRadius:7, padding:"4px 10px", cursor:"pointer", color:"#fff", fontWeight:800, fontSize:13 }}>✓</button>
+                <button onClick={() => setEditingBalance(null)}
+                  style={{ background:"transparent", border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:7, padding:"4px 8px", cursor:"pointer", color:"rgba(255,255,255,0.8)", fontWeight:700, fontSize:12 }}>✕</button>
+              </div>
+            ) : (
+              <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1, marginTop:2 }}>₺{toplam.toLocaleString()}</div>
+            )}
+            <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:5, fontWeight:600 }}>
+              Açılış: ₺{acilis.toLocaleString()} &nbsp;·&nbsp; Bu ay: {buAy >= 0 ? "+" : ""}₺{buAy.toLocaleString()}
+            </div>
+          </div>
+        ))}
+        <div style={{ background:"#b45309", borderRadius:18, padding:"16px 20px", boxShadow:"0 6px 20px #b4530944", position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-14, top:-14, width:60, height:60, borderRadius:"50%", background:"rgba(255,255,255,0.14)" }} />
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.85)", textTransform:"uppercase", letterSpacing:1, fontWeight:800, marginBottom:4 }}>⭐ GENEL TOPLAM</div>
+          <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1, marginTop:2 }}>₺{genelToplam.toLocaleString()}</div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:5, fontWeight:600 }}>Nakit + Banka (Mediatopia hariç)</div>
+        </div>
       </div>
 
       <Card>
@@ -3062,16 +3141,40 @@ function FinancePage({ finance, setFinance, members, canEdit = true }) {
                 <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Tutar (₺)</div>
                 <input style={inputStyle} type="number" placeholder="0" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} />
               </div>
-              <div>
+              <div style={{ gridColumn: "1 / -1" }}>
                 <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Ödeme Tipi <span style={{ color:C.red }}>*</span></div>
                 <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                  {[{v:"nakit",l:"💵 Nakit"},{v:"banka",l:"🏦 Banka"}].map(o => (
-                    <label key={o.v} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", padding:"6px 12px", borderRadius:8, border:`1.5px solid ${form.paymentType===o.v?C.blue:C.border}`, background:form.paymentType===o.v?C.blue+"18":"transparent", fontWeight:700, fontSize:12, color:form.paymentType===o.v?C.blue:C.textMid }}>
-                      <input type="radio" value={o.v} checked={form.paymentType===o.v} onChange={() => setForm({...form, paymentType:o.v})} style={{ margin:0 }} />{o.l}
+                  {[{v:"nakit",l:"💵 Nakit",col:C.green},{v:"banka",l:"🏦 Banka",col:C.blue},{v:"mediatopia",l:"🤝 Mediatopia Check-in",col:"#7c3aed"}].map(o => (
+                    <label key={o.v} style={{ display:"flex", alignItems:"center", gap:6, cursor:"pointer", padding:"6px 14px", borderRadius:8, border:`1.5px solid ${form.paymentType===o.v?o.col:C.border}`, background:form.paymentType===o.v?o.col+"18":"transparent", fontWeight:700, fontSize:12, color:form.paymentType===o.v?o.col:C.textMid }}
+                      onClick={() => {
+                        if (o.v === "mediatopia") {
+                          setForm(f => ({ ...f, paymentType:"mediatopia", type:"Gelir", amount: f.amount || "650", desc: f.desc || "Mediatopia Check-in" }));
+                        } else {
+                          setForm(f => ({ ...f, paymentType:o.v, memberId:"" }));
+                        }
+                      }}>
+                      <input type="radio" value={o.v} checked={form.paymentType===o.v} onChange={() => {}} style={{ margin:0 }} />{o.l}
                     </label>
                   ))}
                 </div>
               </div>
+              {form.paymentType === "mediatopia" && (
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: "#7c3aed", marginBottom: 6, textTransform: "uppercase" }}>Üye (İsteğe Bağlı)</div>
+                  <select style={{ ...inputStyle, borderColor:"#7c3aed44" }} value={form.memberId} onChange={e => {
+                    const pid = e.target.value;
+                    const allPeople = (members||[]).flatMap(p => (p.children||[]).map(c => ({...c, parentName: p.name, parentId: p.id})));
+                    const found = allPeople.find(c => String(c.id) === pid);
+                    setForm(f => ({ ...f, memberId: pid, desc: found ? `Mediatopia Check-in — ${found.name}` : "Mediatopia Check-in" }));
+                  }}>
+                    <option value="">— Üye seçin (opsiyonel) —</option>
+                    {(members||[]).filter(p => p.source === "mediatopia").flatMap(p => (p.children||[]).map(c => ({ id: c.id, label: `${c.name} (${p.name})` }))).map(opt => (
+                      <option key={opt.id} value={opt.id}>{opt.label}</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize:11, color:"#7c3aed", marginTop:4, fontWeight:600 }}>💡 Mediatopia üyelerini gösteriyor. Seçince açıklama otomatik dolar.</div>
+                </div>
+              )}
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
               <button style={btnStyle(C.green)} onClick={addEntry}>✓ Kaydet</button>
@@ -6342,6 +6445,7 @@ function App() {
   const [groups, setGroupsRaw] = useState([]);
   const [attendance, setAttendanceRaw] = useState([]);
   const [reports, setReportsRaw] = useState([]);
+  const [finAyarlar, setFinAyarlarRaw] = useState([]);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showProfile, setShowProfile] = useState(false);
@@ -6433,13 +6537,14 @@ function App() {
   useEffect(() => {
     const unsubs = [];
     const loaded = new Set();
-    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance","reports"];
+    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance","reports","finans_ayarlar"];
     const setters = {
       members: setMembersRaw, staff: setStaffRaw, finance: setFinanceRaw,
       announcements: setAnnouncementsRaw, schedule: setScheduleRaw,
       channels: setChannelsRaw, channelMessages: setChannelMessagesRaw,
       dismissedNotifs: setDismissedNotifsRaw, readNotifs: setReadNotifsRaw,
       branches: setBranchesRaw, groups: setGroupsRaw, attendance: setAttendanceRaw, reports: setReportsRaw,
+      finans_ayarlar: setFinAyarlarRaw,
     };
     const snap2arr = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
     const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
@@ -6512,6 +6617,12 @@ function App() {
     const next = typeof val === "function" ? val(finance) : val;
     setFinanceRaw(next);
     fsSave("finance", next).then(ok => { if (!ok) setFinanceRaw(prev); });
+  };
+  const setFinAyarlar = (val) => {
+    const prev = finAyarlar;
+    const next = typeof val === "function" ? val(finAyarlar) : val;
+    setFinAyarlarRaw(next);
+    fsSave("finans_ayarlar", next).then(ok => { if (!ok) setFinAyarlarRaw(prev); });
   };
   const setAnnouncements = (val) => {
     const prev = announcements;
@@ -6649,7 +6760,7 @@ function App() {
     dashboard: <AdminDashboard members={members} finance={finance} staff={staff} />,
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} canEdit={canEdit} />,
     staff: null, // StaffPage is rendered persistently outside this object
-    finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} />,
+    finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
     reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} canEdit={canEdit} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
     calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} />,
