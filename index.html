@@ -2919,6 +2919,8 @@ function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar 
     - (finance||[]).filter(f => f.paymentType === "banka" && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
   const kasaTotal = kasaNakit + kasaBanka;
   const mtThisMonth = (finance||[]).filter(f => f.source === "mediatopia_checkin" && (f.date||"").startsWith(currentYM)).reduce((s,f) => s+Number(f.amount||0), 0);
+  const MT_CHECKIN_PRICE = 650;
+  const mtThisMonthCount = (finance||[]).filter(f => f.source === "mediatopia_checkin" && (f.date||"").startsWith(currentYM)).length;
 
   // Açılış bakiyeleri
   const ayarDoc = (finAyarlar||[])[0] || {};
@@ -2995,63 +2997,106 @@ function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar 
       <div className="ks-page-title" style={{ marginBottom: 4, color: C.text }}>💰 Gelir / Gider</div>
       <div style={{ fontSize: 14, color: C.textDim, marginBottom: 18, fontWeight: 600 }}>Finansal işlem takibi</div>
 
-      {/* Kasa Özeti */}
+      {/* Kasa Özeti — 2 sütun, 4 satır */}
       <div className="stat-cards">
-        <div style={{ background: C.blue, borderRadius: 18, padding: "16px 20px", boxShadow: `0 6px 20px ${C.blue}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:6, fontWeight:800 }}>🏦 Banka</div>
-          <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{kasaBanka.toLocaleString()}</div>
+        {/* 1 — Banka */}
+        <div style={{ background:C.blue, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${C.blue}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>🏦 Banka</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{kasaBanka.toLocaleString()}</div>
         </div>
-        <div style={{ background: "#7c3aed", borderRadius: 18, padding: "16px 20px", boxShadow: "0 6px 20px #7c3aed33", position:"relative", overflow:"hidden", minWidth:0 }}>
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:6, fontWeight:800 }}>🤝 Mediatopia (Bu Ay)</div>
-          <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{mtThisMonth.toLocaleString()}</div>
+
+        {/* 2 — Mediatopia (Bu Ay) */}
+        <div style={{ background:"#7c3aed", borderRadius:16, padding:"14px 16px", boxShadow:"0 4px 14px #7c3aed33", position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>🤝 Mediatopia (Bu Ay)</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>{mtThisMonthCount} adet</div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.78)", marginTop:4, fontWeight:700 }}>₺{(mtThisMonthCount * MT_CHECKIN_PRICE).toLocaleString()} (KDV dahil)</div>
         </div>
-      </div>
 
-      <div className="stat-cards" style={{ marginTop:8 }}>
-        <StatCard label={showAll ? "Toplam Gelir" : "Bu Ay Gelir"} value={`₺${monthlyIncome.toLocaleString()}`} color={C.green} icon="📈" />
-        <StatCard label={showAll ? "Toplam Gider" : "Bu Ay Gider"} value={`₺${monthlyExpense.toLocaleString()}`} color={C.red} icon="📉" />
-        <StatCard label={showAll ? "Net Kâr" : "Bu Ay Net"} value={`₺${(monthlyIncome - monthlyExpense).toLocaleString()}`} color={C.orange} icon="⭐" />
-      </div>
+        {/* 3 — Bu Ay Gelir */}
+        <div style={{ background:C.green, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${C.green}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>📈 {showAll ? "Toplam Gelir" : "Bu Ay Gelir"}</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{monthlyIncome.toLocaleString()}</div>
+        </div>
 
-      {/* Açılış Bakiyesi + Güncel Toplam Kartlar */}
-      <div className="stat-cards" style={{ marginTop:8 }}>
-        {[
-          { key:"nakit", label:"NAKİT TOPLAM", icon:"💵", color:"#16a34a", field:"nakitAcilis", acilis: nakitAcilis, toplam: nakitToplam, buAy: nakitBuAyNet },
-          { key:"banka", label:"BANKA TOPLAM", icon:"🏦", color:C.blue, field:"bankaAcilis", acilis: bankaAcilis, toplam: bankaToplam, buAy: bankaBuAyNet },
-        ].map(({ key, label, icon, color, field, acilis, toplam, buAy }) => (
-          <div key={key} style={{ background: color, borderRadius:18, padding:"16px 20px", boxShadow:`0 6px 20px ${color}44`, position:"relative", overflow:"hidden", minWidth:0 }}>
-            <div style={{ position:"absolute", right:-14, top:-14, width:60, height:60, borderRadius:"50%", background:"rgba(255,255,255,0.14)" }} />
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4 }}>
-              <div style={{ fontSize:10, color:"rgba(255,255,255,0.85)", textTransform:"uppercase", letterSpacing:1, fontWeight:800 }}>{icon} {label}</div>
+        {/* 4 — Bu Ay Gider */}
+        <div style={{ background:C.red, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${C.red}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>📉 {showAll ? "Toplam Gider" : "Bu Ay Gider"}</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{monthlyExpense.toLocaleString()}</div>
+        </div>
+
+        {/* 5 — Bu Ay Net */}
+        <div style={{ background:C.orange, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${C.orange}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>⭐ {showAll ? "Net Kâr" : "Bu Ay Net"}</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{(monthlyIncome - monthlyExpense).toLocaleString()}</div>
+        </div>
+
+        {/* 6 — Nakit Toplam (açılış bakiyeli) */}
+        {(() => {
+          const key = "nakit", color = "#16a34a", field = "nakitAcilis";
+          return (
+            <div style={{ background:color, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${color}44`, position:"relative", overflow:"hidden", minWidth:0 }}>
+              <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
               {canEdit && editingBalance !== key && (
-                <button onClick={() => { setEditingBalance(key); setEditVal(String(acilis)); }}
-                  style={{ background:"rgba(255,255,255,0.22)", border:"none", borderRadius:7, padding:"2px 8px", cursor:"pointer", color:"#fff", fontSize:13, fontWeight:700, lineHeight:1.4 }}
+                <button onClick={() => { setEditingBalance(key); setEditVal(String(nakitAcilis)); }}
+                  style={{ position:"absolute", top:8, right:8, background:"rgba(255,255,255,0.22)", border:"none", borderRadius:6, padding:"2px 6px", cursor:"pointer", color:"#fff", fontSize:12, lineHeight:1.4, zIndex:1 }}
                   title="Açılış bakiyesini düzenle">✏️</button>
               )}
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.85)", textTransform:"uppercase", letterSpacing:1, fontWeight:800, marginBottom:4 }}>💵 NAKİT TOPLAM</div>
+              {editingBalance === key ? (
+                <div style={{ display:"flex", gap:5, alignItems:"center", marginTop:2 }}>
+                  <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") saveBalance(field, editVal); if (e.key === "Escape") setEditingBalance(null); }}
+                    style={{ width:90, padding:"3px 7px", borderRadius:7, border:"2px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.18)", color:"#fff", fontWeight:800, fontSize:15, fontFamily:"inherit", outline:"none" }} />
+                  <button onClick={() => saveBalance(field, editVal)} style={{ background:"rgba(255,255,255,0.28)", border:"none", borderRadius:6, padding:"3px 8px", cursor:"pointer", color:"#fff", fontWeight:800, fontSize:12 }}>✓</button>
+                  <button onClick={() => setEditingBalance(null)} style={{ background:"transparent", border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:6, padding:"3px 7px", cursor:"pointer", color:"rgba(255,255,255,0.8)", fontWeight:700, fontSize:11 }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{nakitToplam.toLocaleString()}</div>
+              )}
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:4, fontWeight:600 }}>Açılış: ₺{nakitAcilis.toLocaleString()} · Bu ay: {nakitBuAyNet >= 0 ? "+" : ""}₺{nakitBuAyNet.toLocaleString()}</div>
             </div>
-            {editingBalance === key ? (
-              <div style={{ display:"flex", gap:6, alignItems:"center", marginTop:4 }}>
-                <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") saveBalance(field, editVal); if (e.key === "Escape") setEditingBalance(null); }}
-                  style={{ width:100, padding:"4px 8px", borderRadius:8, border:"2px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.18)", color:"#fff", fontWeight:800, fontSize:16, fontFamily:"inherit", outline:"none" }} />
-                <button onClick={() => saveBalance(field, editVal)}
-                  style={{ background:"rgba(255,255,255,0.28)", border:"none", borderRadius:7, padding:"4px 10px", cursor:"pointer", color:"#fff", fontWeight:800, fontSize:13 }}>✓</button>
-                <button onClick={() => setEditingBalance(null)}
-                  style={{ background:"transparent", border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:7, padding:"4px 8px", cursor:"pointer", color:"rgba(255,255,255,0.8)", fontWeight:700, fontSize:12 }}>✕</button>
-              </div>
-            ) : (
-              <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1, marginTop:2 }}>₺{toplam.toLocaleString()}</div>
-            )}
-            <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:5, fontWeight:600 }}>
-              Açılış: ₺{acilis.toLocaleString()} &nbsp;·&nbsp; Bu ay: {buAy >= 0 ? "+" : ""}₺{buAy.toLocaleString()}
+          );
+        })()}
+
+        {/* 7 — Banka Toplam (açılış bakiyeli) */}
+        {(() => {
+          const key = "banka", color = C.blue, field = "bankaAcilis";
+          return (
+            <div style={{ background:color, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${color}44`, position:"relative", overflow:"hidden", minWidth:0 }}>
+              <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
+              {canEdit && editingBalance !== key && (
+                <button onClick={() => { setEditingBalance(key); setEditVal(String(bankaAcilis)); }}
+                  style={{ position:"absolute", top:8, right:8, background:"rgba(255,255,255,0.22)", border:"none", borderRadius:6, padding:"2px 6px", cursor:"pointer", color:"#fff", fontSize:12, lineHeight:1.4, zIndex:1 }}
+                  title="Açılış bakiyesini düzenle">✏️</button>
+              )}
+              <div style={{ fontSize:10, color:"rgba(255,255,255,0.85)", textTransform:"uppercase", letterSpacing:1, fontWeight:800, marginBottom:4 }}>🏦 BANKA TOPLAM</div>
+              {editingBalance === key ? (
+                <div style={{ display:"flex", gap:5, alignItems:"center", marginTop:2 }}>
+                  <input autoFocus type="number" value={editVal} onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") saveBalance(field, editVal); if (e.key === "Escape") setEditingBalance(null); }}
+                    style={{ width:90, padding:"3px 7px", borderRadius:7, border:"2px solid rgba(255,255,255,0.6)", background:"rgba(255,255,255,0.18)", color:"#fff", fontWeight:800, fontSize:15, fontFamily:"inherit", outline:"none" }} />
+                  <button onClick={() => saveBalance(field, editVal)} style={{ background:"rgba(255,255,255,0.28)", border:"none", borderRadius:6, padding:"3px 8px", cursor:"pointer", color:"#fff", fontWeight:800, fontSize:12 }}>✓</button>
+                  <button onClick={() => setEditingBalance(null)} style={{ background:"transparent", border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:6, padding:"3px 7px", cursor:"pointer", color:"rgba(255,255,255,0.8)", fontWeight:700, fontSize:11 }}>✕</button>
+                </div>
+              ) : (
+                <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{bankaToplam.toLocaleString()}</div>
+              )}
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:4, fontWeight:600 }}>Açılış: ₺{bankaAcilis.toLocaleString()} · Bu ay: {bankaBuAyNet >= 0 ? "+" : ""}₺{bankaBuAyNet.toLocaleString()}</div>
             </div>
-          </div>
-        ))}
-        <div style={{ background:"#b45309", borderRadius:18, padding:"16px 20px", boxShadow:"0 6px 20px #b4530944", position:"relative", overflow:"hidden", minWidth:0 }}>
-          <div style={{ position:"absolute", right:-14, top:-14, width:60, height:60, borderRadius:"50%", background:"rgba(255,255,255,0.14)" }} />
+          );
+        })()}
+
+        {/* 8 — Genel Toplam */}
+        <div style={{ background:"#b45309", borderRadius:16, padding:"14px 16px", boxShadow:"0 4px 14px #b4530944", position:"relative", overflow:"hidden", minWidth:0 }}>
+          <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.85)", textTransform:"uppercase", letterSpacing:1, fontWeight:800, marginBottom:4 }}>⭐ GENEL TOPLAM</div>
-          <div style={{ fontSize:26, fontWeight:900, color:"#fff", lineHeight:1, marginTop:2 }}>₺{genelToplam.toLocaleString()}</div>
-          <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:5, fontWeight:600 }}>Nakit + Banka (Mediatopia hariç)</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{genelToplam.toLocaleString()}</div>
+          <div style={{ fontSize:11, color:"rgba(255,255,255,0.75)", marginTop:4, fontWeight:600 }}>Nakit + Banka (Mediatopia hariç)</div>
         </div>
       </div>
 
