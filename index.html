@@ -2971,6 +2971,10 @@ function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar 
 
   const monthlyIncome = viewFinance.filter(f => f.type === "Gelir" && f.source !== "mediatopia_invoice").reduce((s, f) => s + Number(f.amount||0), 0);
   const monthlyExpense = viewFinance.filter(f => f.type === "Gider").reduce((s, f) => s + Number(f.amount||0), 0);
+  // Bu Ay Net: her zaman sadece bu ayki işlemler, açılış bakiyesinden bağımsız
+  const buAyGelir = thisMonthFin.filter(f => f.type === "Gelir" && f.source !== "mediatopia_invoice").reduce((s,f) => s+Number(f.amount||0), 0);
+  const buAyGider = thisMonthFin.filter(f => f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
+  const buAyNet = buAyGelir - buAyGider;
 
   const baseFiltered = viewFinance
     .filter(f => {
@@ -3011,22 +3015,22 @@ function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar 
         {/* S1-R: Bu Ay Gelir */}
         <div style={{ background:C.green, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${C.green}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
           <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>📈 {showAll ? "Toplam Gelir" : "Bu Ay Gelir"}</div>
-          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{monthlyIncome.toLocaleString()}</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>📈 Bu Ay Gelir</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{buAyGelir.toLocaleString()}</div>
         </div>
 
         {/* S2-L: Bu Ay Gider */}
         <div style={{ background:C.red, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${C.red}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
           <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>📉 {showAll ? "Toplam Gider" : "Bu Ay Gider"}</div>
-          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{monthlyExpense.toLocaleString()}</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>📉 Bu Ay Gider</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{buAyGider.toLocaleString()}</div>
         </div>
 
         {/* S2-R: Bu Ay Net */}
         <div style={{ background:C.orange, borderRadius:16, padding:"14px 16px", boxShadow:`0 4px 14px ${C.orange}33`, position:"relative", overflow:"hidden", minWidth:0 }}>
           <div style={{ position:"absolute", right:-10, top:-10, width:50, height:50, borderRadius:"50%", background:"rgba(255,255,255,0.12)" }} />
-          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>⭐ {showAll ? "Net Kâr" : "Bu Ay Net"}</div>
-          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{(monthlyIncome - monthlyExpense).toLocaleString()}</div>
+          <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:4, fontWeight:800 }}>⭐ Bu Ay Net</div>
+          <div style={{ fontSize:24, fontWeight:900, color:"#fff", lineHeight:1 }}>₺{buAyNet.toLocaleString()}</div>
         </div>
 
         {/* S3-L: Nakit Toplam */}
