@@ -2917,21 +2917,20 @@ function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar 
     - (finance||[]).filter(f => (f.paymentType === "nakit" || (!f.paymentType && f.source !== "mediatopia_checkin" && f.source !== "mediatopia_invoice")) && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
   const kasaBanka = (finance||[]).filter(f => f.paymentType === "banka" && f.type === "Gelir").reduce((s,f) => s+Number(f.amount||0), 0)
     - (finance||[]).filter(f => f.paymentType === "banka" && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
-  const kasaTotal = kasaNakit + kasaBanka;
-  const mtThisMonth = (finance||[]).filter(f => f.source === "mediatopia_checkin" && (f.date||"").startsWith(currentYM)).reduce((s,f) => s+Number(f.amount||0), 0);
   const MT_CHECKIN_PRICE = 650;
-  const mtThisMonthCount = (finance||[]).filter(f => f.source === "mediatopia_checkin" && (f.date||"").startsWith(currentYM)).length;
+  // Tüm kart hesapları viewFinance kullanır → ay filtresi tüm kartlara yansır
+  const mtThisMonthCount = viewFinance.filter(f => f.source === "mediatopia_checkin").length;
 
   // Açılış bakiyeleri
   const ayarDoc = (finAyarlar||[])[0] || {};
   const nakitAcilis = Number(ayarDoc.nakitAcilis || 0);
   const bankaAcilis = Number(ayarDoc.bankaAcilis || 0);
   const isNakitPayType = f => f.paymentType === "nakit" || (!f.paymentType && f.source !== "mediatopia_checkin" && f.source !== "mediatopia_invoice");
-  const thisMonthFin = (finance||[]).filter(f => (f.date||"").startsWith(currentYM));
-  const nakitBuAyNet = thisMonthFin.filter(f => isNakitPayType(f) && f.type === "Gelir").reduce((s,f) => s+Number(f.amount||0), 0)
-    - thisMonthFin.filter(f => isNakitPayType(f) && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
-  const bankaBuAyNet = thisMonthFin.filter(f => f.paymentType === "banka" && f.type === "Gelir").reduce((s,f) => s+Number(f.amount||0), 0)
-    - thisMonthFin.filter(f => f.paymentType === "banka" && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
+  const nakitBuAyNet = viewFinance.filter(f => isNakitPayType(f) && f.type === "Gelir").reduce((s,f) => s+Number(f.amount||0), 0)
+    - viewFinance.filter(f => isNakitPayType(f) && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
+  const bankaBuAyNet = viewFinance.filter(f => f.paymentType === "banka" && f.type === "Gelir").reduce((s,f) => s+Number(f.amount||0), 0)
+    - viewFinance.filter(f => f.paymentType === "banka" && f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
+  // Nakit/Banka Toplam = açılış bakiyesi + seçilen ayın net hareketi (Bu Ay Net'ten bağımsız)
   const nakitToplam = nakitAcilis + nakitBuAyNet;
   const bankaToplam = bankaAcilis + bankaBuAyNet;
   const genelToplam = nakitToplam + bankaToplam;
@@ -2971,9 +2970,9 @@ function FinancePage({ finance, setFinance, members, canEdit = true, finAyarlar 
 
   const monthlyIncome = viewFinance.filter(f => f.type === "Gelir" && f.source !== "mediatopia_invoice").reduce((s, f) => s + Number(f.amount||0), 0);
   const monthlyExpense = viewFinance.filter(f => f.type === "Gider").reduce((s, f) => s + Number(f.amount||0), 0);
-  // Bu Ay Net: her zaman sadece bu ayki işlemler, açılış bakiyesinden bağımsız
-  const buAyGelir = thisMonthFin.filter(f => f.type === "Gelir" && f.source !== "mediatopia_invoice").reduce((s,f) => s+Number(f.amount||0), 0);
-  const buAyGider = thisMonthFin.filter(f => f.type === "Gider").reduce((s,f) => s+Number(f.amount||0), 0);
+  // Bu Ay Gelir/Gider/Net: viewFinance kullanır → ay filtresiyle senkron, açılış bakiyesinden bağımsız
+  const buAyGelir = monthlyIncome;
+  const buAyGider = monthlyExpense;
   const buAyNet = buAyGelir - buAyGider;
 
   const baseFiltered = viewFinance
