@@ -879,6 +879,22 @@ function LoginPage({ onLogin, dbStatus }) {
           {loading ? "⏳ Giriş yapılıyor..." : "🔐 Giriş Yap"}
         </button>
 
+        <div style={{ textAlign:"center", marginTop:12 }}>
+          <button onClick={async () => {
+            const em = username.trim();
+            if (!em) { setError("Lütfen önce e-posta adresinizi girin."); return; }
+            try {
+              await auth.sendPasswordResetEmail(em);
+              setError("");
+              showKsToast("📧 Şifre sıfırlama maili gönderildi!", C.green);
+            } catch(e) {
+              setError("Mail gönderilemedi: " + (e.message || ""));
+            }
+          }} style={{ background:"none", border:"none", color: C.blue, fontSize:13, cursor:"pointer", textDecoration:"underline", padding:0 }}>
+            Şifremi unuttum
+          </button>
+        </div>
+
         {dbStatus && (
           <div style={{ textAlign:"center", marginTop:16, fontSize:12, color: dbStatus.startsWith("✅") ? C.green : dbStatus.startsWith("⚠️") ? C.orange : C.textDim, fontWeight:700 }}>
             {dbStatus}
