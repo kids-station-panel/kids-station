@@ -823,6 +823,7 @@ function LoginPage({ onLogin, dbStatus }) {
     db.collection(USER_COL).doc(found.docId).set({ lastLogin: new Date().toISOString() }, { merge: true }).catch(() => {});
     const role = String(data.role || "").trim().toLowerCase();
     console.log("[KS] LOGIN OK — uid:", uid, "col:", found.col, "role:", role);
+    db.collection("auditLog").add({ actorUid: uid, actorName: data.name || email, action: "login", details: "Rol: " + role, timestamp: new Date().toISOString() }).catch(() => {});
     onLogin({ role: role || "unknown", name: data.name || email, email, id: uid, photoURL: data.photoURL || null });
   };
 
@@ -4305,6 +4306,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     setGroupAttMode(null);
     setGroupAttMsg({ groupId: g.id, text: `✅ ${groupStudents.length} öğrenci için ${dateStr} yoklaması kaydedildi.` });
     setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 4000);
+    firebase.firestore().collection("auditLog").add({ actorUid: user.id, actorName: user.name, action: "attendance", details: `Grup: ${g.name} | Tarih: ${dateStr} | ${groupStudents.length} öğrenci`, timestamp: new Date().toISOString() }).catch(() => {});
   };
 
   const saveSessionNote = () => {
@@ -4312,11 +4314,13 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     const cid = Number(selectedStudent);
     const parent = (allParents||[]).find(p => (p.children||[]).some(c => c.id === cid));
     if (!parent) return;
+    const child = (parent.children||[]).find(c => c.id === cid);
     const newNote = { id: Date.now(), date: noteDate, staffId: myStaff?.id || user.id, staffName: user.name, note: noteText.trim(), createdAt: new Date().toISOString() };
     setAllParents((allParents||[]).map(p => p.id === parent.id
       ? { ...p, children: p.children.map(c => c.id === cid ? { ...c, sessionNotes: [...(c.sessionNotes||[]), newNote] } : c) }
       : p
     ));
+    firebase.firestore().collection("auditLog").add({ actorUid: user.id, actorName: user.name, action: "note", details: `Öğrenci: ${child?.name || cid} | Tarih: ${noteDate}`, timestamp: new Date().toISOString() }).catch(() => {});
     setNoteText("");
   };
 
@@ -5528,6 +5532,87 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentU
               </div>
             </Card>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── FAALİYET RAPORU ───────────────────────────────────────────
+function ActivityPage({ visibleStaff }) {
+  const [logs, setLogs] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [filterUser, setFilterUser] = React.useState("all");
+  const [filterAction, setFilterAction] = React.useState("all");
+  const [filterDate, setFilterDate] = React.useState("");
+
+  React.useEffect(() => {
+    setLoading(true);
+    firebase.firestore().collection("auditLog")
+      .orderBy("timestamp", "desc").limit(500)
+      .get()
+      .then(snap => {
+        setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const actionLabel = { login: "🔐 Giriş", attendance: "📅 Yoklama", note: "📝 Seans Notu", create: "➕ Hesap Oluşturma", edit: "✏️ Düzenleme", status_change: "🔄 Durum Değişikliği", password_reset: "📧 Şifre Sıfırlama" };
+
+  const filtered = logs.filter(l => {
+    if (filterUser !== "all" && l.actorUid !== filterUser) return false;
+    if (filterAction !== "all" && l.action !== filterAction) return false;
+    if (filterDate && !l.timestamp?.startsWith(filterDate)) return false;
+    return true;
+  });
+
+  const teachers = (visibleStaff||[]).filter(s => s.isTeacherAccount);
+
+  return (
+    <div>
+      <div style={{ fontWeight:800, fontSize:20, marginBottom:16 }}>📋 Faaliyet Raporu</div>
+      <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:16 }}>
+        <select value={filterUser} onChange={e=>setFilterUser(e.target.value)} style={{ padding:"8px 12px", borderRadius:10, border:"1.5px solid #e2e8f0", fontFamily:"inherit", fontSize:13 }}>
+          <option value="all">Tüm Kullanıcılar</option>
+          {teachers.map(s => <option key={s.userId||s.id} value={s.userId||s.id}>{s.name}</option>)}
+        </select>
+        <select value={filterAction} onChange={e=>setFilterAction(e.target.value)} style={{ padding:"8px 12px", borderRadius:10, border:"1.5px solid #e2e8f0", fontFamily:"inherit", fontSize:13 }}>
+          <option value="all">Tüm İşlemler</option>
+          <option value="login">🔐 Giriş</option>
+          <option value="attendance">📅 Yoklama</option>
+          <option value="note">📝 Seans Notu</option>
+          <option value="create">➕ Hesap Oluşturma</option>
+          <option value="edit">✏️ Düzenleme</option>
+          <option value="status_change">🔄 Durum Değişikliği</option>
+          <option value="password_reset">📧 Şifre Sıfırlama</option>
+        </select>
+        <input type="date" value={filterDate} onChange={e=>setFilterDate(e.target.value)} style={{ padding:"8px 12px", borderRadius:10, border:"1.5px solid #e2e8f0", fontFamily:"inherit", fontSize:13 }} />
+        {filterDate && <button onClick={()=>setFilterDate("")} style={{ padding:"8px 12px", borderRadius:10, border:"none", background:"#f1f5f9", cursor:"pointer", fontSize:13 }}>✕ Tarihi Temizle</button>}
+      </div>
+      {loading ? (
+        <div style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>⏳ Yükleniyor...</div>
+      ) : filtered.length === 0 ? (
+        <div style={{ textAlign:"center", padding:40, color:"#94a3b8" }}>Kayıt bulunamadı.</div>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {filtered.map(l => {
+            const staffMember = (visibleStaff||[]).find(s => s.userId === l.actorUid || s.id === l.actorUid);
+            const name = l.actorName || staffMember?.name || l.actorUid;
+            const ts = l.timestamp ? new Date(l.timestamp) : null;
+            const dateStr = ts ? ts.toLocaleDateString("tr-TR") : "";
+            const timeStr = ts ? ts.toLocaleTimeString("tr-TR", { hour:"2-digit", minute:"2-digit" }) : "";
+            const actionBg = { login:"#eff6ff", attendance:"#f0fdf4", note:"#fefce8", create:"#f0fdf4", edit:"#eff6ff", status_change:"#fff7ed", password_reset:"#fff7ed" };
+            const actionColor = { login:"#1d4ed8", attendance:"#15803d", note:"#854d0e", create:"#15803d", edit:"#1d4ed8", status_change:"#c2410c", password_reset:"#c2410c" };
+            return (
+              <div key={l.id} style={{ background: actionBg[l.action]||"#f8fafc", border:"1.5px solid #e2e8f0", borderRadius:12, padding:"12px 16px", display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                <div style={{ fontWeight:700, fontSize:13, color: actionColor[l.action]||"#334155", minWidth:140 }}>{actionLabel[l.action]||l.action}</div>
+                <div style={{ fontWeight:700, fontSize:13, minWidth:120 }}>{name}</div>
+                <div style={{ flex:1, fontSize:13, color:"#475569" }}>{l.details}</div>
+                <div style={{ fontSize:12, color:"#94a3b8", whiteSpace:"nowrap" }}>{dateStr} {timeStr}</div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -6797,6 +6882,7 @@ function App() {
     { key: "users", label: "Kullanıcılar", icon: "👤" },
     { key: "branches", label: "Branşlar", icon: "⚽" },
     { key: "groups", label: "Gruplar", icon: "👥" },
+    { key: "activity", label: "Faaliyet", icon: "📋" },
   ];
   const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange];
 
@@ -6863,6 +6949,7 @@ function App() {
     />,
     branches: <BranchesPage branches={branches} setBranches={setBranches} canEdit={canEdit} />,
     groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={visibleStaff} members={members} canEdit={canEdit} userAccounts={appUsers} />,
+    activity: <ActivityPage visibleStaff={visibleStaff} />,
   };
 
   return (
