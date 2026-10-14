@@ -5244,7 +5244,7 @@ function NotificationsPage({ members, finance, staff, dismissedNotifs, setDismis
 }
 
 // ── TAKVİM / HAFTALIK PROGRAM ────────────────────────────────
-function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentUser, canAdd, branches: dynamicBranches }) {
+function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentUser, canAdd, branches: dynamicBranches, userAccounts = [] }) {
   const allChildren = (members||[]).flatMap(p => p.children||[]);
   const days = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"];
   const dayShort = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
@@ -5388,7 +5388,7 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentU
               <div>
                 <label style={{ fontSize:12, fontWeight:700, color:C.textDim, display:"block", marginBottom:4 }}>Eğitmen</label>
                 <input style={inputStyle} value={form.teacher} onChange={e => handleFormChange({teacher:e.target.value})} placeholder="Eğitmen adı" list="cal-teacher-list" />
-                <datalist id="cal-teacher-list">{(staff||[]).filter(s => !s.userStatus || s.userStatus === "active").map(s=><option key={s.id} value={s.name}/>)}</datalist>
+                <datalist id="cal-teacher-list">{(staff||[]).filter(s => { const activeIds = new Set((userAccounts||[]).filter(u=>u.status!=="deleted").map(u=>u.id)); return !s.userId || activeIds.has(s.userId); }).map(s=><option key={s.id} value={s.name}/>)}</datalist>
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 <div>
@@ -6203,12 +6203,14 @@ function BranchesPage({ branches, setBranches, canEdit = true }) {
 }
 
 // ── GRUPLAR SAYFASI ────────────────────────────────────────
-function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = true }) {
+function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = true, userAccounts = [] }) {
   const [form, setForm] = React.useState({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [] });
   const [showAdd, setShowAdd] = React.useState(false);
   const [editId, setEditId] = React.useState(null);
   const [editForm, setEditForm] = React.useState({});
   const allChildren = (members||[]).flatMap(p => p.children||[]);
+  const activeUserIds = new Set((userAccounts||[]).filter(u => u.status !== "deleted").map(u => u.id));
+  const activeTeachers = (staff||[]).filter(s => (s.isTeacherAccount || s.role === "Antrenör") && (!s.userId || activeUserIds.has(s.userId)));
 
   const addGroup = () => {
     if (!form.name.trim()) return;
@@ -6271,7 +6273,7 @@ function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = tru
           <div style={{ marginTop: 14 }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Öğretmenler</div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {(staff||[]).filter(s=>s.isTeacherAccount||s.role==="Antrenör").map(s => (
+              {activeTeachers.map(s => (
                 React.createElement("label", { key: s.id, style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: form.teacherIds.includes(String(s.id)) ? C.blue+"22" : "#f5f8ff", border: "1px solid " + (form.teacherIds.includes(String(s.id)) ? C.blue : C.border), borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 700 } },
                   React.createElement("input", { type: "checkbox", checked: form.teacherIds.includes(String(s.id)), onChange: () => setForm({...form, teacherIds: toggleInArray(form.teacherIds, String(s.id))}), style: { accentColor: C.blue } }),
                   s.name
@@ -6334,7 +6336,7 @@ function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = tru
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Öğretmenler</div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {(staff||[]).filter(s=>s.isTeacherAccount||s.role==="Antrenör").map(s => (
+                      {activeTeachers.map(s => (
                         React.createElement("label", { key: s.id, style: { display: "flex", alignItems: "center", gap: 6, cursor: "pointer", background: (editForm.teacherIds||[]).includes(String(s.id)) ? C.blue+"22" : "#f5f8ff", border: "1px solid " + ((editForm.teacherIds||[]).includes(String(s.id)) ? C.blue : C.border), borderRadius: 8, padding: "6px 10px", fontSize: 13, fontWeight: 700 } },
                           React.createElement("input", { type: "checkbox", checked: (editForm.teacherIds||[]).includes(String(s.id)), onChange: () => setEditForm({...editForm, teacherIds: toggleInArray(editForm.teacherIds||[], String(s.id))}), style: { accentColor: C.blue } }),
                           s.name
@@ -6486,6 +6488,7 @@ function App() {
   const [attendance, setAttendanceRaw] = useState([]);
   const [reports, setReportsRaw] = useState([]);
   const [finAyarlar, setFinAyarlarRaw] = useState([]);
+  const [appUsers, setAppUsersRaw] = useState([]);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showProfile, setShowProfile] = useState(false);
@@ -6577,14 +6580,14 @@ function App() {
   useEffect(() => {
     const unsubs = [];
     const loaded = new Set();
-    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance","reports","finans_ayarlar"];
+    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance","reports","finans_ayarlar","users"];
     const setters = {
       members: setMembersRaw, staff: setStaffRaw, finance: setFinanceRaw,
       announcements: setAnnouncementsRaw, schedule: setScheduleRaw,
       channels: setChannelsRaw, channelMessages: setChannelMessagesRaw,
       dismissedNotifs: setDismissedNotifsRaw, readNotifs: setReadNotifsRaw,
       branches: setBranchesRaw, groups: setGroupsRaw, attendance: setAttendanceRaw, reports: setReportsRaw,
-      finans_ayarlar: setFinAyarlarRaw,
+      finans_ayarlar: setFinAyarlarRaw, users: setAppUsersRaw,
     };
     const snap2arr = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
     const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
@@ -6803,7 +6806,7 @@ function App() {
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
     reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} canEdit={canEdit} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
-    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} />,
+    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
@@ -6850,7 +6853,7 @@ function App() {
     branches={branches}
     />,
     branches: <BranchesPage branches={branches} setBranches={setBranches} canEdit={canEdit} />,
-    groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff} members={members} canEdit={canEdit} />,
+    groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff} members={members} canEdit={canEdit} userAccounts={appUsers} />,
   };
 
   return (
