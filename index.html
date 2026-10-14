@@ -3715,7 +3715,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
 }
 
 // ── KULLANICI YÖNETİMİ (ADMIN) ────────────────────────────
-function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacherEdited, branches: dynamicBranches, canEdit = true }) {
+function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacherEdited, branches: dynamicBranches, canEdit = true, onPreviewTeacher }) {
   const [users, setUsers]               = useState([]);
   const [loading, setLoading]           = useState(true);
   const [searchQ, setSearchQ]           = useState("");
@@ -4140,9 +4140,13 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
                 }
               </div>
             </div>
-            {canEdit && <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
-              <button onClick={() => { setEditUser(u); setEditForm({ name:u.name, phone:u.phone||"", role:u.role }); setEditError(""); }}
-                title="Düzenle" style={{ width:34, height:34, borderRadius:10, background:C.blue+"14", border:`1.5px solid ${C.blue}22`, color:C.blue, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✏️</button>
+            <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
+              {u.role === "teacher" && onPreviewTeacher && (
+                <button onClick={() => onPreviewTeacher(u)}
+                  title="Öğretmen gözüyle gör" style={{ width:34, height:34, borderRadius:10, background:"#f0fdf4", border:"1.5px solid #86efac", color:"#15803d", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>👁️</button>
+              )}
+              {canEdit && <button onClick={() => { setEditUser(u); setEditForm({ name:u.name, phone:u.phone||"", role:u.role }); setEditError(""); }}
+                title="Düzenle" style={{ width:34, height:34, borderRadius:10, background:C.blue+"14", border:`1.5px solid ${C.blue}22`, color:C.blue, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✏️</button>}
               <button onClick={() => setConfirmAction({ user:u, action:"password_reset", label:`"${u.name}" kullanıcısına şifre sıfırlama bağlantısı gönderilecek (${u.email}).`, color:"#92400e" })}
                 title="Şifre Sıfırla" style={{ width:34, height:34, borderRadius:10, background:"#fef3c7", border:"1.5px solid #fbbf24", color:"#92400e", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>📧</button>
               {(!u.status || u.status === "active") ? (
@@ -4152,9 +4156,9 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
                 <button onClick={() => setConfirmAction({ user:u, action:"active", label:`"${u.name}" hesabı yeniden aktif edilecek.`, color:C.green })}
                   title="Aktif Et" style={{ width:34, height:34, borderRadius:10, background:C.green+"14", border:`1.5px solid ${C.green}33`, color:C.green, fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>✅</button>
               )}
-              <button onClick={() => setConfirmAction({ user:u, action:"deleted", label:`"${u.name}" silinecek. Giriş yapamayacak!`, color:C.red })}
-                title="Sil" style={{ width:34, height:34, borderRadius:10, background:"#fee2e2", border:"1.5px solid #fca5a5", color:"#b91c1c", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>
-            </div>}
+              {canEdit && <button onClick={() => setConfirmAction({ user:u, action:"deleted", label:`"${u.name}" silinecek. Giriş yapamayacak!`, color:C.red })}
+                title="Sil" style={{ width:34, height:34, borderRadius:10, background:"#fee2e2", border:"1.5px solid #fca5a5", color:"#b91c1c", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>🗑️</button>}
+            </div>
           </div>
         ))}
       </Card>
@@ -6489,6 +6493,7 @@ function App() {
   const [reports, setReportsRaw] = useState([]);
   const [finAyarlar, setFinAyarlarRaw] = useState([]);
   const [appUsers, setAppUsersRaw] = useState([]);
+  const [previewTeacher, setPreviewTeacher] = useState(null);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
   const [showProfile, setShowProfile] = useState(false);
@@ -6814,7 +6819,7 @@ function App() {
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={visibleStaff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
-    users: <UserManagementPage canEdit={canEdit}
+    users: <UserManagementPage canEdit={canEdit} onPreviewTeacher={u => setPreviewTeacher({ ...u, role:"teacher" })}
       onTeacherCreated={(uid, name, email, phone, branch) => {
         const today = new Date().toISOString().slice(0, 10);
         const newStaffRecord = {
@@ -6914,11 +6919,40 @@ function App() {
         </div>
       )}
 
-      <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "22px 16px 30px", overflowY: "auto" }}>
-        <div style={{ display: page === "staff" ? "block" : "none" }}>
-          <StaffPage staff={visibleStaff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} setAllParents={setMembers} branches={branches} canEdit={canEdit} />
+      {previewTeacher && (
+        <div style={{ background: "#f59e0b", color: "#000", padding: "8px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", fontWeight: 700, fontSize: 14, zIndex: 20 }}>
+          <span>👁️ Gözlem Modu — <strong>{previewTeacher.name}</strong> gözüyle görüntülüyorsunuz</span>
+          <button onClick={() => setPreviewTeacher(null)} style={{ background: "#000", color: "#fff", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 700, fontSize: 13 }}>
+            ✕ Admin Moduna Dön
+          </button>
         </div>
-        {page !== "staff" && pages[page]}
+      )}
+      <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "22px 16px 30px", overflowY: "auto" }}>
+        {previewTeacher ? (
+          <TeacherPanel
+            user={previewTeacher}
+            members={(members||[]).flatMap(p => {
+              const assignedIds = new Set(((visibleStaff.find(s => s.userId === previewTeacher.id || s.id === previewTeacher.id)?.individualStudents)||[]).map(a=>Number(a.childId)));
+              return assignedIds.size > 0 ? (p.children||[]).filter(c => assignedIds.has(Number(c.id))).map(c=>({...p, children:[c]})) : [];
+            })}
+            announcements={announcements} setAnnouncements={()=>{}}
+            attendance={attendance} setAttendance={()=>{}}
+            staff={visibleStaff} setStaff={()=>{}}
+            allParents={members} setAllParents={()=>{}}
+            channels={channels} channelMessages={channelMessages}
+            setChannels={()=>{}} setChannelMessages={()=>{}}
+            schedule={schedule} setSchedule={()=>{}}
+            groups={groups} branches={branches}
+            onUpdatePhoto={()=>{}}
+          />
+        ) : (
+          <>
+            <div style={{ display: page === "staff" ? "block" : "none" }}>
+              <StaffPage staff={visibleStaff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} setAllParents={setMembers} branches={branches} canEdit={canEdit} />
+            </div>
+            {page !== "staff" && pages[page]}
+          </>
+        )}
       </div>
     </div>
     <KsToast />
