@@ -884,7 +884,7 @@ function LoginPage({ onLogin, dbStatus }) {
             const em = username.trim();
             if (!em) { setError("Lütfen önce e-posta adresinizi girin."); return; }
             try {
-              await auth.sendPasswordResetEmail(em);
+              await firebase.auth().sendPasswordResetEmail(em);
               setError("");
               showKsToast("📧 Şifre sıfırlama maili gönderildi!", C.green);
             } catch(e) {
