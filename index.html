@@ -6768,7 +6768,7 @@ function App() {
     return <TeacherPanel user={user} members={myChildren}
       announcements={announcements} setAnnouncements={setAnnouncements}
       attendance={attendance} setAttendance={setAttendance}
-      staff={staff} setStaff={setStaff}
+      staff={visibleStaff} setStaff={setStaff}
       allParents={members} setAllParents={setMembers}
       channels={channels} channelMessages={channelMessages}
       schedule={schedule} setSchedule={setSchedule}
@@ -6799,15 +6799,19 @@ function App() {
   // Yönetici rolü için yetki kontrolü
   const canEdit = hasPermission(user?.role, 'edit');
 
+  // Aktif user hesabı olmayan (silinmiş) öğretmenleri gizle
+  const activeUserIds = new Set((appUsers||[]).filter(u => u.status !== "deleted").map(u => u.id));
+  const visibleStaff = (staff||[]).filter(s => !s.userId || activeUserIds.has(s.userId));
+
   const pages = {
-    dashboard: <AdminDashboard members={members} finance={finance} staff={staff} />,
+    dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} />,
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} canEdit={canEdit} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
-    reports: <ReportsPage members={members} finance={finance} staff={staff} reports={reports} setReports={setReports} canEdit={canEdit} />,
-    notifications: <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
-    calendar: <CalendarPage members={members} staff={staff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} />,
-    advanced: <AdvancedReportsPage members={members} finance={finance} staff={staff} />,
+    reports: <ReportsPage members={members} finance={finance} staff={visibleStaff} reports={reports} setReports={setReports} canEdit={canEdit} />,
+    notifications: <NotificationsPage members={members} finance={finance} staff={visibleStaff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
+    calendar: <CalendarPage members={members} staff={visibleStaff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} />,
+    advanced: <AdvancedReportsPage members={members} finance={finance} staff={visibleStaff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
     users: <UserManagementPage canEdit={canEdit}
@@ -6853,7 +6857,7 @@ function App() {
     branches={branches}
     />,
     branches: <BranchesPage branches={branches} setBranches={setBranches} canEdit={canEdit} />,
-    groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff} members={members} canEdit={canEdit} userAccounts={appUsers} />,
+    groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={visibleStaff} members={members} canEdit={canEdit} userAccounts={appUsers} />,
   };
 
   return (
@@ -6912,7 +6916,7 @@ function App() {
 
       <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "22px 16px 30px", overflowY: "auto" }}>
         <div style={{ display: page === "staff" ? "block" : "none" }}>
-          <StaffPage staff={staff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} setAllParents={setMembers} branches={branches} canEdit={canEdit} />
+          <StaffPage staff={visibleStaff} setStaff={setStaff} finance={finance} setFinance={setFinance} allParents={members} setAllParents={setMembers} branches={branches} canEdit={canEdit} />
         </div>
         {page !== "staff" && pages[page]}
       </div>
