@@ -2168,9 +2168,9 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
         const p = confirmPassive;
         const nowActive = p.isActive !== false;
         return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:9000, display:"flex", alignItems:"center", justifyContent:"center" }}
+          <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.45)", zIndex:99999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}
             onClick={() => setConfirmPassive(null)}>
-            <div style={{ background:"#fff", borderRadius:18, padding:28, maxWidth:380, width:"90%", boxShadow:"0 8px 40px rgba(0,0,0,0.22)" }}
+            <div style={{ background:"#fff", borderRadius:18, padding:28, maxWidth:380, width:"100%", boxShadow:"0 8px 40px rgba(0,0,0,0.22)", position:"relative" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ fontWeight:900, fontSize:17, color:C.text, marginBottom:10 }}>
                 {nowActive ? "⏸ Pasife Al" : "▶ Aktife Al"}
@@ -2281,17 +2281,34 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
           const isPassive = p.isActive === false;
           const childCount = (p.children || []).length;
           const unpaid = (p.children || []).filter(c => (c.enrollments||[]).some(e => e.activePackage && !e.activePackage.paid)).length;
+          // Paket özeti: tüm çocukların aktif paketlerini topla
+          const pkgSummaries = (p.children||[]).flatMap(c =>
+            (c.enrollments||[]).filter(e => e.activePackage).map(e => {
+              const pkg = e.activePackage;
+              const remaining = (pkg.totalLessons||0) - (pkg.usedLessons||0);
+              const today = new Date();
+              const end = pkg.endDate ? new Date(pkg.endDate) : null;
+              const daysLeft = end ? Math.ceil((end - today) / 86400000) : null;
+              const isLow = remaining <= 3 || (daysLeft !== null && daysLeft <= 7);
+              return { childName: c.name, remaining, endDate: pkg.endDate, daysLeft, isLow };
+            })
+          );
+          const hasWarning = !isPassive && pkgSummaries.some(s => s.isLow);
+          const phone = (p.parent1Phone||"").replace(/\D/g,"");
           return (
             <div key={p.id} className="card-hover" onClick={() => setSelectedParent(p)}
-              style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 10px",
+              style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "14px 10px",
                 borderBottom: `1px solid ${C.border}`, cursor: "pointer", borderRadius: 10,
-                opacity: isPassive ? 0.55 : 1, filter: isPassive ? "grayscale(0.4)" : "none" }}
-              onMouseEnter={e => e.currentTarget.style.background = isPassive ? "#f5f5f5" : "#f0f4ff"}
-              onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-              <div>
+                opacity: isPassive ? 0.55 : 1,
+                background: hasWarning ? "#fff7ed" : "transparent",
+                borderLeft: hasWarning ? `3px solid ${C.orange}` : "3px solid transparent" }}
+              onMouseEnter={e => e.currentTarget.style.background = isPassive ? "#f5f5f5" : hasWarning ? "#ffedd5" : "#f0f4ff"}
+              onMouseLeave={e => e.currentTarget.style.background = hasWarning ? "#fff7ed" : "transparent"}>
+              <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
                   <div style={{ fontWeight: 900, fontSize: 15, color: C.text }}>👨‍👩‍👧 {p.parent1Name || p.name}</div>
                   {isPassive && <Badge color="#94a3b8">PASİF</Badge>}
+                  {hasWarning && <Badge color={C.orange}>⚠️ Paket bitiyor</Badge>}
                   {p.source === 'mediatopia' && <Badge color="#7c3aed">🤝 MEDİATOPİA</Badge>}
                 </div>
                 {p.parent2Name && <div style={{ fontSize: 13, color: C.textDim, fontWeight: 600 }}>& {p.parent2Name}</div>}
@@ -2299,13 +2316,26 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
                 <div style={{ display: "flex", gap: 6, marginTop: 7, flexWrap: "wrap" }}>
                   <Badge color={C.blue}>👦 {childCount} çocuk</Badge>
                   {unpaid > 0 && !isPassive && <Badge color={C.orange}>⏳ {unpaid} ödeme bekliyor</Badge>}
-                  {(p.children || []).map(c => (
+                  {pkgSummaries.map((s, i) => (
+                    <Badge key={i} color={s.isLow ? C.orange : C.green}>
+                      {s.childName}: {s.remaining} ders kaldı{s.endDate ? ` · ${new Date(s.endDate).toLocaleDateString("tr-TR")}` : ""}
+                    </Badge>
+                  ))}
+                  {pkgSummaries.length === 0 && (p.children||[]).map(c => (
                     <Badge key={c.id} color={c.status === "Aktif" ? C.green : "#94a3b8"}>{c.name}</Badge>
                   ))}
                 </div>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6, marginLeft:8, flexShrink:0 }}>
                 <div style={{ color: C.textDim, fontSize: 20 }}>›</div>
+                {hasWarning && phone && (
+                  <a href={`https://wa.me/90${phone.replace(/^0/,"")}?text=${encodeURIComponent(`Merhaba ${p.parent1Name||p.name}, çocuğunuzun spor paketi bitmek üzere. Yeni paket için bizimle iletişime geçebilirsiniz. Kids Station`)}`}
+                    target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    style={{ background:"#25D366", color:"#fff", border:"none", borderRadius:8, padding:"4px 8px", fontSize:11, fontWeight:700, cursor:"pointer", textDecoration:"none", display:"flex", alignItems:"center", gap:4 }}>
+                    💬 WA
+                  </a>
+                )}
                 {canEdit && <button style={{ background: isPassive ? C.green+"15" : C.orange+"15",
                   border:`1px solid ${isPassive ? C.green : C.orange}44`,
                   color: isPassive ? C.green : C.orange,
