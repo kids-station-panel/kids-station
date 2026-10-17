@@ -4381,19 +4381,29 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 5000);
 
     // ─── Write to Firestore in background ──────────────────────────
+    let attWriteOk = false;
     try {
       const attBatch = fsDb.batch();
       newRecords.forEach((rec, idx) => {
         attBatch.set(fsDb.collection("attendance").doc(String(rec.id)), { ...JSON.parse(JSON.stringify(rec)), _order: idx });
       });
       await attBatch.commit();
+      attWriteOk = true;
     } catch(e) {
-      console.warn("[KS] Yoklama Firestore hatası:", e);
-      showKsToast("⚠️ Yoklama kaydedilemedi! Bağlantınızı kontrol edin.", "#ef4444");
+      console.error("[KS] Yoklama Firestore hatası:", e.code, e.message, e);
+      const errDetail = e.code === "permission-denied"
+        ? "İzin hatası — Firestore kurallarını kontrol edin."
+        : (e.code || e.message || "Bilinmeyen hata");
+      setGroupAttMsg({ groupId: g.id, text: `❌ Sunucuya kaydedilemedi: ${errDetail}` });
+      setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 30000);
     } finally {
-      setTimeout(() => { delete _fsWriting["attendance"]; }, 1000);
+      if (attWriteOk) {
+        setTimeout(() => { delete _fsWriting["attendance"]; }, 2000);
+      }
+      // On failure: keep _fsWriting["attendance"] locked so onSnapshot can't revert state
     }
 
+    let memberWriteOk = false;
     if (changedParentIds.size > 0) {
       try {
         const memberBatch = fsDb.batch();
@@ -4403,11 +4413,14 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
             memberBatch.set(fsDb.collection("members").doc(String(parent.id)), { ...JSON.parse(JSON.stringify(parent)), _order: idx });
           });
         await memberBatch.commit();
+        memberWriteOk = true;
       } catch(e) {
-        console.warn("[KS] Paket güncelleme Firestore hatası:", e);
-        showKsToast("⚠️ Paket güncellenemedi!", "#ef4444");
+        console.error("[KS] Paket güncelleme Firestore hatası:", e.code, e.message, e);
       } finally {
-        setTimeout(() => { delete _fsWriting["members"]; }, 1000);
+        if (memberWriteOk) {
+          setTimeout(() => { delete _fsWriting["members"]; }, 2000);
+        }
+        // On failure: keep _fsWriting["members"] locked so onSnapshot can't revert state
       }
     } else {
       delete _fsWriting["members"];
@@ -4649,7 +4662,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
               const isAttMode = groupAttMode === g.id;
               const todayStr = new Date().toISOString().slice(0,10);
               const savedToday = (attendance||[]).some(a => a.type === "group" && a.groupId === g.id && a.date === todayStr);
-              const savedOnDate = (attendance||[]).some(a => a.type === "group" && a.groupId === g.id && a.date === groupAttDate);
+              const savedOnDate = (attendance||[]).some(a => a.type === "group" && String(a.groupId) === String(g.id) && a.date === groupAttDate);
 
               return (
                 <Card key={g.id} style={{ marginBottom:16 }}>
@@ -4832,7 +4845,7 @@ Bugün: ${fmtDate(today)}
                   {!isAttMode && (() => {
                     const attRecs = groupStudents.map(child => ({
                       child,
-                      rec: (attendance||[]).find(a => a.type==="group" && a.groupId===g.id && String(a.childId)===String(child.id) && a.date===groupAttDate),
+                      rec: (attendance||[]).find(a => a.type==="group" && String(a.groupId)===String(g.id) && String(a.childId)===String(child.id) && a.date===groupAttDate),
                     }));
                     const attendedCount = attRecs.filter(r => r.rec).length;
                     const visibleRecs = grpFilterUnattended ? attRecs.filter(r => !r.rec) : attRecs;
