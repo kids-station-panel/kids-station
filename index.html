@@ -4372,7 +4372,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         if (status === undefined) return child;
         const attId = `grp_${g.id}_${child.id}_${dateStr}`;
         const updatedEnrollments = (child.enrollments||[]).map(enr => {
-          if (enr.branchName !== branchName) return enr;
+          if ((enr.branchName||"").trim().toLowerCase() !== (branchName||"").trim().toLowerCase()) return enr;
           const existingEntry = (enr.attendance||[]).find(a => a.id === attId);
           const newEntry = { id: attId, date: dateStr, status, source: "group", groupId: g.id, teacherId };
           const updatedAtt = existingEntry
@@ -4393,7 +4393,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     });
     setAllParents(updatedParents);
     setGroupAttMode(null);
-    setGroupAttMsg({ groupId: g.id, text: `✅ ${groupStudents.length} öğrenci için ${dateStr} yoklaması kaydedildi.` });
+    setGroupAttMsg({ groupId: g.id, text: `✅ ${groupStudents.length} öğrenci için ${fmtDate(dateStr)} yoklaması kaydedildi.` });
     setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 4000);
     firebase.firestore().collection("auditLog").add({ actorUid: user.id, actorName: user.name, action: "attendance", details: `Grup: ${g.name} | Tarih: ${dateStr} | ${groupStudents.length} öğrenci`, timestamp: new Date().toISOString() }).catch(() => {});
   };
@@ -4631,10 +4631,16 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end", flexShrink:0, marginLeft:8 }}>
                       <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
                       {!isAttMode && groupStudents.length > 0 && g.isActive !== false && (
-                        <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"8px 14px", marginTop:4 }}
-                          onClick={() => openGroupAtt(g, groupStudents, todayStr)}>
-                          📅 Yoklama Al
-                        </button>
+                        savedToday ? (
+                          <button style={{ ...btnStyle(C.green), fontSize:12, padding:"8px 14px", marginTop:4, opacity:0.7, cursor:"default" }} disabled>
+                            ✅ Bugün Yoklandı
+                          </button>
+                        ) : (
+                          <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"8px 14px", marginTop:4 }}
+                            onClick={() => openGroupAtt(g, groupStudents, todayStr)}>
+                            📅 Yoklama Al
+                          </button>
+                        )
                       )}
                       {isAttMode && (
                         <button style={{ ...btnOutlineStyle(C.red), fontSize:12, padding:"7px 12px", marginTop:4 }}
@@ -4724,16 +4730,19 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                         {groupStudents.map(child => {
                           const status = groupAttForm[child.id] || "Geldi";
                           const age = calcAge(child.birthDate);
-                          const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
-                          const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
-                          const borderCol = grpStatusColor(status);
+                          const enr = (child.enrollments||[]).find(e => (e.branchName||"").trim().toLowerCase() === (branchName||"").trim().toLowerCase())
+                            || (child.enrollments||[]).find(e => e.activePackage);
+                          const hasPkg = !!enr?.activePackage;
+                          const remaining = hasPkg ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
+                          const borderCol = hasPkg ? grpStatusColor(status) : C.border;
                           return (
-                            <div key={child.id} style={{ background:"#fff", borderRadius:12, padding:"10px 12px", border:`1.5px solid ${borderCol}44`, transition:"border-color 0.15s" }}>
+                            <div key={child.id} style={{ background: hasPkg ? "#fff" : "#f8f9fa", borderRadius:12, padding:"10px 12px", border:`1.5px solid ${borderCol}44`, transition:"border-color 0.15s", opacity: hasPkg ? 1 : 0.5 }}>
                               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
                                 <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</div>
+                                  <div style={{ fontWeight:800, fontSize:14, color: hasPkg ? C.text : C.textDim }}>{child.name}</div>
                                   <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2 }}>
                                     {age} yaş
+                                    {!hasPkg && <span style={{ marginLeft:8, color:C.textDim, fontWeight:700 }}>⚠️ Aktif paket yok</span>}
                                     {remaining !== null && (
                                       <span style={{ marginLeft:8, color:remaining<=3?C.red:C.blue, fontWeight:800 }}>
                                         📚 {remaining} ders kaldı
@@ -4741,20 +4750,24 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                                     )}
                                   </div>
                                 </div>
-                                <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
-                                  {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange]].map(([s,col]) => (
-                                    <button key={s} onClick={() => setGroupAttForm({...groupAttForm, [child.id]: s})}
-                                      style={{
-                                        padding: "10px 16px",
-                                        borderRadius:10, fontWeight:800, fontSize:13,
-                                        cursor:"pointer", fontFamily:"inherit",
-                                        background: status===s ? col : "#eef2ff",
-                                        color: status===s ? "#fff" : C.textDim,
-                                        border: `1.5px solid ${status===s ? col : "transparent"}`,
-                                        transition:"all 0.12s",
-                                      }}>{s}</button>
-                                  ))}
-                                </div>
+                                {hasPkg ? (
+                                  <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                                    {[["Geldi",C.green],["Gelmedi",C.red],["İzinli",C.orange]].map(([s,col]) => (
+                                      <button key={s} onClick={() => setGroupAttForm({...groupAttForm, [child.id]: s})}
+                                        style={{
+                                          padding: "10px 16px",
+                                          borderRadius:10, fontWeight:800, fontSize:13,
+                                          cursor:"pointer", fontFamily:"inherit",
+                                          background: status===s ? col : "#eef2ff",
+                                          color: status===s ? "#fff" : C.textDim,
+                                          border: `1.5px solid ${status===s ? col : "transparent"}`,
+                                          transition:"all 0.12s",
+                                        }}>{s}</button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize:12, color:C.textDim, fontWeight:700 }}>Yoklama alınmaz</span>
+                                )}
                               </div>
                             </div>
                           );
@@ -4763,9 +4776,9 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
                       {/* Kaydet */}
                       <button
-                        style={{ ...btnStyle(C.green), width:"100%", marginTop:14, padding:"13px 16px", fontSize:15, fontWeight:900 }}
+                        style={{ ...btnStyle(savedOnDate ? C.orange : C.green), width:"100%", marginTop:14, padding:"13px 16px", fontSize:15, fontWeight:900 }}
                         onClick={() => saveGroupAttendance(g, groupStudents, branchName)}>
-                        💾 Yoklamayı Kaydet ({groupStudents.length} öğrenci · {groupAttDate})
+                        {savedOnDate ? "⚠️ Üzerine Yaz" : "💾 Yoklamayı Kaydet"} ({groupStudents.length} öğrenci · {fmtDate(groupAttDate)})
                       </button>
                     </div>
                   )}
