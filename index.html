@@ -4677,7 +4677,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                                   const ds = dayMap[dt.getDay()];
                                   if (g.days.includes(ds)) opts.push(dt.toISOString().slice(0,10));
                                 }
-                                return opts.map(d => React.createElement("option", { key:d, value:d }, d + " (" + dayMap[new Date(d+"T12:00:00").getDay()] + ")"));
+                                return opts.map(d => { const [y,m,g] = d.split("-"); return React.createElement("option", { key:d, value:d }, g+"."+m+"."+y+" ("+dayMap[new Date(d+"T12:00:00").getDay()]+")"); });
                               })()}
                             </select>
                           ) : (
