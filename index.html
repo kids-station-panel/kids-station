@@ -5240,6 +5240,23 @@ function useNotifications(members, finance, staff) {
     }
   });
 
+  // Öğretmen tarafından eklenen, henüz paket girilmemiş öğrenciler
+  (members||[]).forEach(p => {
+    if (!p.addedByTeacher) return;
+    (p.children||[]).forEach(c => {
+      const hasPkg = (c.enrollments||[]).some(e => e.activePackage);
+      if (!hasPkg) {
+        alerts.push({
+          id: `teacher-added-${c.id}`,
+          type: "info",
+          icon: "🆕",
+          title: "Yeni Öğrenci Kaydı",
+          desc: `${c.name}, ${p.addedByTeacher} tarafından kaydedildi. Paket ve ödeme bilgisi henüz girilmedi.`
+        });
+      }
+    });
+  });
+
   // Ödenmemiş maaşlar
   (staff||[]).forEach(s => {
     const unpaid = (s.salaryHistory||[]).filter(p => !p.paid);
@@ -6798,7 +6815,11 @@ function App() {
       branches: setBranchesRaw, groups: setGroupsRaw, attendance: setAttendanceRaw, reports: setReportsRaw,
       finans_ayarlar: setFinAyarlarRaw, users: setAppUsersRaw,
     };
-    const snap2arr = snap => snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
+    const snap2arr = (snap, col) => {
+      const rows = snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
+      if (col === "dismissedNotifs" || col === "readNotifs") return rows.map(r => r.id);
+      return rows;
+    };
     const markLoaded = () => { if (loaded.size >= COLS.length) { setDbStatus("✅ Bağlandı"); setDbReady(true); } };
 
     // Tüm koleksiyonları Firestore'dan tek seferlik çek (yeniden bağlanma veya polling için)
@@ -6809,7 +6830,7 @@ function App() {
       Promise.all(COLS.map(col => {
         if (_fsWriting[col]) return Promise.resolve();
         return db.collection(col).get()
-          .then(snap => setters[col](snap2arr(snap)))
+          .then(snap => setters[col](snap2arr(snap, col)))
           .catch(() => {});
       })).finally(() => { _refreshBusy = false; });
     };
@@ -6818,7 +6839,7 @@ function App() {
       const attach = () => {
         const unsub = db.collection(col).onSnapshot(
           snap => {
-            if (!_fsWriting[col]) setters[col](snap2arr(snap));
+            if (!_fsWriting[col]) setters[col](snap2arr(snap, col));
             if (!loaded.has(col)) { loaded.add(col); markLoaded(); }
           },
           () => {
@@ -6902,13 +6923,15 @@ function App() {
   };
   const setDismissedNotifs = (val) => {
     const next = typeof val === "function" ? val(dismissedNotifs) : val;
-    setDismissedNotifsRaw(next);
-    fsSave("dismissedNotifs", next);
+    const arr = (next||[]).map(x => typeof x === "string" ? x : (x.id || String(x)));
+    setDismissedNotifsRaw(arr);
+    fsSave("dismissedNotifs", arr.map(id => ({ id: String(id) })));
   };
   const setReadNotifs = (val) => {
     const next = typeof val === "function" ? val(readNotifs) : val;
-    setReadNotifsRaw(next);
-    fsSave("readNotifs", next);
+    const arr = (next||[]).map(x => typeof x === "string" ? x : (x.id || String(x)));
+    setReadNotifsRaw(arr);
+    fsSave("readNotifs", arr.map(id => ({ id: String(id) })));
   };
   const setBranches = (val) => {
     const prev = branches;
