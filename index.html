@@ -4777,7 +4777,15 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       {/* Kaydet */}
                       <button
                         style={{ ...btnStyle(savedOnDate ? C.orange : C.green), width:"100%", marginTop:14, padding:"13px 16px", fontSize:15, fontWeight:900 }}
-                        onClick={() => saveGroupAttendance(g, groupStudents, branchName)}>
+                        onClick={() => {
+                          const today = new Date().toISOString().slice(0,10);
+                          if (groupAttDate < today) {
+                            if (!window.confirm(`⚠️ GEÇMİŞ TARİH\n\nSeçilen tarih: ${fmtDate(groupAttDate)}\nBugün: ${fmtDate(today)}\n\nGeçmiş bir tarihe yoklama kaydediyorsunuz. Onaylıyor musunuz?`)) return;
+                          } else if (groupAttDate > today) {
+                            if (!window.confirm(`⚠️ İLERİ TARİH\n\nSeçilen tarih: ${fmtDate(groupAttDate)}\nBugün: ${fmtDate(today)}\n\nİleri bir tarihe yoklama kaydediyorsunuz. Onaylıyor musunuz?`)) return;
+                          }
+                          saveGroupAttendance(g, groupStudents, branchName);
+                        }}>
                         {savedOnDate ? "⚠️ Üzerine Yaz" : "💾 Yoklamayı Kaydet"} ({groupStudents.length} öğrenci · {fmtDate(groupAttDate)})
                       </button>
                     </div>
