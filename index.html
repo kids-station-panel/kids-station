@@ -4635,6 +4635,18 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                         </div>
                       </div>
 
+                      {/* Uyarı: yanlış gün */}
+                      {(() => {
+                        if (!(g.days||[]).length) return null;
+                        const dayMap = ["Paz","Pzt","Sal","Çar","Per","Cum","Cmt"];
+                        const selDay = dayMap[new Date(groupAttDate + "T12:00:00").getDay()];
+                        if (g.days.includes(selDay)) return null;
+                        return (
+                          <div style={{ background:C.red+"14", border:`1.5px solid ${C.red}44`, borderRadius:10, padding:"8px 12px", marginBottom:12, fontSize:12, fontWeight:700, color:C.red }}>
+                            ⛔ Seçilen gün ({selDay}) bu grubun ders günü değil! Planlanmış günler: {g.days.join(", ")}
+                          </div>
+                        );
+                      })()}
                       {/* Uyarı: üzerine yazma */}
                       {savedOnDate && (
                         <div style={{ background:C.orange+"14", border:`1.5px solid ${C.orange}44`, borderRadius:10, padding:"8px 12px", marginBottom:12, fontSize:12, fontWeight:700, color:C.orange }}>
@@ -5187,7 +5199,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         )}
 
         {page === "calendar" && (
-          <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff||[]} schedule={schedule} setSchedule={setSchedule||(() => {})} isAdmin={false} currentUser={user} canAdd={true} />
+          <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff||[]} schedule={schedule} setSchedule={setSchedule||(() => {})} isAdmin={false} currentUser={user} canAdd={true} groups={groups} branches={branches} />
         )}
       </div>
     </div>
@@ -5388,7 +5400,7 @@ function NotificationsPage({ members, finance, staff, dismissedNotifs, setDismis
 }
 
 // ── TAKVİM / HAFTALIK PROGRAM ────────────────────────────────
-function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentUser, canAdd, branches: dynamicBranches, userAccounts = [] }) {
+function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentUser, canAdd, branches: dynamicBranches, userAccounts = [], groups: calGroups = [] }) {
   const allChildren = (members||[]).flatMap(p => p.children||[]);
   const days = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"];
   const dayShort = ["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];
@@ -5405,6 +5417,14 @@ function CalendarPage({ members, staff, schedule, setSchedule, isAdmin, currentU
       (assign.days||[]).forEach(d => {
         autoSlots.push({ id:"auto_"+s.id+"_"+assign.childId+"_"+d, day:d, time:assign.time||"09:00", endTime:"", title:child.name, branch:assign.branch||child.branch||"-", teacher:s.name, type:"Bireysel", notes:"", isAuto:true });
       });
+    });
+  });
+  // Grup dersi slotları (groups koleksiyonundan)
+  (calGroups||[]).filter(g => g.isActive !== false && (g.days||[]).length > 0 && g.time).forEach(g => {
+    const branchName = (dynamicBranches||[]).find(b => b.id === g.branchId)?.name || "-";
+    const teacherNames = (staff||[]).filter(s => (g.teacherIds||[]).includes(String(s.id))).map(s => s.name).join(", ") || "-";
+    (g.days||[]).forEach(d => {
+      autoSlots.push({ id:"grp_auto_"+g.id+"_"+d, day:d, time:g.time, endTime:g.endTime||"", title:g.name, branch:branchName, teacher:teacherNames, type:"Grup", notes:`${(g.studentIds||[]).length} öğrenci`, isAuto:true, groupId:g.id });
     });
   });
 
@@ -6429,7 +6449,7 @@ function BranchesPage({ branches, setBranches, canEdit = true }) {
 
 // ── GRUPLAR SAYFASI ────────────────────────────────────────
 function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = true, userAccounts = [] }) {
-  const [form, setForm] = React.useState({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [] });
+  const [form, setForm] = React.useState({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [], days: [], time: "09:00", endTime: "10:00" });
   const [showAdd, setShowAdd] = React.useState(false);
   const [editId, setEditId] = React.useState(null);
   const [editForm, setEditForm] = React.useState({});
@@ -6442,10 +6462,11 @@ function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = tru
     const newGroup = {
       id: String(Date.now()), name: form.name.trim(), branchId: form.branchId,
       type: form.type, teacherIds: form.teacherIds, studentIds: form.studentIds,
+      days: form.days, time: form.time, endTime: form.endTime,
       isActive: true, createdAt: new Date().toISOString(), _order: Date.now(),
     };
     setGroups([...groups, newGroup]);
-    setForm({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [] });
+    setForm({ name: "", branchId: "", type: "group", teacherIds: [], studentIds: [], days: [], time: "09:00", endTime: "10:00" });
     setShowAdd(false);
   };
   const saveEdit = () => {
@@ -6493,6 +6514,25 @@ function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = tru
                 <option value="group">Grup Dersi</option>
                 <option value="individual">Bireysel Ders</option>
               </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Ders Saati (Başlangıç)</div>
+              <input style={inputStyle} type="time" value={form.time} onChange={e => setForm({...form, time: e.target.value})} />
+            </div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Ders Saati (Bitiş)</div>
+              <input style={inputStyle} type="time" value={form.endTime} onChange={e => setForm({...form, endTime: e.target.value})} />
+            </div>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Ders Günleri</div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"].map(d => (
+                React.createElement("label", { key: d, style: { display:"flex", alignItems:"center", gap:5, cursor:"pointer", background: form.days.includes(d) ? C.blue+"22" : "#f5f8ff", border:"1px solid "+(form.days.includes(d)?C.blue:C.border), borderRadius:8, padding:"7px 13px", fontSize:13, fontWeight:700 } },
+                  React.createElement("input", { type:"checkbox", checked: form.days.includes(d), onChange: () => setForm({...form, days: toggleInArray(form.days, d)}), style:{ accentColor:C.blue } }),
+                  d
+                )
+              ))}
             </div>
           </div>
           <div style={{ marginTop: 14 }}>
@@ -6557,6 +6597,25 @@ function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = tru
                         <option value="individual">Bireysel Ders</option>
                       </select>
                     </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Ders Saati (Başlangıç)</div>
+                      <input style={inputStyle} type="time" value={editForm.time||"09:00"} onChange={e => setEditForm({...editForm, time: e.target.value})} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 6, textTransform: "uppercase" }}>Ders Saati (Bitiş)</div>
+                      <input style={inputStyle} type="time" value={editForm.endTime||"10:00"} onChange={e => setEditForm({...editForm, endTime: e.target.value})} />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Ders Günleri</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"].map(d => (
+                        React.createElement("label", { key: d, style: { display:"flex", alignItems:"center", gap:5, cursor:"pointer", background: (editForm.days||[]).includes(d) ? C.blue+"22" : "#f5f8ff", border:"1px solid "+((editForm.days||[]).includes(d)?C.blue:C.border), borderRadius:8, padding:"7px 13px", fontSize:13, fontWeight:700 } },
+                          React.createElement("input", { type:"checkbox", checked: (editForm.days||[]).includes(d), onChange: () => setEditForm({...editForm, days: toggleInArray(editForm.days||[], d)}), style:{ accentColor:C.blue } }),
+                          d
+                        )
+                      ))}
+                    </div>
                   </div>
                   <div style={{ marginBottom: 12 }}>
                     <div style={{ fontSize: 12, fontWeight: 800, color: C.textMid, marginBottom: 8, textTransform: "uppercase" }}>Öğretmenler</div>
@@ -6592,6 +6651,8 @@ function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = tru
                       <div style={{ fontWeight: 900, fontSize: 18, color: C.text }}>{g.name}</div>
                       <div style={{ fontSize: 13, color: C.textDim, marginTop: 3, fontWeight: 600 }}>
                         {getBranchName(g.branchId)} · {g.type === "individual" ? "Bireysel" : "Grup"}
+                        {(g.days||[]).length > 0 && <span style={{ marginLeft:8, color:C.blue }}>· {(g.days||[]).join(", ")}</span>}
+                        {g.time && <span style={{ marginLeft:8, color:C.green }}>· {g.time}{g.endTime ? "–"+g.endTime : ""}</span>}
                       </div>
                     </div>
                     <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
@@ -6611,7 +6672,7 @@ function GroupsPage({ groups, setGroups, branches, staff, members, canEdit = tru
                     </div>
                   </div>
                   {canEdit && <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button style={btnOutlineStyle(C.blue)} onClick={() => { setEditId(g.id); setEditForm({ name: g.name, branchId: g.branchId||"", type: g.type||"group", teacherIds: [...(g.teacherIds||[])], studentIds: [...(g.studentIds||[])] }); }}>✏️ Düzenle</button>
+                    <button style={btnOutlineStyle(C.blue)} onClick={() => { setEditId(g.id); setEditForm({ name: g.name, branchId: g.branchId||"", type: g.type||"group", teacherIds: [...(g.teacherIds||[])], studentIds: [...(g.studentIds||[])], days: [...(g.days||[])], time: g.time||"09:00", endTime: g.endTime||"10:00" }); }}>✏️ Düzenle</button>
                     <button style={btnOutlineStyle(C.red)} onClick={() => deleteGroup(g.id)}>🗑️ Sil</button>
                   </div>}
                 </div>
@@ -7043,7 +7104,7 @@ function App() {
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
     reports: <ReportsPage members={members} finance={finance} staff={visibleStaff} reports={reports} setReports={setReports} canEdit={canEdit} />,
     notifications: <NotificationsPage members={members} finance={finance} staff={visibleStaff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
-    calendar: <CalendarPage members={members} staff={visibleStaff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} />,
+    calendar: <CalendarPage members={members} staff={visibleStaff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} groups={groups} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={visibleStaff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
     rewards: <RewardsPage members={members} />,
