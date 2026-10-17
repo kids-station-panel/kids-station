@@ -4217,7 +4217,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
 function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, branches, onUpdatePhoto }) {
   const isMobile = useIsMobile(600);
-  const [page, setPage] = useState("individual");
+  const [page, setPage] = useState("groups");
   const [showProfile, setShowProfile] = useState(false);
   const [showAddAnn, setShowAddAnn] = useState(false);
   const [annForm, setAnnForm] = useState({ title: "", content: "", important: false });
@@ -4233,6 +4233,9 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [groupAttForm, setGroupAttForm] = useState({});
   const [groupAttMsg, setGroupAttMsg] = useState({ groupId: null, text: "" });
   const [grpFilterUnattended, setGrpFilterUnattended] = useState(false);
+  const [showNewStudentForm, setShowNewStudentForm] = useState(false);
+  const [newStudentForm, setNewStudentForm] = useState({ childName: "", birthDate: "", parentName: "", parentPhone: "", parentPhone2: "", note: "" });
+  const [newStudentMsg, setNewStudentMsg] = useState("");
 
   // myClasses removed — class field deprecated, using groups collection instead
 
@@ -4253,15 +4256,15 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   );
 
   const navItems = [
-    { key: "individual", label: "Bireysel Dersler", icon: "📚" },
-    { key: "groups", label: "Grup Dersleri", icon: "👥" },
-    { key: "students", label: "Öğrenciler", icon: "👨‍🎓" },
-    { key: "attendance", label: "Devamsızlık", icon: "📅" },
-    { key: "notes", label: "Seans Notları", icon: "📝" },
-    { key: "development", label: "Gelişim", icon: "📈" },
-    { key: "announcements", label: "Duyurular", icon: "📢" },
-    { key: "channels", label: "Kanallar", icon: "📢" },
-    { key: "calendar", label: "Program", icon: "📅" },
+    { key: "groups",       label: "Grup Dersleri",   icon: "👥" },
+    { key: "students",     label: "Öğrenciler",      icon: "👨‍🎓" },
+    { key: "attendance",   label: "Devamsızlık",     icon: "📅" },
+    { key: "individual",   label: "Bireysel Dersler",icon: "📚" },
+    { key: "notes",        label: "Seans Notları",   icon: "📝" },
+    { key: "development",  label: "Gelişim",         icon: "📈" },
+    { key: "announcements",label: "Duyurular",       icon: "📢" },
+    { key: "channels",     label: "Kanallar",        icon: "📢" },
+    { key: "calendar",     label: "Program",         icon: "📅" },
   ];
 
   const addAnnouncement = () => {
@@ -4786,8 +4789,83 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
         {page === "students" && (
           <div className="fade-in">
-            <div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 4 }}>👨‍🎓 Öğrenci Listesi</div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4, flexWrap:"wrap", gap:8 }}>
+              <div style={{ fontSize: 22, fontWeight: 900, color: C.text }}>👨‍🎓 Öğrenci Listesi</div>
+              <button style={{ ...btnStyle(C.green), fontSize:13, padding:"9px 16px" }} onClick={() => { setShowNewStudentForm(true); setNewStudentMsg(""); }}>+ Yeni Öğrenci Kaydı</button>
+            </div>
             <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Bireysel öğrencilerim</div>
+
+            {showNewStudentForm && (
+              <Card>
+                <CardTitle color={C.green} icon="➕">Yeni Öğrenci Kaydı</CardTitle>
+                <div style={{ fontSize:12, color:C.orange, fontWeight:700, marginBottom:14, background:C.orange+"15", borderRadius:8, padding:"8px 12px" }}>
+                  ℹ️ Paket ve ödeme bilgisi admin tarafından eklenecektir. Sadece iletişim bilgilerini doldurun.
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Adı Soyadı *</div>
+                    <input style={inputStyle} placeholder="Ad Soyad" value={newStudentForm.childName}
+                      onChange={e => setNewStudentForm(f => ({ ...f, childName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Doğum Tarihi</div>
+                    <input style={inputStyle} type="date" value={newStudentForm.birthDate}
+                      onChange={e => setNewStudentForm(f => ({ ...f, birthDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Veli Adı Soyadı *</div>
+                    <input style={inputStyle} placeholder="Veli adı" value={newStudentForm.parentName}
+                      onChange={e => setNewStudentForm(f => ({ ...f, parentName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Veli Telefonu *</div>
+                    <input style={inputStyle} placeholder="05xx xxx xx xx" value={newStudentForm.parentPhone}
+                      onChange={e => setNewStudentForm(f => ({ ...f, parentPhone: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>2. İrtibat (opsiyonel)</div>
+                    <input style={inputStyle} placeholder="2. telefon veya isim" value={newStudentForm.parentPhone2}
+                      onChange={e => setNewStudentForm(f => ({ ...f, parentPhone2: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Not</div>
+                    <input style={inputStyle} placeholder="Ek bilgi (opsiyonel)" value={newStudentForm.note}
+                      onChange={e => setNewStudentForm(f => ({ ...f, note: e.target.value }))} />
+                  </div>
+                </div>
+                {newStudentMsg && <div style={{ marginTop:10, color: newStudentMsg.startsWith("✅") ? C.green : C.red, fontWeight:700, fontSize:13 }}>{newStudentMsg}</div>}
+                <div style={{ display:"flex", gap:10, marginTop:16 }}>
+                  <button style={btnStyle(C.green)} onClick={() => {
+                    if (!newStudentForm.childName.trim()) { setNewStudentMsg("⚠️ Çocuğun adını girin."); return; }
+                    if (!newStudentForm.parentName.trim()) { setNewStudentMsg("⚠️ Veli adını girin."); return; }
+                    if (!newStudentForm.parentPhone.trim()) { setNewStudentMsg("⚠️ Veli telefonunu girin."); return; }
+                    const childId = Date.now();
+                    const newChild = { id: childId, name: newStudentForm.childName.trim(), birthDate: newStudentForm.birthDate, enrollments: [], status: "Aktif", addedByTeacher: user.name, addedAt: new Date().toISOString() };
+                    const newParentRec = {
+                      id: childId + 1,
+                      name: newStudentForm.parentName.trim(),
+                      phone: newStudentForm.parentPhone.trim(),
+                      parent1Name: newStudentForm.parentName.trim(),
+                      parent1Phone: newStudentForm.parentPhone.trim(),
+                      parent2Phone: newStudentForm.parentPhone2.trim(),
+                      isActive: true,
+                      source: "Öğretmen Kaydı (" + user.name + ")",
+                      note: newStudentForm.note.trim(),
+                      children: [newChild],
+                    };
+                    setAllParents(prev => {
+                      const next = [...(prev||[]), newParentRec];
+                      return next;
+                    });
+                    setNewStudentMsg("✅ Kayıt oluşturuldu! Admin paket ve ödeme bilgisini ekleyecek.");
+                    setNewStudentForm({ childName:"", birthDate:"", parentName:"", parentPhone:"", parentPhone2:"", note:"" });
+                    setTimeout(() => setShowNewStudentForm(false), 2000);
+                  }}>💾 Kaydet</button>
+                  <button style={btnStyle(C.textDim)} onClick={() => setShowNewStudentForm(false)}>İptal</button>
+                </div>
+              </Card>
+            )}
+
             <Card>
               {members.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "24px 0", color: C.textDim }}>
