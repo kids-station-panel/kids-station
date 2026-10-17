@@ -4328,7 +4328,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     const filteredAtt = (attendance||[]).filter(a => !(a.type === "group" && a.groupId === g.id && a.date === dateStr));
     const nextAttendance = [...filteredAtt, ...newRecords];
 
-    // Update enrollment attendance and package deductions in allParents
+    // Update enrollment attendance and package deductions
     const changedParentIds = new Set();
     const updatedParents = (allParents||[]).map(parent => {
       const updatedChildren = (parent.children||[]).map(child => {
@@ -4336,8 +4336,15 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         if (status === undefined) return child;
         changedParentIds.add(String(parent.id));
         const attId = `grp_${g.id}_${child.id}_${dateStr}`;
-        const updatedEnrollments = (child.enrollments||[]).map(enr => {
-          if ((enr.branchName||"").trim().toLowerCase() !== (branchName||"").trim().toLowerCase()) return enr;
+        // Match enrollment by branchName (case-insensitive) OR fall back to first active-package enrollment
+        const bnLow = (branchName||"").trim().toLowerCase();
+        const matchingEnrIdx = (child.enrollments||[]).findIndex(e =>
+          (e.branchName||"").trim().toLowerCase() === bnLow
+        );
+        const enrIdx = matchingEnrIdx >= 0 ? matchingEnrIdx
+          : (child.enrollments||[]).findIndex(e => e.activePackage);
+        const updatedEnrollments = (child.enrollments||[]).map((enr, idx) => {
+          if (idx !== enrIdx) return enr;
           const existingEntry = (enr.attendance||[]).find(a => a.id === attId);
           const newEntry = { id: attId, date: dateStr, status, source: "group", groupId: g.id, teacherId };
           const updatedAtt = existingEntry
@@ -4347,8 +4354,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
           if (updatedPkg) {
             const wasGeldi = existingEntry?.status === "Geldi";
             const isGeldi = status === "Geldi";
-            if (isGeldi && !wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.min(updatedPkg.usedLessons + 1, updatedPkg.totalLessons) };
-            else if (!isGeldi && wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.max(updatedPkg.usedLessons - 1, 0) };
+            if (isGeldi && !wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.min((updatedPkg.usedLessons||0) + 1, updatedPkg.totalLessons) };
+            else if (!isGeldi && wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.max((updatedPkg.usedLessons||0) - 1, 0) };
           }
           return { ...enr, attendance: updatedAtt, activePackage: updatedPkg };
         });
@@ -4357,7 +4364,10 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
       return { ...parent, children: updatedChildren };
     });
 
-    // Update local state immediately (bypasses fsSave rollback risk)
+    // ─── Update local state immediately (no rollback) ───────────────
+    // Block onSnapshot from overwriting state during our write
+    _fsWriting["attendance"] = true;
+    _fsWriting["members"] = true;
     if (onGroupAttSave) {
       onGroupAttSave(nextAttendance, updatedParents);
     } else {
@@ -4365,7 +4375,12 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
       setAllParents(updatedParents);
     }
 
-    // Write attendance records directly to Firestore (targeted, no full-collection rewrite)
+    // Close form and show success IMMEDIATELY (before async writes)
+    setGroupAttMode(null);
+    setGroupAttMsg({ groupId: g.id, text: `✅ ${groupStudents.length} öğrenci için ${fmtDate(dateStr)} yoklaması kaydedildi.` });
+    setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 5000);
+
+    // ─── Write to Firestore in background ──────────────────────────
     try {
       const attBatch = fsDb.batch();
       newRecords.forEach((rec, idx) => {
@@ -4375,9 +4390,10 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     } catch(e) {
       console.warn("[KS] Yoklama Firestore hatası:", e);
       showKsToast("⚠️ Yoklama kaydedilemedi! Bağlantınızı kontrol edin.", "#ef4444");
+    } finally {
+      setTimeout(() => { delete _fsWriting["attendance"]; }, 1000);
     }
 
-    // Write only changed member documents to Firestore (targeted, no full-collection rewrite)
     if (changedParentIds.size > 0) {
       try {
         const memberBatch = fsDb.batch();
@@ -4390,12 +4406,13 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
       } catch(e) {
         console.warn("[KS] Paket güncelleme Firestore hatası:", e);
         showKsToast("⚠️ Paket güncellenemedi!", "#ef4444");
+      } finally {
+        setTimeout(() => { delete _fsWriting["members"]; }, 1000);
       }
+    } else {
+      delete _fsWriting["members"];
     }
 
-    setGroupAttMode(null);
-    setGroupAttMsg({ groupId: g.id, text: `✅ ${groupStudents.length} öğrenci için ${fmtDate(dateStr)} yoklaması kaydedildi.` });
-    setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 4000);
     fsDb.collection("auditLog").add({ actorUid: user.id, actorName: user.name, action: "attendance", details: `Grup: ${g.name} | Tarih: ${dateStr} | ${groupStudents.length} öğrenci`, timestamp: new Date().toISOString() }).catch(() => {});
   };
   const saveSessionNote = () => {
@@ -4741,7 +4758,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                         {groupStudents.map(child => {
                           const status = groupAttForm[child.id] || "Geldi";
                           const age = calcAge(child.birthDate);
-                          const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
+                          const enr = (child.enrollments||[]).find(e => (e.branchName||"").trim().toLowerCase() === (branchName||"").trim().toLowerCase()) || (child.enrollments||[]).find(e => e.activePackage);
                           const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
                           const borderCol = grpStatusColor(status);
                           return (
@@ -4843,7 +4860,7 @@ Bugün: ${fmtDate(today)}
                           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                             {visibleRecs.map(({ child, rec }) => {
                               const age = calcAge(child.birthDate);
-                              const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
+                              const enr = (child.enrollments||[]).find(e => (e.branchName||"").trim().toLowerCase() === (branchName||"").trim().toLowerCase()) || (child.enrollments||[]).find(e => e.activePackage);
                               const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
                               const dotColor = rec ? grpStatusColor(rec.status) : "#d1d5db";
                               return (
