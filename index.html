@@ -4293,6 +4293,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [trialForm, setTrialForm] = useState({ childFirstName: "", childLastName: "", birthDate: "", parentPhone: "", targetGroupId: "", trialDate: new Date().toISOString().slice(0,10) });
   const [trialMsg, setTrialMsg] = useState("");
   const [groupAddStudentId, setGroupAddStudentId] = useState({});
+  const [quickMesaiOpen, setQuickMesaiOpen] = useState(false);
   // Mesai state
   const [mesaiMonth, setMesaiMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [mesaiForm, setMesaiForm] = useState({ date: new Date().toISOString().slice(0, 10), checkIn: "", checkOut: "" });
@@ -4831,29 +4832,116 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
             return td >= weekStart && td <= weekEnd && myGroups.some(g => String(g.id) === String(c.trialGroupId));
           });
           const thisMonthStr = new Date().toISOString().slice(0,7);
-          const myMesaiThisMonth = (timeEntries||[]).filter(e => String(e.teacherId||e.userId) === String(myStaff?.id||user.id) && e.date && e.date.slice(0,7) === thisMonthStr);
+          const homeStaffId = String(myStaff?.id || user.id);
+          const myMesaiThisMonth = (timeEntries||[]).filter(e => String(e.staffId) === homeStaffId && e.date && e.date.slice(0,7) === thisMonthStr);
           const totalHours = myMesaiThisMonth.reduce((sum, e) => {
             if (!e.checkIn || !e.checkOut) return sum;
             const [h1,m1] = e.checkIn.split(":").map(Number);
             const [h2,m2] = e.checkOut.split(":").map(Number);
             return sum + (h2*60+m2 - h1*60-m1) / 60;
           }, 0);
+          const todayMesai = myMesaiThisMonth.find(e => e.date === todayStr);
           const studentCount = (allChildren||[]).filter(c => !c.isTrialStudent).length;
+
+          const doQuickMesai = () => {
+            if (!mesaiForm.checkIn) { showKsToast("⚠️ Giriş saati girin!", "#ef4444"); return; }
+            const entryId = `te_${homeStaffId}_${mesaiForm.date}`;
+            const entry = { id: entryId, staffId: homeStaffId, staffName: myStaff?.name||user.name||user.email, date: mesaiForm.date, checkIn: mesaiForm.checkIn, checkOut: mesaiForm.checkOut||null, durationMinutes: calcTimeDiff(mesaiForm.checkIn, mesaiForm.checkOut), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+            saveTimeEntry(entry);
+            setQuickMesaiOpen(false);
+          };
+
+          const updateTrialStatus = (child, parentRec, status) => {
+            setAllParents(prev => (prev||[]).map(p => p.id === parentRec.id ? { ...p, children: (p.children||[]).map(c => c.id === child.id ? { ...c, trialStatus: status } : c) } : p));
+          };
+          const deleteTrialStudent = (child, parentRec) => {
+            setAllParents(prev => {
+              const next = (prev||[]).map(p => p.id === parentRec.id ? { ...p, children: (p.children||[]).filter(c => c.id !== child.id) } : p).filter(p => (p.children||[]).length > 0);
+              return next;
+            });
+          };
+
           return (
             <div className="fade-in">
-              <div style={{ fontSize:22, fontWeight:900, color:C.text, marginBottom:4 }}>🏠 Ana Sayfa</div>
-              <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>
+              <div style={{ fontSize:22, fontWeight:900, color:C.text, marginBottom:2 }}>🏠 Ana Sayfa</div>
+              <div style={{ fontSize:13, color:C.textDim, marginBottom:16, fontWeight:600 }}>
                 {new Date().toLocaleDateString("tr-TR", { weekday:"long", year:"numeric", month:"long", day:"numeric" })}
               </div>
 
+              {/* Hızlı İşlemler */}
+              <Card style={{ marginBottom:14 }}>
+                <CardTitle color={"#7c3aed"} icon="⚡">Hızlı İşlemler</CardTitle>
+                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap:10, marginBottom: quickMesaiOpen ? 16 : 0 }}>
+                  <button style={{ ...btnStyle("#7c3aed"), fontSize:13, padding:"12px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}
+                    onClick={() => setQuickMesaiOpen(v => !v)}>
+                    <span style={{ fontSize:20 }}>⏱️</span>
+                    <span>Mesai Gir</span>
+                  </button>
+                  <button style={{ ...btnStyle(C.green), fontSize:13, padding:"12px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}
+                    onClick={() => { setPage("students"); setShowNewStudentForm(true); setShowTrialForm(false); }}>
+                    <span style={{ fontSize:20 }}>➕</span>
+                    <span>Yeni Öğrenci</span>
+                  </button>
+                  <button style={{ ...btnStyle(C.orange), fontSize:13, padding:"12px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}
+                    onClick={() => { setPage("students"); setShowTrialForm(true); setShowNewStudentForm(false); }}>
+                    <span style={{ fontSize:20 }}>🧪</span>
+                    <span>Deneme Kaydı</span>
+                  </button>
+                  <button style={{ ...btnStyle(C.blue), fontSize:13, padding:"12px 8px", display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}
+                    onClick={() => setPage("groups")}>
+                    <span style={{ fontSize:20 }}>📅</span>
+                    <span>Yoklama Al</span>
+                  </button>
+                </div>
+
+                {/* Hızlı Mesai Widget */}
+                {quickMesaiOpen && (
+                  <div style={{ background:"#7c3aed14", border:"1.5px solid #7c3aed33", borderRadius:12, padding:"14px 16px" }}>
+                    <div style={{ fontWeight:800, fontSize:13, color:"#7c3aed", marginBottom:12 }}>⏱️ Hızlı Mesai Girişi</div>
+                    {todayMesai && (
+                      <div style={{ fontSize:12, color:C.green, fontWeight:700, marginBottom:10, background:C.green+"14", padding:"6px 10px", borderRadius:8 }}>
+                        ✅ Bugün mesai var — Giriş: {todayMesai.checkIn} {todayMesai.checkOut ? `· Çıkış: ${todayMesai.checkOut}` : "· Çıkış girilmemiş"}
+                      </div>
+                    )}
+                    <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap:10, alignItems:"flex-end" }}>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:800, color:"#7c3aed", marginBottom:5, textTransform:"uppercase" }}>Tarih</div>
+                        <input style={{ ...inputStyle, borderColor:"#7c3aed55" }} type="date" value={mesaiForm.date}
+                          onChange={e => setMesaiForm(f => ({ ...f, date: e.target.value }))} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:800, color:"#7c3aed", marginBottom:5, textTransform:"uppercase" }}>Giriş *</div>
+                        <input style={{ ...inputStyle, borderColor:"#7c3aed55" }} type="time" value={mesaiForm.checkIn}
+                          onChange={e => setMesaiForm(f => ({ ...f, checkIn: e.target.value }))} />
+                      </div>
+                      <div>
+                        <div style={{ fontSize:11, fontWeight:800, color:"#7c3aed", marginBottom:5, textTransform:"uppercase" }}>Çıkış</div>
+                        <input style={{ ...inputStyle, borderColor:"#7c3aed55" }} type="time" value={mesaiForm.checkOut}
+                          onChange={e => setMesaiForm(f => ({ ...f, checkOut: e.target.value }))} />
+                      </div>
+                    </div>
+                    {mesaiForm.checkIn && mesaiForm.checkOut && calcTimeDiff(mesaiForm.checkIn, mesaiForm.checkOut) > 0 && (
+                      <div style={{ fontSize:12, color:"#7c3aed", fontWeight:700, marginTop:8 }}>
+                        ⏱️ Süre: {fmtMins(calcTimeDiff(mesaiForm.checkIn, mesaiForm.checkOut))}
+                      </div>
+                    )}
+                    <div style={{ display:"flex", gap:10, marginTop:14 }}>
+                      <button style={{ ...btnStyle("#7c3aed") }} onClick={doQuickMesai}>💾 Kaydet</button>
+                      <button style={{ ...btnStyle(C.textDim), fontSize:13 }} onClick={() => setQuickMesaiOpen(false)}>İptal</button>
+                    </div>
+                  </div>
+                )}
+              </Card>
+
+              {/* Özet kartlar */}
               <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap:12, marginBottom:18 }}>
                 {[
-                  { icon:"👥", label:"Grubum", val:myGroups.length, color:C.blue },
-                  { icon:"👨‍🎓", label:"Öğrenci", val:studentCount, color:C.green },
-                  { icon:"🧪", label:"Bu Hafta Deneme", val:myTrialThisWeek.length, color:C.orange },
-                  { icon:"⏱️", label:"Bu Ay Mesai", val:totalHours.toFixed(1)+"s", color:"#7c3aed" },
+                  { icon:"👥", label:"Grubum", val:myGroups.length, color:C.blue, pg:"groups" },
+                  { icon:"👨‍🎓", label:"Öğrenci", val:studentCount, color:C.green, pg:"students" },
+                  { icon:"🧪", label:"Bu Hafta Deneme", val:myTrialThisWeek.length, color:C.orange, pg:"students" },
+                  { icon:"⏱️", label:"Bu Ay Mesai", val:totalHours.toFixed(1)+"s", color:"#7c3aed", pg:"mesai" },
                 ].map(item => (
-                  <div key={item.label} style={{ background:item.color+"14", border:`1.5px solid ${item.color}33`, borderRadius:14, padding:"14px 10px", textAlign:"center" }}>
+                  <div key={item.label} onClick={() => setPage(item.pg)} style={{ background:item.color+"14", border:`1.5px solid ${item.color}33`, borderRadius:14, padding:"14px 10px", textAlign:"center", cursor:"pointer" }}>
                     <div style={{ fontSize:24 }}>{item.icon}</div>
                     <div style={{ fontSize:22, fontWeight:900, color:item.color, marginTop:4 }}>{item.val}</div>
                     <div style={{ fontSize:11, color:C.textDim, fontWeight:700, marginTop:2 }}>{item.label}</div>
@@ -4861,6 +4949,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 ))}
               </div>
 
+              {/* Bugünkü dersler */}
               <Card style={{ marginBottom:14 }}>
                 <CardTitle color={C.blue} icon="📅">Bugünkü Dersler</CardTitle>
                 {myGroupsToday.length === 0 ? (
@@ -4876,14 +4965,16 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                         <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{brName} · {g.time||"?"} · {sCount} öğrenci</div>
                       </div>
                       <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-                        {savedToday && <Badge color={C.green}>✅ Yoklandı</Badge>}
-                        <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"7px 12px" }} onClick={() => setPage("groups")}>Derse Git →</button>
+                        {savedToday ? <Badge color={C.green}>✅ Yoklandı</Badge> : (
+                          <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"7px 12px" }} onClick={() => setPage("groups")}>📅 Yokla →</button>
+                        )}
                       </div>
                     </div>
                   );
                 })}
               </Card>
 
+              {/* Bu haftaki program */}
               <Card style={{ marginBottom:14 }}>
                 <CardTitle color={C.orange} icon="📆">Bu Hafta Gruplarım</CardTitle>
                 {myGroups.length === 0 ? (
@@ -4905,21 +4996,38 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 )}
               </Card>
 
+              {/* Deneme dersleri */}
               <Card style={{ marginBottom:14 }}>
                 <CardTitle color={C.orange} icon="🧪">Bu Hafta Deneme Dersleri</CardTitle>
                 {myTrialThisWeek.length === 0 ? (
                   <div style={{ color:C.textDim, fontWeight:600, fontSize:14, padding:"8px 0" }}>Bu hafta deneme dersi yok.</div>
                 ) : myTrialThisWeek.map(c => {
+                  const parentRec = (allParents||[]).find(p => (p.children||[]).some(ch => ch.id === c.id));
                   const grp = myGroups.find(g => String(g.id) === String(c.trialGroupId));
+                  const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
                   return (
-                    <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
-                      <div>
-                        <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{c.name}</div>
-                        <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>
-                          {fmtDate(c.trialDate)} · {grp?.name||"Grup yok"} · Veli: {c.parentPhone||"-"}
+                    <div key={c.id} style={{ padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:8 }}>
+                        <div>
+                          <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{c.name}</div>
+                          <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>
+                            {fmtDate(c.trialDate)} · {grp?.name||"Grup yok"} · 📞 {c.parentPhone||"-"}
+                          </div>
                         </div>
+                        <Badge color={statusColor}>{c.trialStatus||"Bekleniyor"}</Badge>
                       </div>
-                      <Badge color={C.orange}>Deneme</Badge>
+                      <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                        <button style={{ ...btnStyle(C.green), fontSize:11, padding:"5px 10px" }}
+                          onClick={() => updateTrialStatus(c, parentRec, "Geldi")}>✅ Geldi</button>
+                        <button style={{ ...btnStyle(C.red), fontSize:11, padding:"5px 10px" }}
+                          onClick={() => updateTrialStatus(c, parentRec, "Gelmedi")}>❌ Gelmedi</button>
+                        <button style={{ ...btnStyle(C.blue), fontSize:11, padding:"5px 10px" }}
+                          onClick={() => { if (parentRec) setAllParents(prev => (prev||[]).map(p => p.id === parentRec.id ? { ...p, children: (p.children||[]).map(ch => ch.id === c.id ? { ...ch, isTrialStudent: false, status: "Aktif", trialStatus: undefined } : ch) } : p)); }}>
+                          🎓 Aktife Al
+                        </button>
+                        <button style={{ ...btnStyle(C.red), fontSize:11, padding:"5px 10px", background:"transparent", color:C.red, border:`1.5px solid ${C.red}` }}
+                          onClick={() => parentRec && deleteTrialStudent(c, parentRec)}>🗑️ Sil</button>
+                      </div>
                     </div>
                   );
                 })}
@@ -4928,6 +5036,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 </button>
               </Card>
 
+              {/* Son duyurular */}
               {(announcements||[]).length > 0 && (
                 <Card>
                   <CardTitle color={C.red} icon="📢">Son Duyurular</CardTitle>
