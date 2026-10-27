@@ -1005,6 +1005,19 @@ function calcAge(birthDate) {
   if (today.getMonth() < bd.getMonth() || (today.getMonth() === bd.getMonth() && today.getDate() < bd.getDate())) age--;
   return age;
 }
+function calcAgeDetailed(birthDate) {
+  if (!birthDate) return "-";
+  const today = new Date();
+  const bd = new Date(birthDate);
+  let totalMonths = (today.getFullYear() - bd.getFullYear()) * 12 + (today.getMonth() - bd.getMonth());
+  if (today.getDate() < bd.getDate()) totalMonths--;
+  if (totalMonths < 0) return "-";
+  const y = Math.floor(totalMonths / 12);
+  const m = totalMonths % 12;
+  if (y === 0) return `${m} ay`;
+  if (m === 0) return `${y} yaş`;
+  return `${y} yaş ${m} ay`;
+}
 
 // GG/AA/YYYY formatında tarih gösterimi (depolama formatı YYYY-MM-DD korunur)
 function fmtDate(d) {
@@ -1328,7 +1341,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
             </label>
           </div>
           <div style={{ flex: 1, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 260px), 1fr))", gap: 10 }}>
-            {[["🎂 Doğum Tarihi", freshChild.birthDate||"-"],["🎈 Yaş", age+" yaşında"],["📌 Durum", freshChild.status]].map(([l,v]) => (
+            {[["🎂 Doğum Tarihi", freshChild.birthDate ? fmtDate(freshChild.birthDate) : "-"],["🎈 Yaş", calcAgeDetailed(freshChild.birthDate)],["📌 Durum", freshChild.status]].map(([l,v]) => (
               <div key={l} style={{ background:"#f5f8ff", borderRadius:10, padding:"10px 14px" }}>
                 <div style={{ fontSize:11, color:C.textDim, fontWeight:800, textTransform:"uppercase", marginBottom:3 }}>{l}</div>
                 <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{v}</div>
@@ -4254,9 +4267,9 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
 }
 
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
-function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, branches, onUpdatePhoto, onGroupAttSave, timeEntries, saveTimeEntry, deleteTimeEntry }) {
+function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, setGroups, branches, onUpdatePhoto, onGroupAttSave, timeEntries, saveTimeEntry, deleteTimeEntry }) {
   const isMobile = useIsMobile(600);
-  const [page, setPage] = useState("groups");
+  const [page, setPage] = useState("home");
   const [showProfile, setShowProfile] = useState(false);
   const [showAddAnn, setShowAddAnn] = useState(false);
   const [annForm, setAnnForm] = useState({ title: "", content: "", important: false });
@@ -4274,8 +4287,12 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [grpFilterUnattended, setGrpFilterUnattended] = useState(false);
   const [attConfirm, setAttConfirm] = useState(null); // { icon, color, title, desc, onConfirm }
   const [showNewStudentForm, setShowNewStudentForm] = useState(false);
-  const [newStudentForm, setNewStudentForm] = useState({ childName: "", birthDate: "", parentName: "", parentPhone: "", parentPhone2: "", note: "" });
+  const [newStudentForm, setNewStudentForm] = useState({ childFirstName: "", childLastName: "", birthDate: "", motherName: "", fatherName: "", parentPhone: "", parentPhone2: "", targetGroupId: "", note: "" });
   const [newStudentMsg, setNewStudentMsg] = useState("");
+  const [showTrialForm, setShowTrialForm] = useState(false);
+  const [trialForm, setTrialForm] = useState({ childFirstName: "", childLastName: "", birthDate: "", parentPhone: "", targetGroupId: "", trialDate: new Date().toISOString().slice(0,10) });
+  const [trialMsg, setTrialMsg] = useState("");
+  const [groupAddStudentId, setGroupAddStudentId] = useState({});
   // Mesai state
   const [mesaiMonth, setMesaiMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [mesaiForm, setMesaiForm] = useState({ date: new Date().toISOString().slice(0, 10), checkIn: "", checkOut: "" });
@@ -4301,6 +4318,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   );
 
   const navItems = [
+    { key: "home",         label: "Ana Sayfa",       icon: "🏠" },
     { key: "groups",       label: "Grup Dersleri",   icon: "👥" },
     { key: "mesai",        label: "Mesai",           icon: "⏱️" },
     { key: "students",     label: "Öğrenciler",      icon: "👨‍🎓" },
@@ -4308,8 +4326,6 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     { key: "individual",   label: "Bireysel Dersler",icon: "📚" },
     { key: "notes",        label: "Seans Notları",   icon: "📝" },
     { key: "development",  label: "Gelişim",         icon: "📈" },
-    { key: "announcements",label: "Duyurular",       icon: "📢" },
-    { key: "channels",     label: "Kanallar",        icon: "📢" },
     { key: "calendar",     label: "Program",         icon: "📅" },
   ];
 
@@ -4798,6 +4814,135 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
           </div>
         )}
 
+        {page === "home" && (() => {
+          const todayStr = new Date().toISOString().slice(0,10);
+          const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - (weekStart.getDay() === 0 ? 6 : weekStart.getDay() - 1));
+          const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+          const todayDay = new Date().getDay();
+          const todayDayIdx = todayDay === 0 ? 6 : todayDay - 1;
+          const myGroupsToday = myGroups.filter(g => (g.days||[]).some(d => {
+            const dIdx = ["Pazartesi","Salı","Çarşamba","Perşembe","Cuma","Cumartesi","Pazar"].indexOf(d);
+            return dIdx === todayDayIdx;
+          }));
+          const myTrialStudents = (allParents||[]).flatMap(p => (p.children||[]).filter(c => c.isTrialStudent));
+          const myTrialThisWeek = myTrialStudents.filter(c => {
+            if (!c.trialDate) return false;
+            const td = new Date(c.trialDate);
+            return td >= weekStart && td <= weekEnd && myGroups.some(g => String(g.id) === String(c.trialGroupId));
+          });
+          const thisMonthStr = new Date().toISOString().slice(0,7);
+          const myMesaiThisMonth = (timeEntries||[]).filter(e => String(e.teacherId||e.userId) === String(myStaff?.id||user.id) && e.date && e.date.slice(0,7) === thisMonthStr);
+          const totalHours = myMesaiThisMonth.reduce((sum, e) => {
+            if (!e.checkIn || !e.checkOut) return sum;
+            const [h1,m1] = e.checkIn.split(":").map(Number);
+            const [h2,m2] = e.checkOut.split(":").map(Number);
+            return sum + (h2*60+m2 - h1*60-m1) / 60;
+          }, 0);
+          const studentCount = (allChildren||[]).filter(c => !c.isTrialStudent).length;
+          return (
+            <div className="fade-in">
+              <div style={{ fontSize:22, fontWeight:900, color:C.text, marginBottom:4 }}>🏠 Ana Sayfa</div>
+              <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>
+                {new Date().toLocaleDateString("tr-TR", { weekday:"long", year:"numeric", month:"long", day:"numeric" })}
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4,1fr)", gap:12, marginBottom:18 }}>
+                {[
+                  { icon:"👥", label:"Grubum", val:myGroups.length, color:C.blue },
+                  { icon:"👨‍🎓", label:"Öğrenci", val:studentCount, color:C.green },
+                  { icon:"🧪", label:"Bu Hafta Deneme", val:myTrialThisWeek.length, color:C.orange },
+                  { icon:"⏱️", label:"Bu Ay Mesai", val:totalHours.toFixed(1)+"s", color:"#7c3aed" },
+                ].map(item => (
+                  <div key={item.label} style={{ background:item.color+"14", border:`1.5px solid ${item.color}33`, borderRadius:14, padding:"14px 10px", textAlign:"center" }}>
+                    <div style={{ fontSize:24 }}>{item.icon}</div>
+                    <div style={{ fontSize:22, fontWeight:900, color:item.color, marginTop:4 }}>{item.val}</div>
+                    <div style={{ fontSize:11, color:C.textDim, fontWeight:700, marginTop:2 }}>{item.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              <Card style={{ marginBottom:14 }}>
+                <CardTitle color={C.blue} icon="📅">Bugünkü Dersler</CardTitle>
+                {myGroupsToday.length === 0 ? (
+                  <div style={{ color:C.textDim, fontWeight:600, fontSize:14, padding:"8px 0" }}>Bugün ders yok.</div>
+                ) : myGroupsToday.map(g => {
+                  const brName = (branches||[]).find(b=>b.id===g.branchId)?.name || g.branchName || "-";
+                  const sCount = (g.studentIds||[]).length;
+                  const savedToday = (attendance||[]).some(a => a.type==="group" && String(a.groupId)===String(g.id) && a.date===todayStr);
+                  return (
+                    <div key={g.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                      <div>
+                        <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{g.name}</div>
+                        <div style={{ fontSize:12, color:C.textDim, fontWeight:600 }}>{brName} · {g.time||"?"} · {sCount} öğrenci</div>
+                      </div>
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        {savedToday && <Badge color={C.green}>✅ Yoklandı</Badge>}
+                        <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"7px 12px" }} onClick={() => setPage("groups")}>Derse Git →</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </Card>
+
+              <Card style={{ marginBottom:14 }}>
+                <CardTitle color={C.orange} icon="📆">Bu Hafta Gruplarım</CardTitle>
+                {myGroups.length === 0 ? (
+                  <div style={{ color:C.textDim, fontWeight:600, fontSize:14, padding:"8px 0" }}>Henüz gruba atanmadınız.</div>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                    {myGroups.map(g => {
+                      const brName = (branches||[]).find(b=>b.id===g.branchId)?.name || g.branchName || "-";
+                      return (
+                        <div key={g.id} style={{ background:C.blue+"0d", borderRadius:10, padding:"10px 14px" }}>
+                          <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{g.name}</div>
+                          <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:3 }}>
+                            {brName} · {(g.days||[]).join(", ")||"Gün belirtilmemiş"} · {g.time||"?"}-{g.endTime||"?"} · {(g.studentIds||[]).length} öğrenci
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </Card>
+
+              <Card style={{ marginBottom:14 }}>
+                <CardTitle color={C.orange} icon="🧪">Bu Hafta Deneme Dersleri</CardTitle>
+                {myTrialThisWeek.length === 0 ? (
+                  <div style={{ color:C.textDim, fontWeight:600, fontSize:14, padding:"8px 0" }}>Bu hafta deneme dersi yok.</div>
+                ) : myTrialThisWeek.map(c => {
+                  const grp = myGroups.find(g => String(g.id) === String(c.trialGroupId));
+                  return (
+                    <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                      <div>
+                        <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{c.name}</div>
+                        <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>
+                          {fmtDate(c.trialDate)} · {grp?.name||"Grup yok"} · Veli: {c.parentPhone||"-"}
+                        </div>
+                      </div>
+                      <Badge color={C.orange}>Deneme</Badge>
+                    </div>
+                  );
+                })}
+                <button style={{ ...btnStyle(C.orange), fontSize:12, marginTop:12 }} onClick={() => { setPage("students"); setShowTrialForm(true); }}>
+                  + Deneme Kaydı Ekle
+                </button>
+              </Card>
+
+              {(announcements||[]).length > 0 && (
+                <Card>
+                  <CardTitle color={C.red} icon="📢">Son Duyurular</CardTitle>
+                  {(announcements||[]).slice(0,3).map(a => (
+                    <div key={a.id} style={{ padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                      <div style={{ fontWeight:800, fontSize:13, color:a.important ? C.red : C.text }}>{a.important?"⚠️ ":""}{a.title}</div>
+                      <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>{fmtDate(a.date)} · {a.author}</div>
+                    </div>
+                  ))}
+                </Card>
+              )}
+            </div>
+          );
+        })()}
+
         {page === "groups" && (
           <div className="fade-in">
             <div style={{ fontSize: 22, fontWeight: 900, color: C.text, marginBottom: 4 }}>👥 Grup Derslerim</div>
@@ -5074,6 +5219,35 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     );
                   })()}
 
+                  {/* GRUBA ÖĞRENCİ EKLE */}
+                  {!isAttMode && setGroups && (() => {
+                    const addableStudents = allChildren.filter(c =>
+                      !c.isTrialStudent &&
+                      !(g.studentIds||[]).some(sid => String(sid) === String(c.id)) &&
+                      myStudents.some(ms => String(ms.childId) === String(c.id))
+                    );
+                    if (addableStudents.length === 0) return null;
+                    const selId = groupAddStudentId[g.id] || "";
+                    return (
+                      <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
+                        <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>➕ Öğrenci Ekle</div>
+                        <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                          <select style={{ ...inputStyle, flex:1, minWidth:0 }} value={selId}
+                            onChange={e => setGroupAddStudentId(prev => ({ ...prev, [g.id]: e.target.value }))}>
+                            <option value="">— Öğrenci seç —</option>
+                            {addableStudents.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                          <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"8px 14px", flexShrink:0 }} disabled={!selId} onClick={() => {
+                            if (!selId) return;
+                            setGroups(prev => (prev||[]).map(gr => String(gr.id) === String(g.id) ? { ...gr, studentIds: [...new Set([...(gr.studentIds||[]), Number(selId)])] } : gr));
+                            setGroupAddStudentId(prev => ({ ...prev, [g.id]: "" }));
+                            showKsToast("✅ Öğrenci gruba eklendi!", "#22c55e");
+                          }}>Ekle</button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* SON YOKLAMALAR (son 3 kayıt) */}
                   {!isAttMode && (() => {
                     const recentDates = [...new Set((attendance||[]).filter(a => a.type==="group" && a.groupId===g.id).map(a => a.date))].sort().reverse().slice(0,3);
@@ -5110,31 +5284,116 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
           <div className="fade-in">
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:4, flexWrap:"wrap", gap:8 }}>
               <div style={{ fontSize: 22, fontWeight: 900, color: C.text }}>👨‍🎓 Öğrenci Listesi</div>
-              <button style={{ ...btnStyle(C.green), fontSize:13, padding:"9px 16px" }} onClick={() => { setShowNewStudentForm(true); setNewStudentMsg(""); }}>+ Yeni Öğrenci Kaydı</button>
+              <div style={{ display:"flex", gap:8 }}>
+                <button style={{ ...btnStyle(C.orange), fontSize:13, padding:"9px 16px" }} onClick={() => { setShowTrialForm(true); setShowNewStudentForm(false); setTrialMsg(""); }}>🧪 Deneme Kaydı</button>
+                <button style={{ ...btnStyle(C.green), fontSize:13, padding:"9px 16px" }} onClick={() => { setShowNewStudentForm(true); setShowTrialForm(false); setNewStudentMsg(""); }}>+ Yeni Öğrenci</button>
+              </div>
             </div>
-            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 20, fontWeight: 600 }}>Bireysel öğrencilerim</div>
+            <div style={{ fontSize: 14, color: C.textDim, marginBottom: 16, fontWeight: 600 }}>Bireysel öğrencilerim</div>
 
-            {showNewStudentForm && (
-              <Card>
-                <CardTitle color={C.green} icon="➕">Yeni Öğrenci Kaydı</CardTitle>
+            {showTrialForm && (
+              <Card style={{ marginBottom:14 }}>
+                <CardTitle color={C.orange} icon="🧪">Deneme Dersi Kaydı</CardTitle>
                 <div style={{ fontSize:12, color:C.orange, fontWeight:700, marginBottom:14, background:C.orange+"15", borderRadius:8, padding:"8px 12px" }}>
-                  ℹ️ Paket ve ödeme bilgisi admin tarafından eklenecektir. Sadece iletişim bilgilerini doldurun.
+                  ℹ️ Denemeye gelecek öğrenci için kayıt oluşturun. Kesin kayıt sonrası admin paketi tanımlar.
                 </div>
                 <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12 }}>
                   <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Adı Soyadı *</div>
-                    <input style={inputStyle} placeholder="Ad Soyad" value={newStudentForm.childName}
-                      onChange={e => setNewStudentForm(f => ({ ...f, childName: e.target.value }))} />
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Adı *</div>
+                    <input style={inputStyle} placeholder="Ad" value={trialForm.childFirstName}
+                      onChange={e => setTrialForm(f => ({ ...f, childFirstName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Soyadı *</div>
+                    <input style={inputStyle} placeholder="Soyad" value={trialForm.childLastName}
+                      onChange={e => setTrialForm(f => ({ ...f, childLastName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Doğum Tarihi</div>
+                    <input style={inputStyle} type="date" value={trialForm.birthDate}
+                      onChange={e => setTrialForm(f => ({ ...f, birthDate: e.target.value }))} />
+                    {trialForm.birthDate && <div style={{ fontSize:12, color:C.blue, fontWeight:700, marginTop:4 }}>Yaş: {calcAgeDetailed(trialForm.birthDate)}</div>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Veli Telefonu *</div>
+                    <input style={inputStyle} placeholder="05xx xxx xx xx" value={trialForm.parentPhone}
+                      onChange={e => setTrialForm(f => ({ ...f, parentPhone: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Deneme Tarihi *</div>
+                    <input style={inputStyle} type="date" value={trialForm.trialDate}
+                      onChange={e => setTrialForm(f => ({ ...f, trialDate: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Deneme Grubu</div>
+                    <select style={inputStyle} value={trialForm.targetGroupId}
+                      onChange={e => setTrialForm(f => ({ ...f, targetGroupId: e.target.value }))}>
+                      <option value="">— Grup seç —</option>
+                      {myGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {trialMsg && <div style={{ marginTop:10, color: trialMsg.startsWith("✅") ? C.green : C.red, fontWeight:700, fontSize:13 }}>{trialMsg}</div>}
+                <div style={{ display:"flex", gap:10, marginTop:16 }}>
+                  <button style={btnStyle(C.orange)} onClick={() => {
+                    if (!trialForm.childFirstName.trim()) { setTrialMsg("⚠️ Çocuğun adını girin."); return; }
+                    if (!trialForm.childLastName.trim()) { setTrialMsg("⚠️ Çocuğun soyadını girin."); return; }
+                    if (!trialForm.parentPhone.trim()) { setTrialMsg("⚠️ Veli telefonunu girin."); return; }
+                    if (!trialForm.trialDate) { setTrialMsg("⚠️ Deneme tarihini girin."); return; }
+                    const childId = Date.now();
+                    const childName = (trialForm.childFirstName + " " + trialForm.childLastName).trim();
+                    const newChild = { id: childId, name: childName, birthDate: trialForm.birthDate, isTrialStudent: true, trialDate: trialForm.trialDate, trialGroupId: trialForm.targetGroupId, parentPhone: trialForm.parentPhone, enrollments: [], status: "Deneme", addedByTeacher: user.name, addedAt: new Date().toISOString() };
+                    const newParentRec = {
+                      id: childId + 1,
+                      name: "Veli - " + childName,
+                      phone: trialForm.parentPhone.trim(),
+                      parent1Phone: trialForm.parentPhone.trim(),
+                      isActive: true,
+                      source: "Deneme Kaydı (" + user.name + ")",
+                      children: [newChild],
+                    };
+                    setAllParents(prev => [...(prev||[]), newParentRec]);
+                    setTrialMsg("✅ Deneme kaydı oluşturuldu!");
+                    setTrialForm({ childFirstName:"", childLastName:"", birthDate:"", parentPhone:"", targetGroupId:"", trialDate: new Date().toISOString().slice(0,10) });
+                    setTimeout(() => setShowTrialForm(false), 2000);
+                  }}>💾 Kaydet</button>
+                  <button style={btnStyle(C.textDim)} onClick={() => setShowTrialForm(false)}>İptal</button>
+                </div>
+              </Card>
+            )}
+
+            {showNewStudentForm && (
+              <Card style={{ marginBottom:14 }}>
+                <CardTitle color={C.green} icon="➕">Yeni Öğrenci Kaydı</CardTitle>
+                <div style={{ fontSize:12, color:C.orange, fontWeight:700, marginBottom:14, background:C.orange+"15", borderRadius:8, padding:"8px 12px" }}>
+                  ℹ️ Paket ve ödeme bilgisi admin tarafından eklenecektir. Sadece bilgileri doldurun.
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Adı *</div>
+                    <input style={inputStyle} placeholder="Ad" value={newStudentForm.childFirstName}
+                      onChange={e => setNewStudentForm(f => ({ ...f, childFirstName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Soyadı *</div>
+                    <input style={inputStyle} placeholder="Soyad" value={newStudentForm.childLastName}
+                      onChange={e => setNewStudentForm(f => ({ ...f, childLastName: e.target.value }))} />
                   </div>
                   <div>
                     <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Doğum Tarihi</div>
                     <input style={inputStyle} type="date" value={newStudentForm.birthDate}
                       onChange={e => setNewStudentForm(f => ({ ...f, birthDate: e.target.value }))} />
+                    {newStudentForm.birthDate && <div style={{ fontSize:12, color:C.blue, fontWeight:700, marginTop:4 }}>Yaş: {calcAgeDetailed(newStudentForm.birthDate)}</div>}
                   </div>
                   <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Veli Adı Soyadı *</div>
-                    <input style={inputStyle} placeholder="Veli adı" value={newStudentForm.parentName}
-                      onChange={e => setNewStudentForm(f => ({ ...f, parentName: e.target.value }))} />
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Anne Adı Soyadı</div>
+                    <input style={inputStyle} placeholder="Annenin adı soyadı" value={newStudentForm.motherName}
+                      onChange={e => setNewStudentForm(f => ({ ...f, motherName: e.target.value }))} />
+                  </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Baba Adı Soyadı</div>
+                    <input style={inputStyle} placeholder="Babanın adı soyadı" value={newStudentForm.fatherName}
+                      onChange={e => setNewStudentForm(f => ({ ...f, fatherName: e.target.value }))} />
                   </div>
                   <div>
                     <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Veli Telefonu *</div>
@@ -5147,6 +5406,14 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       onChange={e => setNewStudentForm(f => ({ ...f, parentPhone2: e.target.value }))} />
                   </div>
                   <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Gruba Ekle (opsiyonel)</div>
+                    <select style={inputStyle} value={newStudentForm.targetGroupId}
+                      onChange={e => setNewStudentForm(f => ({ ...f, targetGroupId: e.target.value }))}>
+                      <option value="">— Grup seç —</option>
+                      {myGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ gridColumn: isMobile ? "1" : "1 / -1" }}>
                     <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Not</div>
                     <input style={inputStyle} placeholder="Ek bilgi (opsiyonel)" value={newStudentForm.note}
                       onChange={e => setNewStudentForm(f => ({ ...f, note: e.target.value }))} />
@@ -5155,29 +5422,31 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 {newStudentMsg && <div style={{ marginTop:10, color: newStudentMsg.startsWith("✅") ? C.green : C.red, fontWeight:700, fontSize:13 }}>{newStudentMsg}</div>}
                 <div style={{ display:"flex", gap:10, marginTop:16 }}>
                   <button style={btnStyle(C.green)} onClick={() => {
-                    if (!newStudentForm.childName.trim()) { setNewStudentMsg("⚠️ Çocuğun adını girin."); return; }
-                    if (!newStudentForm.parentName.trim()) { setNewStudentMsg("⚠️ Veli adını girin."); return; }
+                    if (!newStudentForm.childFirstName.trim()) { setNewStudentMsg("⚠️ Çocuğun adını girin."); return; }
+                    if (!newStudentForm.childLastName.trim()) { setNewStudentMsg("⚠️ Çocuğun soyadını girin."); return; }
                     if (!newStudentForm.parentPhone.trim()) { setNewStudentMsg("⚠️ Veli telefonunu girin."); return; }
                     const childId = Date.now();
-                    const newChild = { id: childId, name: newStudentForm.childName.trim(), birthDate: newStudentForm.birthDate, enrollments: [], status: "Aktif", addedByTeacher: user.name, addedAt: new Date().toISOString() };
+                    const childName = (newStudentForm.childFirstName + " " + newStudentForm.childLastName).trim();
+                    const newChild = { id: childId, name: childName, birthDate: newStudentForm.birthDate, enrollments: [], status: "Aktif", addedByTeacher: user.name, addedAt: new Date().toISOString() };
                     const newParentRec = {
                       id: childId + 1,
-                      name: newStudentForm.parentName.trim(),
+                      name: (newStudentForm.motherName || newStudentForm.fatherName || "Veli") + " - " + childName,
                       phone: newStudentForm.parentPhone.trim(),
-                      parent1Name: newStudentForm.parentName.trim(),
+                      parent1Name: newStudentForm.motherName.trim(),
                       parent1Phone: newStudentForm.parentPhone.trim(),
+                      parent2Name: newStudentForm.fatherName.trim(),
                       parent2Phone: newStudentForm.parentPhone2.trim(),
                       isActive: true,
                       source: "Öğretmen Kaydı (" + user.name + ")",
                       note: newStudentForm.note.trim(),
                       children: [newChild],
                     };
-                    setAllParents(prev => {
-                      const next = [...(prev||[]), newParentRec];
-                      return next;
-                    });
+                    setAllParents(prev => [...(prev||[]), newParentRec]);
+                    if (newStudentForm.targetGroupId && setGroups) {
+                      setGroups(prev => (prev||[]).map(g => String(g.id) === String(newStudentForm.targetGroupId) ? { ...g, studentIds: [...new Set([...(g.studentIds||[]), childId])] } : g));
+                    }
                     setNewStudentMsg("✅ Kayıt oluşturuldu! Admin paket ve ödeme bilgisini ekleyecek.");
-                    setNewStudentForm({ childName:"", birthDate:"", parentName:"", parentPhone:"", parentPhone2:"", note:"" });
+                    setNewStudentForm({ childFirstName:"", childLastName:"", birthDate:"", motherName:"", fatherName:"", parentPhone:"", parentPhone2:"", targetGroupId:"", note:"" });
                     setTimeout(() => setShowNewStudentForm(false), 2000);
                   }}>💾 Kaydet</button>
                   <button style={btnStyle(C.textDim)} onClick={() => setShowNewStudentForm(false)}>İptal</button>
@@ -5185,7 +5454,33 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
               </Card>
             )}
 
+            {/* Deneme öğrencileri */}
+            {(() => {
+              const trialKids = (allParents||[]).flatMap(p => (p.children||[]).filter(c => c.isTrialStudent && c.addedByTeacher === user.name));
+              if (trialKids.length === 0) return null;
+              return (
+                <Card style={{ marginBottom:12 }}>
+                  <CardTitle color={C.orange} icon="🧪">Deneme Öğrencileri</CardTitle>
+                  {trialKids.map(c => {
+                    const grp = myGroups.find(g => String(g.id) === String(c.trialGroupId));
+                    return (
+                      <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                        <div>
+                          <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{c.name}</div>
+                          <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>
+                            {c.birthDate ? calcAgeDetailed(c.birthDate) : "-"} · Deneme: {fmtDate(c.trialDate)||"-"} · {grp?.name||"Grup yok"} · 📞 {c.parentPhone||"-"}
+                          </div>
+                        </div>
+                        <Badge color={C.orange}>Deneme</Badge>
+                      </div>
+                    );
+                  })}
+                </Card>
+              );
+            })()}
+
             <Card>
+              <CardTitle color={C.blue} icon="👨‍🎓">Aktif Öğrenciler</CardTitle>
               {members.length === 0 ? (
                 <div style={{ textAlign: "center", padding: "24px 0", color: C.textDim }}>
                   <div style={{ fontSize: 36, marginBottom: 8 }}>👨‍🎓</div>
@@ -5195,7 +5490,10 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                 <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${C.border}` }}>
                   <div>
                     <div style={{ fontWeight: 800, fontSize: 15, color: C.text }}>{m.name}</div>
-                    <div style={{ fontSize: 13, color: C.textDim, marginTop: 3, fontWeight: 600 }}>{(m.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
+                    <div style={{ fontSize: 13, color: C.textDim, marginTop: 3, fontWeight: 600 }}>
+                      {m.birthDate ? calcAgeDetailed(m.birthDate) : "-"}
+                      {(m.enrollments||[]).length > 0 && " · " + (m.enrollments||[]).map(e=>e.branchName).join(", ")}
+                    </div>
                   </div>
                   <Badge color={m.status === "Aktif" ? C.green : C.red}>{m.status}</Badge>
                 </div>
@@ -7522,7 +7820,7 @@ function App() {
       allParents={members} setAllParents={setMembers}
       channels={channels} channelMessages={channelMessages}
       schedule={schedule} setSchedule={setSchedule}
-      groups={groups} branches={branches}
+      groups={groups} setGroups={setGroups} branches={branches}
       onGroupAttSave={onGroupAttSave}
       timeEntries={timeEntries} saveTimeEntry={saveTimeEntry} deleteTimeEntry={deleteTimeEntry}
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} /></React.Fragment>;
@@ -7691,7 +7989,7 @@ function App() {
             allParents={members} setAllParents={setMembers}
             channels={channels} channelMessages={channelMessages}
             schedule={schedule} setSchedule={setSchedule}
-            groups={groups} branches={branches}
+            groups={groups} setGroups={setGroups} branches={branches}
             onGroupAttSave={(nextAttendance, nextMembers) => { setAttendanceRaw(nextAttendance); setMembersRaw(nextMembers); }}
             timeEntries={timeEntries} saveTimeEntry={saveTimeEntry} deleteTimeEntry={deleteTimeEntry}
             onUpdatePhoto={()=>{}}
