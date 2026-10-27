@@ -2226,7 +2226,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
 }
 
 // ── VELİ LİSTESİ (ANA ÜYELER SAYFASI) ──────────────────────
-function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, canEdit = true }) {
+function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, groups, canEdit = true }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedParent, setSelectedParent] = useState(null);
@@ -2235,14 +2235,16 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   const [confirmPassive, setConfirmPassive] = useState(null);
 
   const allChildren = parents.flatMap(p => p.children || []);
-  const activeParents = parents.filter(p => p.isActive !== false && p.source !== 'mediatopia');
+  const trialChildren = allChildren.filter(c => c.isTrialStudent);
+  const activeParents = parents.filter(p => p.isActive !== false && p.source !== 'mediatopia' && !((p.children||[]).length > 0 && (p.children||[]).every(c => c.isTrialStudent)));
   const passiveParents = parents.filter(p => p.isActive === false);
   const mediatopiaParents = parents.filter(p => p.source === 'mediatopia');
-  const totalChildCount = allChildren.length;
-  const activeChildCount = activeParents.flatMap(p => p.children || []).filter(c => c.status === "Aktif").length;
+  const totalChildCount = allChildren.filter(c => !c.isTrialStudent).length;
+  const activeChildCount = activeParents.flatMap(p => p.children || []).filter(c => c.status === "Aktif" && !c.isTrialStudent).length;
   const passiveChildCount = passiveParents.flatMap(p => p.children || []).length;
   const mediatopiaChildCount = mediatopiaParents.flatMap(p => p.children || []).length;
-  const unpaidChildren = allChildren.filter(c => (c.enrollments||[]).some(e => e.activePackage && !e.activePackage.paid)).length;
+  const trialChildCount = trialChildren.length;
+  const unpaidChildren = allChildren.filter(c => !c.isTrialStudent && (c.enrollments||[]).some(e => e.activePackage && !e.activePackage.paid)).length;
 
   const searchFiltered = parents.filter(p =>
     p.name?.toLowerCase().includes(search.toLowerCase()) ||
@@ -2250,10 +2252,12 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
     p.children?.some(c => c.name.toLowerCase().includes(search.toLowerCase()))
   );
   const filtered = searchFiltered.filter(p => {
-    if (statusFilter === "Aktif") return p.isActive !== false && p.source !== 'mediatopia';
+    const isTrialOnly = (p.children||[]).length > 0 && (p.children||[]).every(c => c.isTrialStudent);
+    if (statusFilter === "Aktif") return p.isActive !== false && p.source !== 'mediatopia' && !isTrialOnly;
     if (statusFilter === "Pasif") return p.isActive === false;
     if (statusFilter === "Mediatopia") return p.source === 'mediatopia';
-    return true;
+    if (statusFilter === "Deneme") return (p.children||[]).some(c => c.isTrialStudent);
+    return !isTrialOnly; // Tümü: deneme-only parents are in their own tab
   });
 
   const togglePassive = (p) => {
@@ -2291,6 +2295,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
     { label: "Toplam", value: totalChildCount, filter: "Tümü" },
     { label: "Aktif", value: activeChildCount, filter: "Aktif" },
     { label: "Pasif", value: passiveChildCount, filter: "Pasif" },
+    { label: "Deneme", value: trialChildCount, filter: "Deneme" },
     { label: "Mediatopia", value: mediatopiaChildCount, filter: "Mediatopia" },
   ];
 
@@ -2330,16 +2335,16 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
         <div style={{ background: C.green, borderRadius: 18, padding: "16px 20px", boxShadow: `0 6px 20px ${C.green}44`, position:"relative", overflow:"hidden", minWidth:0 }}>
           <div style={{ position:"absolute", right:-14, top:-14, width:60, height:60, borderRadius:"50%", background:"rgba(255,255,255,0.14)" }} />
           <div style={{ fontSize:10, color:"rgba(255,255,255,0.82)", textTransform:"uppercase", letterSpacing:1, marginBottom:12, fontWeight:800 }}>👦 Çocuklar</div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr", gap:0 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr", gap:0 }}>
             {statItems.map((item, i) => (
               <div key={item.filter} onClick={() => setStatusFilter(item.filter)}
                 style={{ textAlign:"center", cursor:"pointer", padding:"4px 0",
-                  borderRight: i < 3 ? "1.5px solid rgba(255,255,255,0.25)" : "none",
+                  borderRight: i < 4 ? "1.5px solid rgba(255,255,255,0.25)" : "none",
                   background: statusFilter===item.filter ? "rgba(255,255,255,0.18)" : "transparent",
-                  borderRadius: i===0 ? "8px 0 0 8px" : i===3 ? "0 8px 8px 0" : 0,
+                  borderRadius: i===0 ? "8px 0 0 8px" : i===4 ? "0 8px 8px 0" : 0,
                   transition:"background 0.15s" }}>
-                <div style={{ fontSize:20, fontWeight:900, color:"#fff", lineHeight:1 }}>{item.value}</div>
-                <div style={{ fontSize:9, color:"rgba(255,255,255,0.8)", fontWeight:700, marginTop:4, letterSpacing:0.3 }}>{item.label}</div>
+                <div style={{ fontSize:18, fontWeight:900, color:"#fff", lineHeight:1 }}>{item.value}</div>
+                <div style={{ fontSize:8, color:"rgba(255,255,255,0.8)", fontWeight:700, marginTop:4, letterSpacing:0.3 }}>{item.label}</div>
               </div>
             ))}
           </div>
@@ -2358,6 +2363,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
             { key:"Tümü", label:`Tümü (${searchFiltered.length})`, color:C.blue },
             { key:"Aktif", label:`Aktif (${searchFiltered.filter(p=>p.isActive!==false&&p.source!=='mediatopia').length})`, color:C.green },
             { key:"Pasif", label:`Pasif (${searchFiltered.filter(p=>p.isActive===false).length})`, color:"#94a3b8" },
+            { key:"Deneme", label:`Deneme (${searchFiltered.filter(p=>(p.children||[]).some(c=>c.isTrialStudent)).length})`, color:C.orange },
             { key:"Mediatopia", label:`Mediatopia (${searchFiltered.filter(p=>p.source==='mediatopia').length})`, color:"#7c3aed" },
           ].map(({key,label,color}) => (
             <button key={key} onClick={() => setStatusFilter(key)}
@@ -2410,7 +2416,51 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
           </div>
         )}
 
-        {filtered.map(p => {
+        {statusFilter === "Deneme" ? (() => {
+          const allTrialKids = filtered.flatMap(p => (p.children||[]).filter(c => c.isTrialStudent).map(c => ({ child: c, parent: p })));
+          if (allTrialKids.length === 0) return <div style={{ textAlign:"center", padding:"30px 0", color:C.textDim }}><div style={{ fontSize:36, marginBottom:8 }}>🧪</div><div style={{ fontWeight:700 }}>Deneme öğrencisi bulunamadı.</div></div>;
+          return allTrialKids.sort((a,b) => (b.child.trialDate||"").localeCompare(a.child.trialDate||"")).map(({ child: c, parent: p }) => {
+            const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
+            const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
+            return (
+              <div key={c.id} style={{ padding:"14px 16px", borderBottom:`1px solid ${C.border}`, background:"#fffbf5" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap", marginBottom:4 }}>
+                      <span style={{ fontWeight:900, fontSize:15, color:C.text }}>{c.name}</span>
+                      <Badge color={statusColor}>{c.trialStatus||"Bekleniyor"}</Badge>
+                    </div>
+                    <div style={{ fontSize:12, color:C.textDim, fontWeight:600, display:"flex", flexWrap:"wrap", gap:10, marginBottom:6 }}>
+                      {c.trialDate && <span>📅 {fmtDate(c.trialDate)}</span>}
+                      {grp && <span>👥 {grp.name}{grp.time ? ` · ${grp.time}` : ""}</span>}
+                      {c.parentPhone && <span>📞 {c.parentPhone}</span>}
+                      {c.birthDate && <span>🎂 {calcAgeDetailed(c.birthDate)}</span>}
+                      {c.addedByTeacher && <span>👤 {c.addedByTeacher}</span>}
+                    </div>
+                    {c.trialNote && (
+                      <div style={{ background:"#7c3aed12", border:"1px solid #7c3aed33", borderRadius:8, padding:"7px 10px", fontSize:12, color:"#5b21b6", fontWeight:600, marginBottom:8, lineHeight:1.5 }}>
+                        📝 <b>Öğretmen Notu:</b> {c.trialNote}{c.trialNoteBy ? <span style={{ color:C.textDim, fontWeight:500 }}> — {c.trialNoteBy}</span> : ""}
+                      </div>
+                    )}
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      <button style={{ ...btnStyle(C.green), fontSize:11, padding:"5px 12px" }}
+                        onClick={() => {
+                          setParents(prev => prev.map(pp => pp.id === p.id ? { ...pp, children: (pp.children||[]).map(ch => ch.id === c.id ? { ...ch, isTrialStudent: false, status: "Aktif", trialStatus: undefined } : ch) } : pp));
+                          showKsToast(`✅ ${c.name} aktif öğrenciye dönüştürüldü! Paket ekleyebilirsiniz.`, "#22c55e", 5000);
+                          setSelectedParent(p);
+                        }}>🎓 Aktife Al</button>
+                      <button style={{ fontSize:11, padding:"5px 12px", borderRadius:8, background:"transparent", color:C.red, border:`1.5px solid ${C.red}`, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}
+                        onClick={() => {
+                          if (window.confirm(`"${c.name}" deneme kaydı silinsin mi?`))
+                            setParents(prev => prev.map(pp => pp.id === p.id ? { ...pp, children: (pp.children||[]).filter(ch => ch.id !== c.id) } : pp).filter(pp => (pp.children||[]).length > 0 || pp.source !== "Deneme Kaydı"));
+                        }}>🗑️ Sil</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          });
+        })() : filtered.map(p => {
           const isPassive = p.isActive === false;
           const unpaid = (p.children||[]).filter(c => (c.enrollments||[]).some(e => e.activePackage && !e.activePackage.paid)).length;
           const pkgSummaries = (p.children||[]).flatMap(c =>
@@ -2497,12 +2547,12 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
             </div>
           );
         })}
-        {filtered.length === 0 && (
+        {statusFilter !== "Deneme" && filtered.length === 0 && (
           <div style={{ textAlign:"center", padding:"32px 0", color:C.textDim, fontWeight:700, fontSize:14 }}>
             {statusFilter === "Pasif" ? "Pasif veli bulunamadı." : statusFilter === "Aktif" ? "Aktif veli bulunamadı." : "Veli bulunamadı."}
           </div>
         )}
-        <div style={{ marginTop: 12, fontSize: 13, color: C.textDim, fontWeight: 700 }}>{filtered.length} veli gösteriliyor · Detay için tıklayın</div>
+        {statusFilter !== "Deneme" && <div style={{ marginTop: 12, fontSize: 13, color: C.textDim, fontWeight: 700 }}>{filtered.length} veli gösteriliyor · Detay için tıklayın</div>}
       </Card>
     </div>
   );
@@ -8066,7 +8116,7 @@ function App() {
 
   const pages = {
     dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} groups={groups} />,
-    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} canEdit={canEdit} />,
+    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} groups={groups} canEdit={canEdit} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
     reports: <ReportsPage members={members} finance={finance} staff={visibleStaff} reports={reports} setReports={setReports} canEdit={canEdit} />,
