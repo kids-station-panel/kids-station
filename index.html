@@ -916,19 +916,28 @@ function LoginPage({ onLogin, dbStatus }) {
 }
 
 // ── ADMIN DASHBOARD ───────────────────────────────────────
-function AdminDashboard({ members, finance, staff }) {
+function AdminDashboard({ members, finance, staff, groups }) {
   const isMobile = useIsMobile(600);
-  const currentYM = new Date().toISOString().slice(0, 7); // "2026-03"
+  const currentYM = new Date().toISOString().slice(0, 7);
   const monthlyFinance = finance.filter(f => (f.date || "").startsWith(currentYM));
   const totalIncome = monthlyFinance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
   const totalExpense = monthlyFinance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
-  // Toplam kasa (tüm zamanlar)
   const kasaBalance = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0)
                     - finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
   const allChildren = members.flatMap(p => p.children || []);
-  const active = allChildren.filter(c => c.status === "Aktif").length;
+  // Trial students are separate — don't count in regular stats
+  const regularChildren = allChildren.filter(c => !c.isTrialStudent);
+  const trialChildren = allChildren.filter(c => c.isTrialStudent);
+  const active = regularChildren.filter(c => c.status === "Aktif").length;
   const net = totalIncome - totalExpense;
   const monthName = new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+
+  // Bu haftanın deneme dersleri
+  const today = new Date();
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1)); weekStart.setHours(0,0,0,0);
+  const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
+  const trialThisWeek = trialChildren.filter(c => { if (!c.trialDate) return false; const td = new Date(c.trialDate); return td >= weekStart && td <= weekEnd; }).sort((a,b) => (a.trialDate||"").localeCompare(b.trialDate||""));
+  const trialAll = [...trialChildren].sort((a,b) => (b.addedAt||"").localeCompare(a.addedAt||""));
 
   return (
     <div className="fade-in">
@@ -938,20 +947,85 @@ function AdminDashboard({ members, finance, staff }) {
       </div>
 
       <div className="stat-cards">
-        <StatCard label="Kayıtlı Çocuk" value={allChildren.length} sub={`${active} aktif`} color={C.blue} icon="👥" />
-        <StatCard label="Personel" value={staff.length} sub="Tüm ekip" color={C.orange} icon="🏅" />
+        <StatCard label="Kayıtlı Çocuk" value={regularChildren.length} sub={`${active} aktif`} color={C.blue} icon="👥" />
+        <StatCard label="Deneme Öğrenci" value={trialChildren.length} sub={`${trialThisWeek.length} bu hafta`} color={C.orange} icon="🧪" />
         <StatCard label="Bu Ay Gelir" value={`₺${totalIncome.toLocaleString()}`} sub={`Kasa: ₺${kasaBalance.toLocaleString()}`} color={C.green} icon="💰" />
         <StatCard label="Bu Ay Gider" value={`₺${totalExpense.toLocaleString()}`} sub={`Net bu ay: ₺${net.toLocaleString()}`} color={C.red} icon="📉" />
       </div>
 
+      {/* Bu haftaki deneme dersleri */}
+      <Card style={{ marginBottom:18 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+          <CardTitle color={C.orange} icon="🧪">Bu Hafta Deneme Dersleri</CardTitle>
+          {trialThisWeek.length > 0 && <Badge color={C.orange}>{trialThisWeek.length} adet</Badge>}
+        </div>
+        {trialThisWeek.length === 0 ? (
+          <div style={{ color:C.textDim, fontWeight:600, fontSize:14, padding:"8px 0" }}>Bu hafta deneme dersi yok.</div>
+        ) : trialThisWeek.map(c => {
+          const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
+          const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
+          return (
+            <div key={c.id} style={{ padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:900, fontSize:15, color:C.text }}>{c.name}</div>
+                  <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:3, display:"flex", flexWrap:"wrap", gap:10 }}>
+                    <span>📅 {fmtDate(c.trialDate)}</span>
+                    {grp && <span>👥 {grp.name} · {grp.time||"?"}</span>}
+                    <span>📞 {c.parentPhone||"-"}</span>
+                    {c.birthDate && <span>🎂 {calcAgeDetailed(c.birthDate)}</span>}
+                    {c.addedByTeacher && <span>👤 {c.addedByTeacher}</span>}
+                  </div>
+                  {c.trialNote && (
+                    <div style={{ marginTop:8, background:"#7c3aed12", border:"1px solid #7c3aed33", borderRadius:8, padding:"7px 10px", fontSize:13, color:"#5b21b6", fontWeight:600, lineHeight:1.5 }}>
+                      📝 <strong>Öğretmen Notu:</strong> {c.trialNote}
+                      {c.trialNoteBy && <span style={{ fontSize:11, color:C.textDim, fontWeight:500 }}> — {c.trialNoteBy}{c.trialNoteAt ? ` · ${fmtDate(c.trialNoteAt)}` : ""}</span>}
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginLeft:10, flexShrink:0 }}>
+                  <Badge color={statusColor}>{c.trialStatus||"Bekleniyor"}</Badge>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+
+      {/* Tüm deneme öğrencileri (geçmiş + gelecek) */}
+      {trialAll.filter(c => !trialThisWeek.some(tw => tw.id === c.id)).length > 0 && (
+        <Card style={{ marginBottom:18 }}>
+          <CardTitle color={"#7c3aed"} icon="📋">Tüm Deneme Öğrencileri</CardTitle>
+          {trialAll.filter(c => !trialThisWeek.some(tw => tw.id === c.id)).slice(0, 8).map(c => {
+            const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
+            const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
+            return (
+              <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{c.name}</div>
+                  <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>
+                    {fmtDate(c.trialDate)||"Tarih yok"} {grp ? `· ${grp.name}` : ""} · {c.addedByTeacher||"-"}
+                    {c.trialNote && <span style={{ color:"#7c3aed" }}> · 📝 Not var</span>}
+                  </div>
+                </div>
+                <Badge color={statusColor}>{c.trialStatus||"Bekleniyor"}</Badge>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+
       <div className="grid-2col" style={{ gap: 18 }}>
         <Card>
-          <CardTitle color={C.blue} icon="👥">Son Üyeler</CardTitle>
-          {members.flatMap(p => p.children || []).slice(0, 5).map(m => (
+          <CardTitle color={C.blue} icon="👥">Son Kayıtlı Öğrenciler</CardTitle>
+          {regularChildren.slice(0, 5).map(m => (
             <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: C.text }}>{m.name}</div>
-                <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, fontWeight: 600 }}>{(m.enrollments||[]).map(e=>e.branchName).join(", ")||"-"}</div>
+                <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, fontWeight: 600 }}>
+                  {m.birthDate ? calcAgeDetailed(m.birthDate) : "-"}
+                  {(m.enrollments||[]).length > 0 && " · " + (m.enrollments||[]).map(e=>e.branchName).join(", ")}
+                </div>
               </div>
               <Badge color={m.status === "Aktif" ? C.green : C.red}>{m.status}</Badge>
             </div>
@@ -971,11 +1045,11 @@ function AdminDashboard({ members, finance, staff }) {
             🏦 Toplam Kasa: ₺{kasaBalance.toLocaleString()}
           </div>
           <div style={{ height: 14, background: "#eef2ff", borderRadius: 99, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${Math.min((totalIncome / (totalIncome + totalExpense)) * 100, 100)}%`, background: `linear-gradient(90deg, ${C.green}, ${C.yellow})`, borderRadius: 99 }} />
+            <div style={{ height: "100%", width: `${Math.min(totalIncome + totalExpense > 0 ? (totalIncome / (totalIncome + totalExpense)) * 100 : 0, 100)}%`, background: `linear-gradient(90deg, ${C.green}, ${C.yellow})`, borderRadius: 99 }} />
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12, color: C.textDim, fontWeight: 600 }}>
             <span>Gelir oranı</span>
-            <span>%{Math.round((totalIncome / (totalIncome + totalExpense)) * 100)}</span>
+            <span>%{Math.round(totalIncome + totalExpense > 0 ? (totalIncome / (totalIncome + totalExpense)) * 100 : 0)}</span>
           </div>
 
           <div style={{ marginTop: 20 }}>
@@ -4294,6 +4368,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [trialMsg, setTrialMsg] = useState("");
   const [groupAddStudentId, setGroupAddStudentId] = useState({});
   const [quickMesaiOpen, setQuickMesaiOpen] = useState(false);
+  const [trialNoteEdit, setTrialNoteEdit] = useState({ childId: null, text: "" });
   // Mesai state
   const [mesaiMonth, setMesaiMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [mesaiForm, setMesaiForm] = useState({ date: new Date().toISOString().slice(0, 10), checkIn: "", checkOut: "" });
@@ -4860,6 +4935,11 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
               return next;
             });
           };
+          const saveTrialNote = (child, parentRec, note) => {
+            setAllParents(prev => (prev||[]).map(p => p.id === parentRec.id ? { ...p, children: (p.children||[]).map(c => c.id === child.id ? { ...c, trialNote: note, trialNoteAt: new Date().toISOString(), trialNoteBy: user.name } : c) } : p));
+            setTrialNoteEdit({ childId: null, text: "" });
+            showKsToast("✅ Not kaydedildi!", "#22c55e");
+          };
 
           return (
             <div className="fade-in">
@@ -5025,9 +5105,30 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                           onClick={() => { if (parentRec) setAllParents(prev => (prev||[]).map(p => p.id === parentRec.id ? { ...p, children: (p.children||[]).map(ch => ch.id === c.id ? { ...ch, isTrialStudent: false, status: "Aktif", trialStatus: undefined } : ch) } : p)); }}>
                           🎓 Aktife Al
                         </button>
-                        <button style={{ ...btnStyle(C.red), fontSize:11, padding:"5px 10px", background:"transparent", color:C.red, border:`1.5px solid ${C.red}` }}
+                        <button style={{ ...btnStyle("#7c3aed"), fontSize:11, padding:"5px 10px" }}
+                          onClick={() => setTrialNoteEdit({ childId: c.id, text: c.trialNote||"" })}>
+                          📝 Not Ekle
+                        </button>
+                        <button style={{ fontSize:11, padding:"5px 10px", borderRadius:8, background:"transparent", color:C.red, border:`1.5px solid ${C.red}`, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}
                           onClick={() => parentRec && deleteTrialStudent(c, parentRec)}>🗑️ Sil</button>
                       </div>
+                      {c.trialNote && trialNoteEdit.childId !== c.id && (
+                        <div style={{ marginTop:8, background:"#7c3aed12", border:"1px solid #7c3aed33", borderRadius:8, padding:"7px 10px", fontSize:12, color:"#7c3aed", fontWeight:600 }}>
+                          📝 {c.trialNote} <span style={{ color:C.textDim, fontWeight:500 }}>— {c.trialNoteBy||user.name}</span>
+                        </div>
+                      )}
+                      {trialNoteEdit.childId === c.id && (
+                        <div style={{ marginTop:10, display:"flex", gap:8, alignItems:"flex-end", flexWrap:"wrap" }}>
+                          <textarea style={{ ...inputStyle, height:60, flex:1, minWidth:180, resize:"vertical" }}
+                            placeholder="Deneme sonrası gözlemler... (davranış, ilgi, uyum)"
+                            value={trialNoteEdit.text}
+                            onChange={e => setTrialNoteEdit(v => ({ ...v, text: e.target.value }))} />
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button style={{ ...btnStyle("#7c3aed"), fontSize:12 }} onClick={() => saveTrialNote(c, parentRec, trialNoteEdit.text)}>💾 Kaydet</button>
+                            <button style={{ ...btnStyle(C.textDim), fontSize:12 }} onClick={() => setTrialNoteEdit({ childId:null, text:"" })}>İptal</button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -7964,7 +8065,7 @@ function App() {
   const visibleStaff = (staff||[]).filter(s => !s.userId || activeUserIds.has(s.userId));
 
   const pages = {
-    dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} />,
+    dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} groups={groups} />,
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} canEdit={canEdit} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
