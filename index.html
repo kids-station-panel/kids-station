@@ -4254,7 +4254,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
 }
 
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
-function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, branches, onUpdatePhoto }) {
+function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, branches, onUpdatePhoto, onGroupAttSave, timeEntries, saveTimeEntry, deleteTimeEntry }) {
   const isMobile = useIsMobile(600);
   const [page, setPage] = useState("groups");
   const [showProfile, setShowProfile] = useState(false);
@@ -4272,10 +4272,15 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [groupAttForm, setGroupAttForm] = useState({});
   const [groupAttMsg, setGroupAttMsg] = useState({ groupId: null, text: "" });
   const [grpFilterUnattended, setGrpFilterUnattended] = useState(false);
-  const [attConfirm, setAttConfirm] = useState(null); // { title, icon, color, desc, onConfirm }
+  const [attConfirm, setAttConfirm] = useState(null); // { icon, color, title, desc, onConfirm }
   const [showNewStudentForm, setShowNewStudentForm] = useState(false);
   const [newStudentForm, setNewStudentForm] = useState({ childName: "", birthDate: "", parentName: "", parentPhone: "", parentPhone2: "", note: "" });
   const [newStudentMsg, setNewStudentMsg] = useState("");
+  // Mesai state
+  const [mesaiMonth, setMesaiMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [mesaiForm, setMesaiForm] = useState({ date: new Date().toISOString().slice(0, 10), checkIn: "", checkOut: "" });
+  const [mesaiEditId, setMesaiEditId] = useState(null); // id being edited, or "new"
+  const [mesaiConfirm, setMesaiConfirm] = useState(null); // { id } to delete
 
   // myClasses removed — class field deprecated, using groups collection instead
 
@@ -4297,6 +4302,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
   const navItems = [
     { key: "groups",       label: "Grup Dersleri",   icon: "👥" },
+    { key: "mesai",        label: "Mesai",           icon: "⏱️" },
     { key: "students",     label: "Öğrenciler",      icon: "👨‍🎓" },
     { key: "attendance",   label: "Devamsızlık",     icon: "📅" },
     { key: "individual",   label: "Bireysel Dersler",icon: "📚" },
@@ -4342,11 +4348,13 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     setGroupAttMsg({ groupId: null, text: "" });
   };
 
-  const saveGroupAttendance = (g, groupStudents, branchName) => {
+  const saveGroupAttendance = async (g, groupStudents, branchName) => {
     const dateStr = groupAttDate;
     const teacherId = myStaff?.id || user.id;
     const teacherName = user.name || user.email || "Öğretmen";
-    // Build global attendance records
+    const fsDb = firebase.firestore();
+
+    // Build new attendance records
     const newRecords = groupStudents.map(child => ({
       id: `grp_${g.id}_${child.id}_${dateStr}`,
       type: "group",
@@ -4363,17 +4371,28 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
       note: "",
       createdAt: new Date().toISOString(),
     }));
-    // Replace existing records for this group+date
+
+    // Compute new attendance state
     const filteredAtt = (attendance||[]).filter(a => !(a.type === "group" && a.groupId === g.id && a.date === dateStr));
-    setAttendance([...filteredAtt, ...newRecords]);
-    // Update enrollment attendance in allParents
+    const nextAttendance = [...filteredAtt, ...newRecords];
+
+    // Update enrollment attendance and package deductions
+    const changedParentIds = new Set();
     const updatedParents = (allParents||[]).map(parent => {
       const updatedChildren = (parent.children||[]).map(child => {
         const status = groupAttForm[child.id];
         if (status === undefined) return child;
+        changedParentIds.add(String(parent.id));
         const attId = `grp_${g.id}_${child.id}_${dateStr}`;
-        const updatedEnrollments = (child.enrollments||[]).map(enr => {
-          if ((enr.branchName||"").trim().toLowerCase() !== (branchName||"").trim().toLowerCase()) return enr;
+        // Match enrollment by branchName (case-insensitive) OR fall back to first active-package enrollment
+        const bnLow = (branchName||"").trim().toLowerCase();
+        const matchingEnrIdx = (child.enrollments||[]).findIndex(e =>
+          (e.branchName||"").trim().toLowerCase() === bnLow
+        );
+        const enrIdx = matchingEnrIdx >= 0 ? matchingEnrIdx
+          : (child.enrollments||[]).findIndex(e => e.activePackage);
+        const updatedEnrollments = (child.enrollments||[]).map((enr, idx) => {
+          if (idx !== enrIdx) return enr;
           const existingEntry = (enr.attendance||[]).find(a => a.id === attId);
           const newEntry = { id: attId, date: dateStr, status, source: "group", groupId: g.id, teacherId };
           const updatedAtt = existingEntry
@@ -4383,8 +4402,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
           if (updatedPkg) {
             const wasGeldi = existingEntry?.status === "Geldi";
             const isGeldi = status === "Geldi";
-            if (isGeldi && !wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.min(updatedPkg.usedLessons + 1, updatedPkg.totalLessons) };
-            else if (!isGeldi && wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.max(updatedPkg.usedLessons - 1, 0) };
+            if (isGeldi && !wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.min((updatedPkg.usedLessons||0) + 1, updatedPkg.totalLessons) };
+            else if (!isGeldi && wasGeldi) updatedPkg = { ...updatedPkg, usedLessons: Math.max((updatedPkg.usedLessons||0) - 1, 0) };
           }
           return { ...enr, attendance: updatedAtt, activePackage: updatedPkg };
         });
@@ -4392,13 +4411,72 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
       });
       return { ...parent, children: updatedChildren };
     });
-    setAllParents(updatedParents);
+
+
+    // ─── Update local state immediately (no rollback) ───────────────
+    // Block onSnapshot from overwriting state during our write
+    _fsWriting["attendance"] = true;
+    _fsWriting["members"] = true;
+    if (onGroupAttSave) {
+      onGroupAttSave(nextAttendance, updatedParents);
+    } else {
+      setAttendance(nextAttendance);
+      setAllParents(updatedParents);
+    }
+
+    // Close form and show success IMMEDIATELY (before async writes)
     setGroupAttMode(null);
     setGroupAttMsg({ groupId: g.id, text: `✅ ${groupStudents.length} öğrenci için ${fmtDate(dateStr)} yoklaması kaydedildi.` });
-    setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 4000);
-    firebase.firestore().collection("auditLog").add({ actorUid: user.id, actorName: user.name, action: "attendance", details: `Grup: ${g.name} | Tarih: ${dateStr} | ${groupStudents.length} öğrenci`, timestamp: new Date().toISOString() }).catch(() => {});
-  };
+    setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 5000);
 
+    // ─── Write to Firestore in background ──────────────────────────
+    let attWriteOk = false;
+    try {
+      const attBatch = fsDb.batch();
+      newRecords.forEach((rec, idx) => {
+        attBatch.set(fsDb.collection("attendance").doc(String(rec.id)), { ...JSON.parse(JSON.stringify(rec)), _order: idx });
+      });
+      await attBatch.commit();
+      attWriteOk = true;
+    } catch(e) {
+      console.error("[KS] Yoklama Firestore hatası:", e.code, e.message, e);
+      const errDetail = e.code === "permission-denied"
+        ? "İzin hatası — Firestore kurallarını kontrol edin."
+        : (e.code || e.message || "Bilinmeyen hata");
+      setGroupAttMsg({ groupId: g.id, text: `❌ Sunucuya kaydedilemedi: ${errDetail}` });
+      setTimeout(() => setGroupAttMsg({ groupId: null, text: "" }), 30000);
+    } finally {
+      if (attWriteOk) {
+        setTimeout(() => { delete _fsWriting["attendance"]; }, 2000);
+      }
+      // On failure: keep _fsWriting["attendance"] locked so onSnapshot can't revert state
+    }
+
+    let memberWriteOk = false;
+    if (changedParentIds.size > 0) {
+      try {
+        const memberBatch = fsDb.batch();
+        updatedParents
+          .filter(p => changedParentIds.has(String(p.id)))
+          .forEach((parent, idx) => {
+            memberBatch.set(fsDb.collection("members").doc(String(parent.id)), { ...JSON.parse(JSON.stringify(parent)), _order: idx });
+          });
+        await memberBatch.commit();
+        memberWriteOk = true;
+      } catch(e) {
+        console.error("[KS] Paket güncelleme Firestore hatası:", e.code, e.message, e);
+      } finally {
+        if (memberWriteOk) {
+          setTimeout(() => { delete _fsWriting["members"]; }, 2000);
+        }
+        // On failure: keep _fsWriting["members"] locked so onSnapshot can't revert state
+      }
+    } else {
+      delete _fsWriting["members"];
+    }
+
+    fsDb.collection("auditLog").add({ actorUid: user.id, actorName: user.name, action: "attendance", details: `Grup: ${g.name} | Tarih: ${dateStr} | ${groupStudents.length} öğrenci`, timestamp: new Date().toISOString() }).catch(() => {});
+  };
   const saveSessionNote = () => {
     if (!selectedStudent || !noteText.trim()) return;
     const cid = Number(selectedStudent);
@@ -4469,6 +4547,116 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
       </div>
 
       <div className="ks-main-content" style={{ flex: 1, padding: isMobile ? "12px 8px 20px" : "20px 16px 30px", overflowY: "auto" }}>
+
+        {page === "mesai" && (() => {
+          const myStaffId = String(myStaff?.id || user.id);
+          const myEntries = (timeEntries||[]).filter(e => String(e.staffId) === myStaffId && (e.date||"").startsWith(mesaiMonth));
+          const sortedEntries = [...myEntries].sort((a,b) => a.date.localeCompare(b.date));
+          const totalMins = sortedEntries.reduce((sum,e) => sum + (calcTimeDiff(e.checkIn, e.checkOut)||0), 0);
+          const inputSt = { padding:"8px 12px", borderRadius:8, border:"1.5px solid "+C.border, background:C.card, color:C.text, fontSize:14, fontFamily:"inherit", width:"100%" };
+          const doSave = () => {
+            if (!mesaiForm.date || !mesaiForm.checkIn) { showKsToast("⚠️ Tarih ve giriş saati zorunlu!", "#ef4444"); return; }
+            const entryId = `te_${myStaffId}_${mesaiForm.date}`;
+            const entry = {
+              id: entryId, staffId: myStaffId,
+              staffName: myStaff?.name || user.name || user.email,
+              date: mesaiForm.date, checkIn: mesaiForm.checkIn,
+              checkOut: mesaiForm.checkOut || null,
+              durationMinutes: calcTimeDiff(mesaiForm.checkIn, mesaiForm.checkOut),
+              createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+            };
+            saveTimeEntry(entry);
+            setMesaiEditId(null);
+            setMesaiForm({ date: new Date().toISOString().slice(0,10), checkIn:"", checkOut:"" });
+          };
+          const openEdit = (e) => { setMesaiForm({ date:e.date, checkIn:e.checkIn||"", checkOut:e.checkOut||"" }); setMesaiEditId(e.id); };
+          return (
+            <div className="fade-in">
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:22, fontWeight:900, color:C.text, marginBottom:4 }}>⏱️ Mesaim</div>
+                <div style={{ fontSize:13, color:C.textDim, fontWeight:600 }}>Giriş ve çıkış saatlerinizi buradan girin. Geçmiş tarihler de girilebilir.</div>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:16, flexWrap:"wrap" }}>
+                <input type="month" value={mesaiMonth} onChange={e=>setMesaiMonth(e.target.value)} style={{ ...inputSt, width:"auto" }} />
+                {totalMins > 0 && (
+                  <div style={{ background:C.green+"22", border:"1.5px solid "+C.green, borderRadius:10, padding:"7px 14px", fontWeight:800, fontSize:13, color:C.green }}>
+                    Bu ay: {fmtMins(totalMins)}
+                  </div>
+                )}
+                <button onClick={() => { setMesaiEditId("new"); setMesaiForm({ date:new Date().toISOString().slice(0,10), checkIn:"", checkOut:"" }); }}
+                  style={{ marginLeft:"auto", background:C.blue, border:"none", borderRadius:9, color:"#fff", fontWeight:800, fontSize:13, padding:"8px 16px", cursor:"pointer", fontFamily:"inherit" }}>
+                  + Giriş Ekle
+                </button>
+              </div>
+              {mesaiEditId && (
+                <Card style={{ marginBottom:16, border:"2px solid "+C.blue }}>
+                  <div style={{ fontWeight:800, fontSize:15, marginBottom:12, color:C.blue }}>{mesaiEditId==="new" ? "Yeni Mesai Girişi" : "Kaydı Düzenle"}</div>
+                  <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr", gap:10, marginBottom:12 }}>
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:800, color:C.textDim, textTransform:"uppercase", marginBottom:4 }}>Tarih</div>
+                      <input type="date" value={mesaiForm.date} onChange={e=>setMesaiForm(f=>({...f,date:e.target.value}))} style={inputSt} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:800, color:C.textDim, textTransform:"uppercase", marginBottom:4 }}>Giriş Saati</div>
+                      <input type="time" value={mesaiForm.checkIn} onChange={e=>setMesaiForm(f=>({...f,checkIn:e.target.value}))} style={inputSt} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize:11, fontWeight:800, color:C.textDim, textTransform:"uppercase", marginBottom:4 }}>Çıkış Saati</div>
+                      <input type="time" value={mesaiForm.checkOut} onChange={e=>setMesaiForm(f=>({...f,checkOut:e.target.value}))} style={inputSt} />
+                    </div>
+                  </div>
+                  {mesaiForm.checkIn && mesaiForm.checkOut && calcTimeDiff(mesaiForm.checkIn, mesaiForm.checkOut) > 0 && (
+                    <div style={{ fontSize:13, color:C.green, fontWeight:700, marginBottom:10 }}>⏱️ Süre: {fmtMins(calcTimeDiff(mesaiForm.checkIn, mesaiForm.checkOut))}</div>
+                  )}
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={doSave} style={{ flex:1, background:C.blue, border:"none", borderRadius:9, color:"#fff", fontWeight:800, fontSize:14, padding:"10px", cursor:"pointer", fontFamily:"inherit" }}>💾 Kaydet</button>
+                    <button onClick={()=>setMesaiEditId(null)} style={{ flex:1, background:"transparent", border:"1.5px solid "+C.border, borderRadius:9, color:C.textDim, fontWeight:700, fontSize:14, padding:"10px", cursor:"pointer", fontFamily:"inherit" }}>Vazgeç</button>
+                  </div>
+                </Card>
+              )}
+              {mesaiConfirm && (
+                <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.55)", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                  <div style={{ background:C.card, borderRadius:16, padding:24, maxWidth:320, width:"90%", boxShadow:"0 8px 40px rgba(0,0,0,0.4)" }}>
+                    <div style={{ fontSize:32, textAlign:"center", marginBottom:10 }}>🗑️</div>
+                    <div style={{ fontWeight:800, fontSize:15, color:C.text, textAlign:"center", marginBottom:8 }}>Bu mesai kaydını silmek istiyor musunuz?</div>
+                    <div style={{ display:"flex", gap:8, marginTop:16 }}>
+                      <button onClick={()=>setMesaiConfirm(null)} style={{ flex:1, background:"transparent", border:"1.5px solid "+C.border, borderRadius:9, color:C.textDim, fontWeight:700, padding:"10px", cursor:"pointer", fontFamily:"inherit" }}>Vazgeç</button>
+                      <button onClick={()=>{ deleteTimeEntry(mesaiConfirm.id); setMesaiConfirm(null); }} style={{ flex:1, background:"#ef4444", border:"none", borderRadius:9, color:"#fff", fontWeight:800, padding:"10px", cursor:"pointer", fontFamily:"inherit" }}>Sil</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {sortedEntries.length === 0 ? (
+                <Card><div style={{ textAlign:"center", padding:"24px 0", color:C.textDim }}>
+                  <div style={{ fontSize:36, marginBottom:8 }}>⏱️</div>
+                  <div style={{ fontWeight:700 }}>Bu ay için kayıt yok.</div>
+                  <div style={{ fontSize:13, marginTop:4 }}>"+ Giriş Ekle" düğmesiyle giriş-çıkış saatlerinizi ekleyebilirsiniz.</div>
+                </div></Card>
+              ) : sortedEntries.map(e => {
+                const dur = calcTimeDiff(e.checkIn, e.checkOut);
+                return (
+                  <Card key={e.id} style={{ marginBottom:8, display:"flex", alignItems:"center", gap:12, justifyContent:"space-between", flexWrap:"wrap" }}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontWeight:800, fontSize:14, color:C.text }}>
+                        {new Date(e.date+"T12:00:00").toLocaleDateString("tr-TR", { weekday:"long", day:"numeric", month:"long" })}
+                      </div>
+                      <div style={{ display:"flex", gap:12, marginTop:5, flexWrap:"wrap" }}>
+                        <span style={{ fontSize:13, color:C.blue, fontWeight:700 }}>🟢 Giriş: {e.checkIn}</span>
+                        {e.checkOut && <span style={{ fontSize:13, color:C.orange, fontWeight:700 }}>🔴 Çıkış: {e.checkOut}</span>}
+                        {dur && <span style={{ fontSize:13, color:C.green, fontWeight:700 }}>⏱️ {fmtMins(dur)}</span>}
+                        {!e.checkOut && <span style={{ fontSize:12, color:C.textDim }}>Çıkış girilmedi</span>}
+                      </div>
+                    </div>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button onClick={()=>openEdit(e)} style={{ background:C.blue+"22", border:"1px solid "+C.blue, borderRadius:7, color:C.blue, fontWeight:700, fontSize:12, padding:"6px 10px", cursor:"pointer", fontFamily:"inherit" }}>Düzenle</button>
+                      <button onClick={()=>setMesaiConfirm({id:e.id})} style={{ background:"#ef444422", border:"1px solid #ef4444", borderRadius:7, color:"#ef4444", fontWeight:700, fontSize:12, padding:"6px 10px", cursor:"pointer", fontFamily:"inherit" }}>Sil</button>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          );
+        })()}
 
         {page === "individual" && (
           <div className="fade-in">
@@ -4636,7 +4824,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
               const isAttMode = groupAttMode === g.id;
               const todayStr = new Date().toISOString().slice(0,10);
               const savedToday = (attendance||[]).some(a => a.type === "group" && a.groupId === g.id && a.date === todayStr);
-              const savedOnDate = (attendance||[]).some(a => a.type === "group" && a.groupId === g.id && a.date === groupAttDate);
+              const savedOnDate = (attendance||[]).some(a => a.type === "group" && String(a.groupId) === String(g.id) && a.date === groupAttDate);
 
               return (
                 <Card key={g.id} style={{ marginBottom:16 }}>
@@ -4698,9 +4886,13 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                                 for (let i = -21; i <= 45; i++) {
                                   const dt = new Date(today); dt.setDate(today.getDate() + i);
                                   const ds = dayMap[dt.getDay()];
-                                  if (g.days.includes(ds)) opts.push(dt.toISOString().slice(0,10));
+                                  if ((g.days||[]).includes(ds)) opts.push(dt.toISOString().slice(0,10));
                                 }
-                                return opts.map(d => { const [y,m,g] = d.split("-"); return React.createElement("option", { key:d, value:d }, g+"."+m+"."+y+" ("+dayMap[new Date(d+"T12:00:00").getDay()]+")"); });
+                                return opts.map(d => {
+                                  const [y,m,dd] = d.split("-");
+                                  const dayName = dayMap[new Date(d+"T12:00:00").getDay()];
+                                  return React.createElement("option", { key:d, value:d }, dd+"."+m+"."+y+" ("+dayName+")");
+                                });
                               })()}
                             </select>
                           ) : (
@@ -4798,6 +4990,11 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       </div>
 
                       {/* Kaydet */}
+                      {savedOnDate && (
+                        <div style={{ background:C.orange+"15", border:`1.5px solid ${C.orange}44`, borderRadius:10, padding:"8px 12px", marginBottom:10, fontSize:12, fontWeight:700, color:C.orange }}>
+                          ⚠️ Bu tarihe ait yoklama mevcut — üstesinden yazacaksınız.
+                        </div>
+                      )}
                       <button
                         style={{ ...btnStyle(savedOnDate ? C.orange : C.green), width:"100%", marginTop:14, padding:"13px 16px", fontSize:15, fontWeight:900 }}
                         onClick={() => {
@@ -4819,7 +5016,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                   {!isAttMode && (() => {
                     const attRecs = groupStudents.map(child => ({
                       child,
-                      rec: (attendance||[]).find(a => a.type==="group" && a.groupId===g.id && String(a.childId)===String(child.id) && a.date===groupAttDate),
+                      rec: (attendance||[]).find(a => a.type==="group" && String(a.groupId)===String(g.id) && String(a.childId)===String(child.id) && a.date===groupAttDate),
                     }));
                     const attendedCount = attRecs.filter(r => r.rec).length;
                     const visibleRecs = grpFilterUnattended ? attRecs.filter(r => !r.rec) : attRecs;
@@ -4847,7 +5044,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
                             {visibleRecs.map(({ child, rec }) => {
                               const age = calcAge(child.birthDate);
-                              const enr = (child.enrollments||[]).find(e => e.branchName === branchName);
+                              const enr = (child.enrollments||[]).find(e => (e.branchName||"").trim().toLowerCase() === (branchName||"").trim().toLowerCase()) || (child.enrollments||[]).find(e => e.activePackage);
                               const remaining = enr?.activePackage ? (enr.activePackage.totalLessons - enr.activePackage.usedLessons) : null;
                               const dotColor = rec ? grpStatusColor(rec.status) : "#d1d5db";
                               return (
@@ -6866,6 +7063,111 @@ async function fsSave(col, items) {
   }
 }
 
+// ── MESAİ TAKİBİ HELPERS ────────────────────────────────────────────────
+function calcTimeDiff(checkIn, checkOut) {
+  if (!checkIn || !checkOut) return null;
+  const [ih, im] = checkIn.split(":").map(Number);
+  const [oh, om] = checkOut.split(":").map(Number);
+  const diff = (oh * 60 + om) - (ih * 60 + im);
+  return diff > 0 ? diff : null;
+}
+function fmtMins(mins) {
+  if (!mins) return "—";
+  const h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? `${h} sa${m > 0 ? " " + m + " dk" : ""}` : `${m} dk`;
+}
+
+function MesaiPage({ timeEntries, staff }) {
+  const isMobile = useIsMobile(600);
+  const [selMonth, setSelMonth] = React.useState(new Date().toISOString().slice(0, 7));
+  const [expandedStaff, setExpandedStaff] = React.useState(null);
+
+  const monthEntries = (timeEntries || []).filter(e => (e.date || "").startsWith(selMonth));
+  const byStaff = {};
+  monthEntries.forEach(e => {
+    const sid = String(e.staffId);
+    if (!byStaff[sid]) byStaff[sid] = [];
+    byStaff[sid].push(e);
+  });
+  const rows = (staff || [])
+    .map(s => ({ s, entries: (byStaff[String(s.id)] || []).sort((a, b) => a.date.localeCompare(b.date)) }))
+    .filter(r => r.entries.length > 0);
+  const grandTotal = rows.reduce((sum, r) => sum + r.entries.reduce((s2, e) => s2 + (calcTimeDiff(e.checkIn, e.checkOut) || 0), 0), 0);
+  const inputSt = { padding: "8px 12px", borderRadius: 8, border: "1.5px solid " + C.border, background: C.card, color: C.text, fontSize: 14, fontFamily: "inherit" };
+
+  return (
+    <div className="fade-in">
+      <div style={{ marginBottom: isMobile ? 14 : 24 }}>
+        <div className="ks-page-title" style={{ color: C.text }}>⏱️ Mesai Takibi</div>
+        <div style={{ fontSize: 13, color: C.textDim, fontWeight: 600 }}>Öğretmen giriş-çıkış saatleri ve aylık mesai özeti</div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        <input type="month" value={selMonth} onChange={e => setSelMonth(e.target.value)} style={inputSt} />
+        {grandTotal > 0 && (
+          <div style={{ background: C.blue + "22", border: "1.5px solid " + C.blue, borderRadius: 10, padding: "8px 16px", fontWeight: 800, fontSize: 14, color: C.blue }}>
+            Toplam: {fmtMins(grandTotal)}
+          </div>
+        )}
+      </div>
+      {rows.length === 0 ? (
+        <Card><div style={{ textAlign: "center", padding: "30px 0", color: C.textDim }}>
+          <div style={{ fontSize: 40, marginBottom: 8 }}>⏱️</div>
+          <div style={{ fontWeight: 700 }}>Bu ay için mesai kaydı bulunamadı.</div>
+          <div style={{ fontSize: 13, marginTop: 4 }}>Öğretmenler telefonlarından giriş yaparak ekleyebilir.</div>
+        </div></Card>
+      ) : rows.map(({ s, entries }) => {
+        const totalMins = entries.reduce((sum, e) => sum + (calcTimeDiff(e.checkIn, e.checkOut) || 0), 0);
+        const isExp = expandedStaff === String(s.id);
+        return (
+          <Card key={s.id} style={{ marginBottom: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", gap: 8, userSelect: "none" }}
+              onClick={() => setExpandedStaff(isExp ? null : String(s.id))}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <UserAvatar user={{ name: s.name, photoURL: s.photo }} size={36} fontSize={14} />
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: C.text }}>{s.name}</div>
+                  <div style={{ fontSize: 12, color: C.textDim }}>{entries.length} gün · {fmtMins(totalMins)}</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ background: C.green + "22", border: "1.5px solid " + C.green, borderRadius: 8, padding: "5px 12px", fontWeight: 800, fontSize: 13, color: C.green }}>{fmtMins(totalMins)}</div>
+                <span style={{ fontSize: 16, color: C.textDim }}>{isExp ? "▲" : "▼"}</span>
+              </div>
+            </div>
+            {isExp && (
+              <div style={{ marginTop: 14, borderTop: "1.5px solid " + C.border, paddingTop: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 72px", gap: 4, marginBottom: 6 }}>
+                  {["Tarih", "Giriş", "Çıkış", "Süre"].map(h => (
+                    <div key={h} style={{ fontSize: 11, fontWeight: 800, color: C.textDim, textTransform: "uppercase" }}>{h}</div>
+                  ))}
+                </div>
+                {entries.map(e => {
+                  const dur = calcTimeDiff(e.checkIn, e.checkOut);
+                  return (
+                    <div key={e.id} style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 72px", gap: 4, padding: "6px 0", borderBottom: "1px solid " + C.border + "55", alignItems: "center" }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>
+                        {new Date(e.date + "T12:00:00").toLocaleDateString("tr-TR", { weekday: "short", day: "numeric", month: "short" })}
+                      </div>
+                      <div style={{ fontSize: 13, color: C.blue, fontWeight: 700 }}>{e.checkIn || "—"}</div>
+                      <div style={{ fontSize: 13, color: e.checkOut ? C.orange : C.textDim, fontWeight: 700 }}>{e.checkOut || "—"}</div>
+                      <div style={{ fontSize: 13, color: dur ? C.green : C.textDim, fontWeight: 700 }}>{fmtMins(dur)}</div>
+                    </div>
+                  );
+                })}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 72px 72px 72px", gap: 4, paddingTop: 8 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: C.textDim }}>TOPLAM</div>
+                  <div /><div />
+                  <div style={{ fontSize: 13, fontWeight: 900, color: C.green }}>{fmtMins(totalMins)}</div>
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function App() {
   const isMobile = useIsMobile(600);
   const [user, setUser] = useState(null);
@@ -6885,6 +7187,7 @@ function App() {
   const [reports, setReportsRaw] = useState([]);
   const [finAyarlar, setFinAyarlarRaw] = useState([]);
   const [appUsers, setAppUsersRaw] = useState([]);
+  const [timeEntries, setTimeEntriesRaw] = useState([]);
   const [previewTeacher, setPreviewTeacher] = useState(null);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
@@ -6977,7 +7280,7 @@ function App() {
   useEffect(() => {
     const unsubs = [];
     const loaded = new Set();
-    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance","reports","finans_ayarlar","users"];
+    const COLS = ["members","staff","finance","announcements","schedule","channels","channelMessages","dismissedNotifs","readNotifs","branches","groups","attendance","reports","finans_ayarlar","users","timeEntries"];
     const setters = {
       members: setMembersRaw, staff: setStaffRaw, finance: setFinanceRaw,
       announcements: setAnnouncementsRaw, schedule: setScheduleRaw,
@@ -6985,6 +7288,7 @@ function App() {
       dismissedNotifs: setDismissedNotifsRaw, readNotifs: setReadNotifsRaw,
       branches: setBranchesRaw, groups: setGroupsRaw, attendance: setAttendanceRaw, reports: setReportsRaw,
       finans_ayarlar: setFinAyarlarRaw, users: setAppUsersRaw,
+      timeEntries: setTimeEntriesRaw,
     };
     const snap2arr = (snap, col) => {
       const rows = snap.docs.map(d => { const data = {...d.data()}; delete data._order; return { ...data, id: d.id }; });
@@ -7129,6 +7433,31 @@ function App() {
     fsSave("attendance", next).then(ok => { if (!ok) setAttendanceRaw(prev); });
   };
 
+  const saveTimeEntry = async (entry) => {
+    const next = [...(timeEntries||[]).filter(e => e.id !== entry.id), entry];
+    _fsWriting["timeEntries"] = true;
+    setTimeEntriesRaw(next);
+    try {
+      await db.collection("timeEntries").doc(String(entry.id)).set({ ...JSON.parse(JSON.stringify(entry)), _order: Date.now() });
+      setTimeout(() => { delete _fsWriting["timeEntries"]; }, 2000);
+    } catch(e) {
+      console.error("[KS] Mesai yazma hatası:", e.code, e.message);
+      showKsToast(`⚠️ Mesai kaydedilemedi: ${e.code || e.message}`, "#ef4444");
+    }
+  };
+
+  const deleteTimeEntry = async (entryId) => {
+    const next = (timeEntries||[]).filter(e => e.id !== entryId);
+    _fsWriting["timeEntries"] = true;
+    setTimeEntriesRaw(next);
+    try {
+      await db.collection("timeEntries").doc(String(entryId)).delete();
+      setTimeout(() => { delete _fsWriting["timeEntries"]; }, 2000);
+    } catch(e) {
+      console.error("[KS] Mesai silme hatası:", e.code, e.message);
+    }
+  };
+
   if (!dbReady) return (
     <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#1a3a6b,#1e5cb3)", display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16 }}>
       <div style={{ fontSize:48 }}>🏫</div>
@@ -7168,6 +7497,10 @@ function App() {
     const assignedIds = new Set((myStaff?.individualStudents || []).map(a => Number(a.childId)));
     const allChildren = members.flatMap(p => p.children || []);
     const myChildren = assignedIds.size > 0 ? allChildren.filter(c => assignedIds.has(Number(c.id))) : [];
+    const onGroupAttSave = (nextAttendance, nextMembers) => {
+      setAttendanceRaw(nextAttendance);
+      setMembersRaw(nextMembers);
+    };
     return <TeacherPanel user={user} members={myChildren}
       announcements={announcements} setAnnouncements={setAnnouncements}
       attendance={attendance} setAttendance={setAttendance}
@@ -7176,6 +7509,8 @@ function App() {
       channels={channels} channelMessages={channelMessages}
       schedule={schedule} setSchedule={setSchedule}
       groups={groups} branches={branches}
+      onGroupAttSave={onGroupAttSave}
+      timeEntries={timeEntries} saveTimeEntry={saveTimeEntry} deleteTimeEntry={deleteTimeEntry}
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
   }
 
@@ -7196,8 +7531,9 @@ function App() {
     { key: "branches", label: "Branşlar", icon: "⚽" },
     { key: "groups", label: "Gruplar", icon: "👥" },
     { key: "activity", label: "Faaliyet", icon: "📋" },
+    { key: "mesai", label: "Mesai", icon: "⏱️" },
   ];
-  const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange];
+  const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange, C.blue];
 
   const alertCount = useNotifications(members, finance, staff).filter(a=>a.type==="danger"||a.type==="warning").length;
   // Yönetici rolü için yetki kontrolü
@@ -7263,6 +7599,7 @@ function App() {
     branches: <BranchesPage branches={branches} setBranches={setBranches} canEdit={canEdit} />,
     groups: <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={visibleStaff} members={members} canEdit={canEdit} userAccounts={appUsers} />,
     activity: <ActivityPage visibleStaff={visibleStaff} />,
+    mesai: <MesaiPage timeEntries={timeEntries} staff={visibleStaff} />,
   };
 
   return (
