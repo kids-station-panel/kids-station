@@ -7540,7 +7540,6 @@ function App() {
     { key: "calendar", label: "Takvim", icon: "📅" },
     { key: "advanced", label: "Analiz", icon: "📈" },
     { key: "messages", label: "Mesajlar", icon: "💬" },
-    { key: "rewards", label: "Ödüller", icon: "🏆" },
     { key: "users", label: "Kullanıcılar", icon: "👤" },
     { key: "branches", label: "Branşlar", icon: "⚽" },
     { key: "groups", label: "Gruplar", icon: "👥" },
@@ -7567,7 +7566,6 @@ function App() {
     calendar: <CalendarPage members={members} staff={visibleStaff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} groups={groups} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={visibleStaff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
-    rewards: <RewardsPage members={members} />,
     users: <UserManagementPage canEdit={canEdit} onPreviewTeacher={u => setPreviewTeacher({ ...u, role:"teacher" })}
       onTeacherCreated={(uid, name, email, phone, branch) => {
         const today = new Date().toISOString().slice(0, 10);
