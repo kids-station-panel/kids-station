@@ -7687,14 +7687,15 @@ function App() {
               const assignedIds = new Set(((visibleStaff.find(s => s.userId === previewTeacher.id || s.id === previewTeacher.id)?.individualStudents)||[]).map(a=>Number(a.childId)));
               return assignedIds.size > 0 ? (p.children||[]).filter(c => assignedIds.has(Number(c.id))).map(c=>({...p, children:[c]})) : [];
             })}
-            announcements={announcements} setAnnouncements={()=>{}}
-            attendance={attendance} setAttendance={()=>{}}
-            staff={visibleStaff} setStaff={()=>{}}
-            allParents={members} setAllParents={()=>{}}
+            announcements={announcements} setAnnouncements={setAnnouncements}
+            attendance={attendance} setAttendance={setAttendance}
+            staff={visibleStaff} setStaff={setStaff}
+            allParents={members} setAllParents={setMembers}
             channels={channels} channelMessages={channelMessages}
-            setChannels={()=>{}} setChannelMessages={()=>{}}
-            schedule={schedule} setSchedule={()=>{}}
+            schedule={schedule} setSchedule={setSchedule}
             groups={groups} branches={branches}
+            onGroupAttSave={(nextAttendance, nextMembers) => { setAttendanceRaw(nextAttendance); setMembersRaw(nextMembers); }}
+            timeEntries={timeEntries} saveTimeEntry={saveTimeEntry} deleteTimeEntry={deleteTimeEntry}
             onUpdatePhoto={()=>{}}
           />
         ) : (
