@@ -201,13 +201,13 @@ const { useState, useEffect, useRef } = React;
 
 // ── GLOBAL TOAST SİSTEMİ ─────────────────────────────────
 const _ksToastListeners = [];
-function showKsToast(msg, color) {
-  _ksToastListeners.forEach(fn => fn({ msg, color: color || "#22c55e" }));
+function showKsToast(msg, color, duration) {
+  _ksToastListeners.forEach(fn => fn({ msg, color: color || "#22c55e", duration: duration || 3500 }));
 }
 function KsToast() {
   const [t, setT] = useState(null);
   useEffect(() => {
-    const fn = (item) => { setT(item); setTimeout(() => setT(null), 3500); };
+    const fn = (item) => { setT(item); setTimeout(() => setT(null), item.duration || 3500); };
     _ksToastListeners.push(fn);
     return () => { const i = _ksToastListeners.indexOf(fn); if (i >= 0) _ksToastListeners.splice(i, 1); };
   }, []);
@@ -7108,6 +7108,7 @@ function MesaiPage({ timeEntries, staff }) {
             Toplam: {fmtMins(grandTotal)}
           </div>
         )}
+        <button onClick={() => window.location.reload()} style={{ marginLeft: "auto", background: "transparent", border: "1.5px solid " + C.border, borderRadius: 9, color: C.textDim, fontWeight: 700, fontSize: 13, padding: "7px 14px", cursor: "pointer", fontFamily: "inherit" }}>🔄 Yenile</button>
       </div>
       {rows.length === 0 ? (
         <Card><div style={{ textAlign: "center", padding: "30px 0", color: C.textDim }}>
@@ -7191,6 +7192,7 @@ function App() {
   const [previewTeacher, setPreviewTeacher] = useState(null);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
+  const [fsWriteOk, setFsWriteOk] = useState(null); // null=test edilmedi, true=OK, false=hata
   const [showProfile, setShowProfile] = useState(false);
 
   // Aktif kullanıcı rolünü global değişkende sakla (fsSave koruması)
@@ -7225,6 +7227,10 @@ function App() {
             return;
           }
           db.collection(USER_COL).doc(found.docId).set({ lastLogin: new Date().toISOString() }, { merge: true }).catch(() => {});
+          // Firestore yazma testi — kullanıcı giriş yaptıktan sonra
+          db.collection("_test").doc(firebaseUser.uid).set({ ts: new Date().toISOString() })
+            .then(() => { setFsWriteOk(true); db.collection("_test").doc(firebaseUser.uid).delete().catch(() => {}); })
+            .catch(err => { console.error("[KS] Firestore yazma testi başarısız:", err.code, err.message); setFsWriteOk(false); });
           const role = String(data.role || "").trim().toLowerCase();
           console.log("[KS] AUTO-LOGIN OK — uid:", firebaseUser.uid, "col:", found.col, "role:", role);
           setUser({ role: role || "unknown", name: data.name || firebaseUser.email, email: firebaseUser.email, id: firebaseUser.uid, photoURL: data.photoURL || null });
@@ -7440,9 +7446,11 @@ function App() {
     try {
       await db.collection("timeEntries").doc(String(entry.id)).set({ ...JSON.parse(JSON.stringify(entry)), _order: Date.now() });
       setTimeout(() => { delete _fsWriting["timeEntries"]; }, 2000);
+      showKsToast("✅ Mesai kaydedildi!", "#22c55e");
     } catch(e) {
       console.error("[KS] Mesai yazma hatası:", e.code, e.message);
-      showKsToast(`⚠️ Mesai kaydedilemedi: ${e.code || e.message}`, "#ef4444");
+      const errMsg = e.code === "permission-denied" ? "İzin hatası — yöneticiyle iletişime geçin." : (e.code || e.message || "Bağlantı hatası");
+      showKsToast(`❌ Mesai sunucuya kaydedilemedi: ${errMsg}`, "#ef4444", 8000);
     }
   };
 
@@ -7467,6 +7475,12 @@ function App() {
   );
 
   if (!user) return <LoginPage onLogin={setUser} dbStatus={dbStatus} />;
+
+  const FsWarningBanner = fsWriteOk === false ? (
+    <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:99998, background:"#dc2626", color:"#fff", textAlign:"center", padding:"10px 16px", fontWeight:700, fontSize:14 }}>
+      ⚠️ Firestore bağlantısı yok — kayıtlar sunucuya gitmiyor! Sayfayı yenileyin veya yöneticiyle iletişime geçin.
+    </div>
+  ) : null;
 
   console.log("[KS] RENDER panel için user.role:", user.role, "| user:", JSON.stringify(user));
 
@@ -7501,7 +7515,7 @@ function App() {
       setAttendanceRaw(nextAttendance);
       setMembersRaw(nextMembers);
     };
-    return <TeacherPanel user={user} members={myChildren}
+    return <React.Fragment>{FsWarningBanner}<TeacherPanel user={user} members={myChildren}
       announcements={announcements} setAnnouncements={setAnnouncements}
       attendance={attendance} setAttendance={setAttendance}
       staff={visibleStaff} setStaff={setStaff}
@@ -7511,7 +7525,7 @@ function App() {
       groups={groups} branches={branches}
       onGroupAttSave={onGroupAttSave}
       timeEntries={timeEntries} saveTimeEntry={saveTimeEntry} deleteTimeEntry={deleteTimeEntry}
-      onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />;
+      onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} /></React.Fragment>;
   }
 
   // manager rolü artık admin paneline yönlendiriliyor (yukarıdaki if bloğunda yakalandı)
@@ -7526,7 +7540,6 @@ function App() {
     { key: "calendar", label: "Takvim", icon: "📅" },
     { key: "advanced", label: "Analiz", icon: "📈" },
     { key: "messages", label: "Mesajlar", icon: "💬" },
-    { key: "rewards", label: "Ödüller", icon: "🏆" },
     { key: "users", label: "Kullanıcılar", icon: "👤" },
     { key: "branches", label: "Branşlar", icon: "⚽" },
     { key: "groups", label: "Gruplar", icon: "👥" },
@@ -7553,7 +7566,6 @@ function App() {
     calendar: <CalendarPage members={members} staff={visibleStaff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} groups={groups} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={visibleStaff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
-    rewards: <RewardsPage members={members} />,
     users: <UserManagementPage canEdit={canEdit} onPreviewTeacher={u => setPreviewTeacher({ ...u, role:"teacher" })}
       onTeacherCreated={(uid, name, email, phone, branch) => {
         const today = new Date().toISOString().slice(0, 10);
@@ -7604,6 +7616,7 @@ function App() {
 
   return (
   <React.Fragment>
+    {FsWarningBanner}
     <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: C.bg, maxWidth: "100vw", overflow: "hidden" }}>
       {showProfile && <ProfileModal user={user} onClose={() => setShowProfile(false)} onLogout={() => { firebase.auth().signOut(); setUser(null); }} onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} />}
       {/* Header */}
@@ -7672,14 +7685,15 @@ function App() {
               const assignedIds = new Set(((visibleStaff.find(s => s.userId === previewTeacher.id || s.id === previewTeacher.id)?.individualStudents)||[]).map(a=>Number(a.childId)));
               return assignedIds.size > 0 ? (p.children||[]).filter(c => assignedIds.has(Number(c.id))).map(c=>({...p, children:[c]})) : [];
             })}
-            announcements={announcements} setAnnouncements={()=>{}}
-            attendance={attendance} setAttendance={()=>{}}
-            staff={visibleStaff} setStaff={()=>{}}
-            allParents={members} setAllParents={()=>{}}
+            announcements={announcements} setAnnouncements={setAnnouncements}
+            attendance={attendance} setAttendance={setAttendance}
+            staff={visibleStaff} setStaff={setStaff}
+            allParents={members} setAllParents={setMembers}
             channels={channels} channelMessages={channelMessages}
-            setChannels={()=>{}} setChannelMessages={()=>{}}
-            schedule={schedule} setSchedule={()=>{}}
+            schedule={schedule} setSchedule={setSchedule}
             groups={groups} branches={branches}
+            onGroupAttSave={(nextAttendance, nextMembers) => { setAttendanceRaw(nextAttendance); setMembersRaw(nextMembers); }}
+            timeEntries={timeEntries} saveTimeEntry={saveTimeEntry} deleteTimeEntry={deleteTimeEntry}
             onUpdatePhoto={()=>{}}
           />
         ) : (
