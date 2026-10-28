@@ -4411,7 +4411,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [grpFilterUnattended, setGrpFilterUnattended] = useState(false);
   const [attConfirm, setAttConfirm] = useState(null); // { icon, color, title, desc, onConfirm }
   const [showNewStudentForm, setShowNewStudentForm] = useState(false);
-  const [newStudentForm, setNewStudentForm] = useState({ childFirstName: "", childLastName: "", birthDate: "", motherName: "", fatherName: "", parentPhone: "", parentPhone2: "", targetGroupId: "", note: "" });
+  const [newStudentForm, setNewStudentForm] = useState({ childFirstName: "", childLastName: "", birthDate: "", motherName: "", fatherName: "", parentPhone: "", parentPhone2: "", targetGroupId: "", note: "", source: "normal" });
   const [newStudentMsg, setNewStudentMsg] = useState("");
   const [showTrialForm, setShowTrialForm] = useState(false);
   const [trialForm, setTrialForm] = useState({ childFirstName: "", childLastName: "", birthDate: "", parentPhone: "", targetGroupId: "", trialDate: new Date().toISOString().slice(0,10) });
@@ -5625,17 +5625,40 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
             {showNewStudentForm && (
               <Card style={{ marginBottom:14 }}>
                 <CardTitle color={C.green} icon="➕">Yeni Öğrenci Kaydı</CardTitle>
-                <div style={{ fontSize:12, color:C.orange, fontWeight:700, marginBottom:14, background:C.orange+"15", borderRadius:8, padding:"8px 12px" }}>
-                  ℹ️ Paket ve ödeme bilgisi admin tarafından eklenecektir. Sadece bilgileri doldurun.
+
+                {/* Kayıt türü seçimi */}
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>Kayıt Türü *</div>
+                  <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                    {[
+                      { val:"normal", label:"🏠 Kendi Üyemiz", desc:"Normal kayıt — paket ve ödeme admin tarafından eklenir", color:C.blue },
+                      { val:"mediatopia", label:"🤝 Mediatopia Üyesi", desc:"Ödeme Mediatopia üzerinden işlenir", color:"#7c3aed" },
+                    ].map(opt => (
+                      <label key={opt.val} onClick={() => setNewStudentForm(f => ({ ...f, source: opt.val }))}
+                        style={{ flex:1, minWidth:180, display:"flex", alignItems:"flex-start", gap:10, padding:"12px 14px", borderRadius:12,
+                          border:`2px solid ${newStudentForm.source===opt.val ? opt.color : C.border}`,
+                          background: newStudentForm.source===opt.val ? opt.color+"15" : "transparent",
+                          cursor:"pointer", transition:"all 0.15s" }}>
+                        <input type="radio" name="nsource" value={opt.val} checked={newStudentForm.source===opt.val} onChange={() => setNewStudentForm(f => ({ ...f, source: opt.val }))} style={{ marginTop:2 }} />
+                        <div>
+                          <div style={{ fontWeight:800, fontSize:13, color: newStudentForm.source===opt.val ? opt.color : C.text }}>{opt.label}</div>
+                          <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2 }}>{opt.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12 }}>
+
+                {/* Çocuk bilgileri */}
+                <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase", borderTop:`1px solid ${C.border}`, paddingTop:14 }}>👦 Çocuk Bilgileri</div>
+                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12, marginBottom:16 }}>
                   <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Adı *</div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Adı *</div>
                     <input style={inputStyle} placeholder="Ad" value={newStudentForm.childFirstName}
                       onChange={e => setNewStudentForm(f => ({ ...f, childFirstName: e.target.value }))} />
                   </div>
                   <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Çocuğun Soyadı *</div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Soyadı *</div>
                     <input style={inputStyle} placeholder="Soyad" value={newStudentForm.childLastName}
                       onChange={e => setNewStudentForm(f => ({ ...f, childLastName: e.target.value }))} />
                   </div>
@@ -5643,8 +5666,21 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Doğum Tarihi</div>
                     <input style={inputStyle} type="date" value={newStudentForm.birthDate}
                       onChange={e => setNewStudentForm(f => ({ ...f, birthDate: e.target.value }))} />
-                    {newStudentForm.birthDate && <div style={{ fontSize:12, color:C.blue, fontWeight:700, marginTop:4 }}>Yaş: {calcAgeDetailed(newStudentForm.birthDate)}</div>}
+                    {newStudentForm.birthDate && <div style={{ fontSize:12, color:C.blue, fontWeight:700, marginTop:4 }}>🎂 {calcAgeDetailed(newStudentForm.birthDate)}</div>}
                   </div>
+                  <div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Gruba Ekle</div>
+                    <select style={inputStyle} value={newStudentForm.targetGroupId}
+                      onChange={e => setNewStudentForm(f => ({ ...f, targetGroupId: e.target.value }))}>
+                      <option value="">— Grup seç (opsiyonel) —</option>
+                      {myGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Veli bilgileri */}
+                <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase", borderTop:`1px solid ${C.border}`, paddingTop:14 }}>👨‍👩‍👧 Veli Bilgileri</div>
+                <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:12, marginBottom:16 }}>
                   <div>
                     <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Anne Adı Soyadı</div>
                     <input style={inputStyle} placeholder="Annenin adı soyadı" value={newStudentForm.motherName}
@@ -5656,22 +5692,14 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       onChange={e => setNewStudentForm(f => ({ ...f, fatherName: e.target.value }))} />
                   </div>
                   <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Veli Telefonu *</div>
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>1. Telefon *</div>
                     <input style={inputStyle} placeholder="05xx xxx xx xx" value={newStudentForm.parentPhone}
                       onChange={e => setNewStudentForm(f => ({ ...f, parentPhone: e.target.value }))} />
                   </div>
                   <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>2. İrtibat (opsiyonel)</div>
-                    <input style={inputStyle} placeholder="2. telefon veya isim" value={newStudentForm.parentPhone2}
+                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>2. Telefon</div>
+                    <input style={inputStyle} placeholder="05xx xxx xx xx" value={newStudentForm.parentPhone2}
                       onChange={e => setNewStudentForm(f => ({ ...f, parentPhone2: e.target.value }))} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Gruba Ekle (opsiyonel)</div>
-                    <select style={inputStyle} value={newStudentForm.targetGroupId}
-                      onChange={e => setNewStudentForm(f => ({ ...f, targetGroupId: e.target.value }))}>
-                      <option value="">— Grup seç —</option>
-                      {myGroups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                    </select>
                   </div>
                   <div style={{ gridColumn: isMobile ? "1" : "1 / -1" }}>
                     <div style={{ fontSize:12, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Not</div>
@@ -5679,14 +5707,16 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       onChange={e => setNewStudentForm(f => ({ ...f, note: e.target.value }))} />
                   </div>
                 </div>
-                {newStudentMsg && <div style={{ marginTop:10, color: newStudentMsg.startsWith("✅") ? C.green : C.red, fontWeight:700, fontSize:13 }}>{newStudentMsg}</div>}
-                <div style={{ display:"flex", gap:10, marginTop:16 }}>
-                  <button style={btnStyle(C.green)} onClick={() => {
+
+                {newStudentMsg && <div style={{ marginTop:4, marginBottom:10, color: newStudentMsg.startsWith("✅") ? C.green : C.red, fontWeight:700, fontSize:13 }}>{newStudentMsg}</div>}
+                <div style={{ display:"flex", gap:10 }}>
+                  <button style={btnStyle(newStudentForm.source==="mediatopia" ? "#7c3aed" : C.green)} onClick={() => {
                     if (!newStudentForm.childFirstName.trim()) { setNewStudentMsg("⚠️ Çocuğun adını girin."); return; }
                     if (!newStudentForm.childLastName.trim()) { setNewStudentMsg("⚠️ Çocuğun soyadını girin."); return; }
                     if (!newStudentForm.parentPhone.trim()) { setNewStudentMsg("⚠️ Veli telefonunu girin."); return; }
                     const childId = Date.now();
                     const childName = (newStudentForm.childFirstName + " " + newStudentForm.childLastName).trim();
+                    const isMediatopia = newStudentForm.source === "mediatopia";
                     const newChild = { id: childId, name: childName, birthDate: newStudentForm.birthDate, enrollments: [], status: "Aktif", addedByTeacher: user.name, addedAt: new Date().toISOString() };
                     const newParentRec = {
                       id: childId + 1,
@@ -5697,7 +5727,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       parent2Name: newStudentForm.fatherName.trim(),
                       parent2Phone: newStudentForm.parentPhone2.trim(),
                       isActive: true,
-                      source: "Öğretmen Kaydı (" + user.name + ")",
+                      source: isMediatopia ? "mediatopia" : "Öğretmen Kaydı (" + user.name + ")",
                       note: newStudentForm.note.trim(),
                       children: [newChild],
                     };
@@ -5705,9 +5735,9 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     if (newStudentForm.targetGroupId && setGroups) {
                       setGroups(prev => (prev||[]).map(g => String(g.id) === String(newStudentForm.targetGroupId) ? { ...g, studentIds: [...new Set([...(g.studentIds||[]), childId])] } : g));
                     }
-                    setNewStudentMsg("✅ Kayıt oluşturuldu! Admin paket ve ödeme bilgisini ekleyecek.");
-                    setNewStudentForm({ childFirstName:"", childLastName:"", birthDate:"", motherName:"", fatherName:"", parentPhone:"", parentPhone2:"", targetGroupId:"", note:"" });
-                    setTimeout(() => setShowNewStudentForm(false), 2000);
+                    setNewStudentMsg("✅ Kayıt oluşturuldu!" + (isMediatopia ? " Mediatopia üyesi olarak kaydedildi." : " Admin paket ve ödeme bilgisini ekleyecek."));
+                    setNewStudentForm({ childFirstName:"", childLastName:"", birthDate:"", motherName:"", fatherName:"", parentPhone:"", parentPhone2:"", targetGroupId:"", note:"", source:"normal" });
+                    setTimeout(() => setShowNewStudentForm(false), 2500);
                   }}>💾 Kaydet</button>
                   <button style={btnStyle(C.textDim)} onClick={() => setShowNewStudentForm(false)}>İptal</button>
                 </div>
