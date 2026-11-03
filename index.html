@@ -2233,6 +2233,8 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   const [form, setForm] = useState({ parent1Name: "", parent1Phone: "", parent2Name: "", parent2Phone: "", email: "", address: "", source: "" });
   const [statusFilter, setStatusFilter] = useState("Aktif");
   const [confirmPassive, setConfirmPassive] = useState(null);
+  const [showTrialAdd, setShowTrialAdd] = useState(false);
+  const [trialAddForm, setTrialAddForm] = useState({ childFirstName:"", childLastName:"", birthDate:"", parentPhone:"", targetGroupId:"", trialDate: new Date().toISOString().slice(0,10) });
 
   const allChildren = parents.flatMap(p => p.children || []);
   const trialChildren = allChildren.filter(c => c.isTrialStudent);
@@ -2413,6 +2415,58 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
               <button style={btnStyle(C.green)} onClick={addParent}>✓ Kaydet</button>
               <button style={btnOutlineStyle(C.red)} onClick={() => setShowAdd(false)}>İptal</button>
             </div>
+          </div>
+        )}
+
+        {statusFilter === "Deneme" && canEdit && (
+          <div style={{ marginBottom:14 }}>
+            <button style={btnStyle(C.orange)} onClick={() => setShowTrialAdd(v => !v)}>
+              {showTrialAdd ? "✕ İptal" : "🧪 Yeni Deneme Kaydı"}
+            </button>
+            {showTrialAdd && (
+              <div style={{ background:"#fff7ed", borderRadius:14, padding:18, marginTop:12, border:`2px dashed ${C.orange}44` }}>
+                <div style={{ fontWeight:900, color:C.orange, marginBottom:14, fontSize:15 }}>🧪 Deneme Dersi Kaydı</div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Çocuk Adı *</div>
+                    <input style={inputStyle} placeholder="Adı" value={trialAddForm.childFirstName} onChange={e => setTrialAddForm(f => ({...f, childFirstName: e.target.value}))} /></div>
+                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Çocuk Soyadı *</div>
+                    <input style={inputStyle} placeholder="Soyadı" value={trialAddForm.childLastName} onChange={e => setTrialAddForm(f => ({...f, childLastName: e.target.value}))} /></div>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Doğum Tarihi</div>
+                    <input style={inputStyle} type="date" value={trialAddForm.birthDate} onChange={e => setTrialAddForm(f => ({...f, birthDate: e.target.value}))} /></div>
+                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Deneme Tarihi *</div>
+                    <input style={inputStyle} type="date" value={trialAddForm.trialDate} onChange={e => setTrialAddForm(f => ({...f, trialDate: e.target.value}))} /></div>
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Veli Telefonu *</div>
+                    <input style={inputStyle} placeholder="05XX XXX XX XX" value={trialAddForm.parentPhone} onChange={e => setTrialAddForm(f => ({...f, parentPhone: e.target.value}))} /></div>
+                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Grup</div>
+                    <select style={inputStyle} value={trialAddForm.targetGroupId} onChange={e => setTrialAddForm(f => ({...f, targetGroupId: e.target.value}))}>
+                      <option value="">Grup seç</option>
+                      {(groups||[]).map(g => <option key={g.id} value={g.id}>{g.name}{g.time ? ` · ${g.time}` : ""}</option>)}
+                    </select></div>
+                </div>
+                <div style={{ display:"flex", gap:10, marginTop:4 }}>
+                  <button style={btnStyle(C.orange)} onClick={() => {
+                    const fn = trialAddForm.childFirstName.trim(), ln = trialAddForm.childLastName.trim(), ph = trialAddForm.parentPhone.trim();
+                    if (!fn || !ln) { showKsToast("⚠️ Çocuk adı soyadı zorunlu!", "#ef4444"); return; }
+                    if (!ph) { showKsToast("⚠️ Telefon numarası zorunlu!", "#ef4444"); return; }
+                    if (!trialAddForm.trialDate) { showKsToast("⚠️ Deneme tarihi seçin!", "#ef4444"); return; }
+                    const childId = `tc_${Date.now()}`;
+                    const parentId = `tp_${Date.now()}`;
+                    const childName = `${fn} ${ln}`;
+                    const newChild = { id: childId, name: childName, birthDate: trialAddForm.birthDate, isTrialStudent: true, trialDate: trialAddForm.trialDate, trialGroupId: trialAddForm.targetGroupId, parentPhone: ph, enrollments: [], status: "Deneme", addedByTeacher: "Admin", addedAt: new Date().toISOString() };
+                    const newParent = { id: parentId, name: childName, parent1Phone: ph, isActive: true, source: "Deneme Kaydı", children: [newChild], createdAt: new Date().toISOString() };
+                    setParents(prev => [...(prev||[]), newParent]);
+                    setTrialAddForm({ childFirstName:"", childLastName:"", birthDate:"", parentPhone:"", targetGroupId:"", trialDate: new Date().toISOString().slice(0,10) });
+                    setShowTrialAdd(false);
+                    showKsToast(`✅ ${childName} deneme dersine kaydedildi!`, "#f97316", 4000);
+                  }}>✓ Kaydet</button>
+                  <button style={btnOutlineStyle(C.red)} onClick={() => setShowTrialAdd(false)}>İptal</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -4954,7 +5008,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
           const myTrialThisWeek = myTrialStudents.filter(c => {
             if (!c.trialDate) return false;
             const td = new Date(c.trialDate);
-            return td >= weekStart && td <= weekEnd && myGroups.some(g => String(g.id) === String(c.trialGroupId));
+            return td >= weekStart && td <= weekEnd;
           });
           const thisMonthStr = new Date().toISOString().slice(0,7);
           const homeStaffId = String(myStaff?.id || user.id);
@@ -5746,7 +5800,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
             {/* Deneme öğrencileri */}
             {(() => {
-              const trialKids = (allParents||[]).flatMap(p => (p.children||[]).filter(c => c.isTrialStudent && c.addedByTeacher === user.name));
+              const trialKids = (allParents||[]).flatMap(p => (p.children||[]).filter(c => c.isTrialStudent));
               if (trialKids.length === 0) return null;
               return (
                 <Card style={{ marginBottom:12 }}>
