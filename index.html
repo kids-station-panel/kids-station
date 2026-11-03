@@ -2235,6 +2235,8 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   const [confirmPassive, setConfirmPassive] = useState(null);
   const [showTrialAdd, setShowTrialAdd] = useState(false);
   const [trialAddForm, setTrialAddForm] = useState({ childFirstName:"", childLastName:"", birthDate:"", parentPhone:"", targetGroupId:"", trialDate: new Date().toISOString().slice(0,10) });
+  const [trialEditId, setTrialEditId] = useState(null);
+  const [trialEditForm, setTrialEditForm] = useState({});
 
   const allChildren = parents.flatMap(p => p.children || []);
   const trialChildren = allChildren.filter(c => c.isTrialStudent);
@@ -2503,12 +2505,52 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
                           showKsToast(`✅ ${c.name} aktif öğrenciye dönüştürüldü! Paket ekleyebilirsiniz.`, "#22c55e", 5000);
                           setSelectedParent(p);
                         }}>🎓 Aktife Al</button>
+                      <button style={{ fontSize:11, padding:"5px 12px", borderRadius:8, background:"transparent", color:C.blue, border:`1.5px solid ${C.blue}`, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}
+                        onClick={() => {
+                          if (trialEditId === c.id) { setTrialEditId(null); return; }
+                          const nameParts = c.name.split(" ");
+                          setTrialEditForm({ childFirstName: nameParts.slice(0,-1).join(" ")||c.name, childLastName: nameParts.length>1?nameParts[nameParts.length-1]:"", birthDate: c.birthDate||"", trialDate: c.trialDate||"", parentPhone: c.parentPhone||p.parent1Phone||"", targetGroupId: c.trialGroupId||"" });
+                          setTrialEditId(c.id);
+                        }}>✏️ Düzenle</button>
                       <button style={{ fontSize:11, padding:"5px 12px", borderRadius:8, background:"transparent", color:C.red, border:`1.5px solid ${C.red}`, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}
                         onClick={() => {
                           if (window.confirm(`"${c.name}" deneme kaydı silinsin mi?`))
                             setParents(prev => prev.map(pp => pp.id === p.id ? { ...pp, children: (pp.children||[]).filter(ch => ch.id !== c.id) } : pp).filter(pp => (pp.children||[]).length > 0 || pp.source !== "Deneme Kaydı"));
                         }}>🗑️ Sil</button>
                     </div>
+                    {trialEditId === c.id && (
+                      <div style={{ background:"#eff6ff", borderRadius:10, padding:14, marginTop:10, border:`1.5px solid ${C.blue}44` }}>
+                        <div style={{ fontWeight:800, color:C.blue, fontSize:13, marginBottom:10 }}>✏️ Kaydı Düzenle</div>
+                        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:8 }}>
+                          <div><div style={{ fontSize:11, fontWeight:700, color:C.textMid, marginBottom:3 }}>Adı</div>
+                            <input style={{ ...inputStyle, fontSize:13 }} value={trialEditForm.childFirstName} onChange={e => setTrialEditForm(f=>({...f, childFirstName:e.target.value}))} /></div>
+                          <div><div style={{ fontSize:11, fontWeight:700, color:C.textMid, marginBottom:3 }}>Soyadı</div>
+                            <input style={{ ...inputStyle, fontSize:13 }} value={trialEditForm.childLastName} onChange={e => setTrialEditForm(f=>({...f, childLastName:e.target.value}))} /></div>
+                          <div><div style={{ fontSize:11, fontWeight:700, color:C.textMid, marginBottom:3 }}>Doğum Tarihi</div>
+                            <input style={{ ...inputStyle, fontSize:13 }} type="date" value={trialEditForm.birthDate} onChange={e => setTrialEditForm(f=>({...f, birthDate:e.target.value}))} /></div>
+                          <div><div style={{ fontSize:11, fontWeight:700, color:C.textMid, marginBottom:3 }}>Deneme Tarihi</div>
+                            <input style={{ ...inputStyle, fontSize:13 }} type="date" value={trialEditForm.trialDate} onChange={e => setTrialEditForm(f=>({...f, trialDate:e.target.value}))} /></div>
+                          <div><div style={{ fontSize:11, fontWeight:700, color:C.textMid, marginBottom:3 }}>Telefon</div>
+                            <input style={{ ...inputStyle, fontSize:13 }} value={trialEditForm.parentPhone} onChange={e => setTrialEditForm(f=>({...f, parentPhone:e.target.value}))} /></div>
+                          <div><div style={{ fontSize:11, fontWeight:700, color:C.textMid, marginBottom:3 }}>Grup</div>
+                            <select style={{ ...inputStyle, fontSize:13 }} value={trialEditForm.targetGroupId} onChange={e => setTrialEditForm(f=>({...f, targetGroupId:e.target.value}))}>
+                              <option value="">Grup seç</option>
+                              {(groups||[]).map(g => <option key={g.id} value={g.id}>{g.name}{g.time?` · ${g.time}`:""}</option>)}
+                            </select></div>
+                        </div>
+                        <div style={{ display:"flex", gap:8 }}>
+                          <button style={{ ...btnStyle(C.blue), fontSize:12, padding:"6px 14px" }} onClick={() => {
+                            const fn = trialEditForm.childFirstName.trim(), ln = trialEditForm.childLastName.trim();
+                            if (!fn) { showKsToast("⚠️ Ad zorunlu!", "#ef4444"); return; }
+                            const newName = ln ? `${fn} ${ln}` : fn;
+                            setParents(prev => prev.map(pp => pp.id === p.id ? { ...pp, parent1Phone: trialEditForm.parentPhone||pp.parent1Phone, children: (pp.children||[]).map(ch => ch.id === c.id ? { ...ch, name: newName, birthDate: trialEditForm.birthDate, trialDate: trialEditForm.trialDate, trialGroupId: trialEditForm.targetGroupId, parentPhone: trialEditForm.parentPhone } : ch) } : pp));
+                            setTrialEditId(null);
+                            showKsToast("✅ Deneme kaydı güncellendi!", "#3b82f6");
+                          }}>✓ Kaydet</button>
+                          <button style={{ ...btnOutlineStyle(C.red), fontSize:12, padding:"6px 14px" }} onClick={() => setTrialEditId(null)}>İptal</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
