@@ -8214,21 +8214,26 @@ function App() {
 
   // manager rolü artık admin paneline yönlendiriliyor (yukarıdaki if bloğunda yakalandı)
 
+  const isManager = user?.role === "manager";
   const adminNav = [
     { key: "dashboard", label: "Anasayfa", icon: "🏠" },
     { key: "members", label: "Üyeler", icon: "👥" },
-    { key: "staff", label: "Personel", icon: "🏅" },
-    { key: "finance", label: "Finans", icon: "💰" },
-    { key: "reports", label: "Raporlar", icon: "📊" },
-    { key: "notifications", label: "Bildirimler", icon: "🔔" },
-    { key: "calendar", label: "Takvim", icon: "📅" },
-    { key: "advanced", label: "Analiz", icon: "📈" },
-    { key: "messages", label: "Mesajlar", icon: "💬" },
-    { key: "users", label: "Kullanıcılar", icon: "👤" },
-    { key: "branches", label: "Branşlar", icon: "⚽" },
+    ...(!isManager ? [
+      { key: "staff", label: "Personel", icon: "🏅" },
+      { key: "finance", label: "Finans", icon: "💰" },
+      { key: "reports", label: "Raporlar", icon: "📊" },
+      { key: "notifications", label: "Bildirimler", icon: "🔔" },
+      { key: "calendar", label: "Takvim", icon: "📅" },
+      { key: "advanced", label: "Analiz", icon: "📈" },
+      { key: "messages", label: "Mesajlar", icon: "💬" },
+      { key: "users", label: "Kullanıcılar", icon: "👤" },
+      { key: "branches", label: "Branşlar", icon: "⚽" },
+    ] : []),
     { key: "groups", label: "Gruplar", icon: "👥" },
-    { key: "activity", label: "Faaliyet", icon: "📋" },
-    { key: "mesai", label: "Mesai", icon: "⏱️" },
+    ...(!isManager ? [
+      { key: "activity", label: "Faaliyet", icon: "📋" },
+      { key: "mesai", label: "Mesai", icon: "⏱️" },
+    ] : []),
   ];
   const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange, C.blue];
 
