@@ -4487,7 +4487,8 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
 }
 
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
-function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, setGroups, branches, onUpdatePhoto, onGroupAttSave, timeEntries, saveTimeEntry, deleteTimeEntry }) {
+function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, setGroups, branches, finance, setFinance, onUpdatePhoto, onGroupAttSave, timeEntries, saveTimeEntry, deleteTimeEntry }) {
+  const isCoordinator = user?.role === "manager";
   const isMobile = useIsMobile(600);
   const [page, setPage] = useState("home");
   const [showProfile, setShowProfile] = useState(false);
@@ -4549,6 +4550,10 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     { key: "notes",        label: "Seans Notları",   icon: "📝" },
     { key: "development",  label: "Gelişim",         icon: "📈" },
     { key: "calendar",     label: "Program",         icon: "📅" },
+    ...(isCoordinator ? [
+      { key: "coord_members", label: "Üyeler",       icon: "🧑‍🤝‍🧑" },
+      { key: "coord_groups",  label: "Gruplar",      icon: "🗂️" },
+    ] : []),
   ];
 
   const addAnnouncement = () => {
@@ -6191,6 +6196,12 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 
         {page === "calendar" && (
           <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff||[]} schedule={schedule} setSchedule={setSchedule||(() => {})} isAdmin={false} currentUser={user} canAdd={true} groups={groups} branches={branches} />
+        )}
+        {page === "coord_members" && isCoordinator && (
+          <MembersPage members={allParents||[]} setMembers={setAllParents} finance={finance||[]} setFinance={setFinance||(() => {})} branches={branches} groups={groups} canEdit={true} />
+        )}
+        {page === "coord_groups" && isCoordinator && (
+          <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff||[]} members={allParents||[]} canEdit={true} userAccounts={[]} />
         )}
       </div>
     </div>
@@ -8185,10 +8196,9 @@ function App() {
     );
   }
 
-  if (user.role === "yönetici" || user.role === "admin" || user.role === "manager") {
+  if (user.role === "yönetici" || user.role === "admin") {
     // Admin paneline düş (aşağıdaki adminNav bloğuna geç)
-    // manager rolü de yönetici gibi admin panelini görür ama sadece view yetkisiyle
-  } else if (user.role === "teacher") {
+  } else if (user.role === "teacher" || user.role === "manager") {
     // Bu öğretmenin staff kaydını bul
     const myStaff = staff.find(s => s.userId === user.id || s.email === user.email);
     // Sadece bu öğretmene atanmış öğrenciler
@@ -8207,12 +8217,11 @@ function App() {
       channels={channels} channelMessages={channelMessages}
       schedule={schedule} setSchedule={setSchedule}
       groups={groups} setGroups={setGroups} branches={branches}
+      finance={finance} setFinance={setFinance}
       onGroupAttSave={onGroupAttSave}
       timeEntries={timeEntries} saveTimeEntry={saveTimeEntry} deleteTimeEntry={deleteTimeEntry}
       onUpdatePhoto={url => setUser(prev => ({ ...prev, photoURL: url }))} /></React.Fragment>;
   }
-
-  // manager rolü artık admin paneline yönlendiriliyor (yukarıdaki if bloğunda yakalandı)
 
   const isManager = user?.role === "manager";
   const adminNav = [
