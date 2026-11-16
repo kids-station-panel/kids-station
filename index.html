@@ -1103,7 +1103,7 @@ function fmtDate(d) {
 }
 
 // ── ÇOCUK DETAY SAYFASI ──────────────────────────────────────
-function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches, canEdit = true }) {
+function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches, canEdit = true, hideFinance = false }) {
   const freshChild = parents.find(p => p.id === parent.id)?.children.find(c => c.id === child.id) || child;
   const enrollments = freshChild.enrollments || [];
 
@@ -1761,7 +1761,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       </Card>
 
       {/* Ödeme Özeti Tüm Branşlar */}
-      <Card>
+      {!hideFinance && <Card>
         <CardTitle color={C.green} icon="💳">Ödeme Özeti</CardTitle>
         {enrollments.length === 0
           ? <div style={{ color:C.textDim, fontWeight:600 }}>Branş kaydı yok</div>
@@ -1837,7 +1837,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       )}
 
       {/* Tekil Ödeme */}
-      {!isMediatopia && <Card>
+      {!hideFinance && !isMediatopia && <Card>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
           <CardTitle color={C.green} icon="💳">Tekil Ödeme</CardTitle>
           {canEdit && <button style={btnStyle(C.green)} onClick={() => setShowSinglePay(!showSinglePay)}>+ Ödeme Ekle</button>}
@@ -1894,7 +1894,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
       </Card>}
 
       {/* Ödeme Geçmişi */}
-      <Card>
+      {!hideFinance && <Card>
         <CardTitle color={C.blue} icon="📋">Ödeme Geçmişi</CardTitle>
         {(() => {
           const childPayments = (finance||[])
@@ -1927,7 +1927,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
             </div>
           );
         })()}
-      </Card>
+      </Card>}
 
       {/* Antrenör Notu */}
       <Card>
@@ -1983,7 +1983,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
 
 
 // ── VELİ DETAY SAYFASI ──────────────────────────────────────
-function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches, canEdit = true }) {
+function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches, canEdit = true, hideFinance = false }) {
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({ ...parent });
   const [selectedChild, setSelectedChild] = useState(null);
@@ -2025,7 +2025,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
 
   if (selectedChild) {
     const freshChild = freshParent.children.find(c => c.id === selectedChild.id) || selectedChild;
-    return <ChildDetail child={freshChild} parent={freshParent} onBack={() => setSelectedChild(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} canEdit={canEdit} />;
+    return <ChildDetail child={freshChild} parent={freshParent} onBack={() => setSelectedChild(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} canEdit={canEdit} hideFinance={hideFinance} />;
   }
 
   return (
@@ -2226,7 +2226,7 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
 }
 
 // ── VELİ LİSTESİ (ANA ÜYELER SAYFASI) ──────────────────────
-function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, groups, canEdit = true }) {
+function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, groups, canEdit = true, hideFinance = false }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedParent, setSelectedParent] = useState(null);
@@ -2292,7 +2292,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
 
   if (selectedParent) {
     const fresh = parents.find(p => p.id === selectedParent.id) || selectedParent;
-    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} canEdit={canEdit} />;
+    return <ParentDetail parent={fresh} onBack={() => setSelectedParent(null)} parents={parents} setParents={setParents} finance={finance} setFinance={setFinance} branches={dynamicBranches} canEdit={canEdit} hideFinance={hideFinance} />;
   }
 
   const statItems = [
@@ -4461,7 +4461,7 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
               </div>
             </div>
             <div style={{ display:"flex", gap:5, flexShrink:0, flexWrap:"wrap", justifyContent:"flex-end" }}>
-              {u.role === "teacher" && onPreviewTeacher && (
+              {(u.role === "teacher" || u.role === "manager") && onPreviewTeacher && (
                 <button onClick={() => onPreviewTeacher(u)}
                   title="Öğretmen gözüyle gör" style={{ width:34, height:34, borderRadius:10, background:"#f0fdf4", border:"1.5px solid #86efac", color:"#15803d", fontSize:16, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>👁️</button>
               )}
@@ -6198,7 +6198,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
           <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff||[]} schedule={schedule} setSchedule={setSchedule||(() => {})} isAdmin={false} currentUser={user} canAdd={true} groups={groups} branches={branches} />
         )}
         {page === "coord_members" && isCoordinator && (
-          <MembersPage members={allParents||[]} setMembers={setAllParents} finance={finance||[]} setFinance={setFinance||(() => {})} branches={branches} groups={groups} canEdit={true} />
+          <MembersPage members={allParents||[]} setMembers={setAllParents} finance={finance||[]} setFinance={setFinance||(() => {})} branches={branches} groups={groups} canEdit={true} hideFinance={true} />
         )}
         {page === "coord_groups" && isCoordinator && (
           <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff||[]} members={allParents||[]} canEdit={true} userAccounts={[]} />
