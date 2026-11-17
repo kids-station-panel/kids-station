@@ -2776,21 +2776,21 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
         )}
         {statusFilter !== "Deneme" && <div style={{ marginTop: 12, fontSize: 13, color: C.textDim, fontWeight: 700 }}>{filtered.length} veli gösteriliyor · Detay için tıklayın</div>}
       </Card>
+      {ticketModal && (
+        <TrialTicketModal
+          child={ticketModal.child}
+          parent={ticketModal.parent}
+          groups={groups||[]}
+          onClose={() => setTicketModal(null)}
+          onSaveTicketId={(tid) => {
+            setParents(prev => prev.map(pp => pp.id === ticketModal.parent.id
+              ? { ...pp, children: (pp.children||[]).map(ch => ch.id === ticketModal.child.id ? { ...ch, trialTicketId: tid } : ch) }
+              : pp));
+            setTicketModal(tm => tm ? { ...tm, child: { ...tm.child, trialTicketId: tid } } : null);
+          }}
+        />
+      )}
     </div>
-    {ticketModal && (
-      <TrialTicketModal
-        child={ticketModal.child}
-        parent={ticketModal.parent}
-        groups={groups||[]}
-        onClose={() => setTicketModal(null)}
-        onSaveTicketId={(tid) => {
-          setParents(prev => prev.map(pp => pp.id === ticketModal.parent.id
-            ? { ...pp, children: (pp.children||[]).map(ch => ch.id === ticketModal.child.id ? { ...ch, trialTicketId: tid } : ch) }
-            : pp));
-          setTicketModal(tm => tm ? { ...tm, child: { ...tm.child, trialTicketId: tid } } : null);
-        }}
-      />
-    )}
   );
 }
 
