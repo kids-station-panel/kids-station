@@ -2278,103 +2278,102 @@ function TrialTicketModal({ child, parent, groups, onClose, onSaveTicketId }) {
     } catch(e) { showKsToast('Görsel oluşturulamadı', '#ef4444'); setSharing(false); }
   };
 
+  const LOGO_URL = "/kids-station/logo.jpg";
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(10,20,60,0.88)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
-      <div style={{ maxWidth:400, width:"100%", maxHeight:"92vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(10,20,50,0.9)", display:"flex", alignItems:"center", justifyContent:"center", padding:12 }} onClick={onClose}>
+      <div style={{ maxWidth:420, width:"100%", maxHeight:"94vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
 
-        {/* ── TICKET CARD ── */}
-        <div ref={ticketRef} style={{ fontFamily:"system-ui,-apple-system,sans-serif", borderRadius:20, overflow:"hidden", boxShadow:"0 32px 64px rgba(0,0,0,0.6)" }}>
+        {/* ══ BİLET ══ */}
+        <div ref={ticketRef} style={{ fontFamily:"system-ui,-apple-system,sans-serif", borderRadius:24, overflow:"hidden", boxShadow:"0 24px 60px rgba(0,0,0,0.7)" }}>
 
-          {/* ── HEADER — Kids Station marka bandı ── */}
-          <div style={{ background:"linear-gradient(135deg,#0d2060 0%,#1a3a8f 55%,#1e5cb3 100%)", padding:"24px 24px 20px", position:"relative", overflow:"hidden" }}>
-            {/* Dekoratif daireler */}
-            <div style={{ position:"absolute", top:-30, right:-30, width:120, height:120, borderRadius:"50%", background:"rgba(255,255,255,0.05)" }}></div>
-            <div style={{ position:"absolute", bottom:-20, left:-20, width:80, height:80, borderRadius:"50%", background:"rgba(255,255,255,0.04)" }}></div>
-            <div style={{ position:"absolute", top:10, right:60, width:40, height:40, borderRadius:"50%", background:"rgba(240,123,0,0.2)" }}></div>
+          {/* ── ÜSTTE LOGO BANDI ── */}
+          <div style={{ background:"linear-gradient(160deg,#b8d9ff 0%,#c8b8ff 50%,#d4c0ff 100%)", padding:"18px 20px 14px", position:"relative", overflow:"hidden" }}>
+            {/* Köşe süslemeler */}
+            <div style={{ position:"absolute", top:-18, right:-18, width:70, height:70, borderRadius:"50%", background:"rgba(240,123,0,0.35)" }}></div>
+            <div style={{ position:"absolute", top:8, right:8, width:30, height:30, borderRadius:"50%", background:"rgba(34,197,94,0.4)" }}></div>
+            <div style={{ position:"absolute", bottom:-10, left:10, width:50, height:50, borderRadius:"50%", background:"rgba(59,130,246,0.25)" }}></div>
 
-            {/* Logo + Marka */}
-            <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
-              <div style={{ width:52, height:52, borderRadius:14, background:"linear-gradient(135deg,#f07b00,#f59e0b)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, flexShrink:0, boxShadow:"0 4px 14px rgba(240,123,0,0.5)" }}>🏫</div>
-              <div>
-                <div style={{ color:"#fff", fontWeight:900, fontSize:22, letterSpacing:0.5, lineHeight:1 }}>Kids Station</div>
-                <div style={{ color:"rgba(255,255,255,0.65)", fontSize:10, fontWeight:700, letterSpacing:3, textTransform:"uppercase", marginTop:3 }}>Çocuk Spor &amp; Gelişim Merkezi</div>
-              </div>
+            {/* Logo */}
+            <div style={{ display:"flex", alignItems:"center", gap:0 }}>
+              <img src={LOGO_URL} alt="Kids Station" style={{ height:72, objectFit:"contain", filter:"drop-shadow(0 3px 8px rgba(0,0,0,0.25))" }} />
             </div>
-
-            {/* Bilet başlığı */}
-            <div style={{ display:"inline-flex", alignItems:"center", gap:7, background:"rgba(240,123,0,0.25)", border:"1.5px solid rgba(240,123,0,0.5)", borderRadius:30, padding:"5px 14px" }}>
-              <span style={{ fontSize:14 }}>🎟️</span>
-              <span style={{ color:"#fbbf24", fontSize:11, fontWeight:900, letterSpacing:2, textTransform:"uppercase" }}>Deneme Dersi Daveti</span>
+            <div style={{ marginTop:4, fontSize:10, fontWeight:800, color:"#4c1d95", letterSpacing:1, textTransform:"uppercase" }}>
+              Spora Yolculuk Burada Başlar!
             </div>
           </div>
 
-          {/* ── ORTA BANT — kırmızı kesikli ayraç ── */}
-          <div style={{ display:"flex", alignItems:"center", background:"#f1f5ff" }}>
-            <div style={{ width:20, height:20, borderRadius:"50%", background:"#0d2060", flexShrink:0, marginLeft:-10 }}></div>
-            <div style={{ flex:1, borderTop:"2.5px dashed #c7d2f0", margin:"0 8px" }}></div>
-            <div style={{ width:20, height:20, borderRadius:"50%", background:"#0d2060", flexShrink:0, marginRight:-10 }}></div>
-          </div>
+          {/* ── ORTA — BEYAZ ── */}
+          <div style={{ background:"#fff", padding:"20px 22px 16px", position:"relative" }}>
+            {/* Yıldız süslemeler */}
+            <div style={{ position:"absolute", top:12, right:16, fontSize:18, opacity:0.6 }}>✨</div>
+            <div style={{ position:"absolute", top:28, right:36, fontSize:11, opacity:0.4 }}>⭐</div>
 
-          {/* ── BEYAZ GÖVDE ── */}
-          <div style={{ background:"#f8faff", padding:"20px 24px 16px" }}>
-
-            {/* Çocuk adı */}
-            <div style={{ textAlign:"center", marginBottom:18 }}>
-              <div style={{ fontSize:11, fontWeight:800, color:"#1e5cb3", textTransform:"uppercase", letterSpacing:2.5, marginBottom:6 }}>Sayın Veli,</div>
-              <div style={{ fontSize:30, fontWeight:900, color:"#0d2060", lineHeight:1.15, letterSpacing:-0.5 }}>{child.name}</div>
-              <div style={{ fontSize:12, color:"#64748b", marginTop:6, fontWeight:600, lineHeight:1.5 }}>
-                adlı öğrencimizin deneme dersi bileti.<br/>
-                <span style={{ color:"#f07b00", fontWeight:800 }}>Lütfen girişte gösteriniz.</span>
+            {/* Başlık: DENEME DERSİ */}
+            <div style={{ textAlign:"center", marginBottom:14 }}>
+              <div style={{ display:"inline-block", background:"linear-gradient(135deg,#fbbf24,#f59e0b)", borderRadius:14, padding:"6px 20px", transform:"rotate(-1.5deg)", boxShadow:"2px 3px 0 rgba(0,0,0,0.12)", marginBottom:8 }}>
+                <span style={{ fontSize:22, fontWeight:900, color:"#1e1b4b", letterSpacing:1 }}>DENEME DERSİ</span>
+              </div>
+              <br/>
+              <div style={{ display:"inline-flex", alignItems:"center", gap:6, background:"#e8192c", borderRadius:30, padding:"5px 16px", boxShadow:"2px 2px 0 rgba(0,0,0,0.15)" }}>
+                <span style={{ fontSize:13 }}>⭐</span>
+                <span style={{ fontSize:13, fontWeight:900, color:"#fff", letterSpacing:1.5, textTransform:"uppercase" }}>Katılım Bileti</span>
+                <span style={{ fontSize:13 }}>⭐</span>
               </div>
             </div>
 
-            {/* Bilgi kartları */}
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:16 }}>
-              <div style={{ background:"#fff", borderRadius:14, padding:"12px 14px", border:"1.5px solid #dde8ff", textAlign:"center" }}>
-                <div style={{ fontSize:10, fontWeight:800, color:"#1e5cb3", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>📅 Tarih</div>
-                <div style={{ fontSize:15, fontWeight:900, color:"#0d2060" }}>{child.trialDate ? fmtDate(child.trialDate) : "—"}</div>
+            {/* Taç + Çocuk Adı */}
+            <div style={{ textAlign:"center", marginBottom:16 }}>
+              <div style={{ fontSize:28, lineHeight:1, marginBottom:4 }}>👑</div>
+              <div style={{ fontSize:32, fontWeight:900, color:"#1e1b4b", lineHeight:1.1, letterSpacing:-0.5 }}>{child.name}</div>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6, marginTop:6 }}>
+                <div style={{ flex:1, height:2, background:"linear-gradient(to right,transparent,#fbbf24)", borderRadius:2 }}></div>
+                <span style={{ fontSize:14 }}>⭐</span>
+                <div style={{ flex:1, height:2, background:"linear-gradient(to left,transparent,#fbbf24)", borderRadius:2 }}></div>
               </div>
-              <div style={{ background:"#fff", borderRadius:14, padding:"12px 14px", border:"1.5px solid #dde8ff", textAlign:"center" }}>
-                <div style={{ fontSize:10, fontWeight:800, color:"#1e5cb3", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>👥 Grup</div>
-                <div style={{ fontSize:13, fontWeight:900, color:"#0d2060" }}>{grp ? grp.name : "—"}</div>
+            </div>
+
+            {/* Bilgi kutuları */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:4 }}>
+              <div style={{ background:"#f0f7ff", borderRadius:14, padding:"11px 12px", border:"2px solid #bfdbfe" }}>
+                <div style={{ fontSize:9, fontWeight:800, color:"#1d4ed8", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>📅 Ders Günü</div>
+                <div style={{ fontSize:14, fontWeight:900, color:"#1e1b4b" }}>{child.trialDate ? fmtDate(child.trialDate) : "—"}</div>
               </div>
-              {grp?.time && (
-                <div style={{ background:"linear-gradient(135deg,#fff7ed,#fff)", borderRadius:14, padding:"12px 14px", border:"1.5px solid #fed7aa", textAlign:"center", gridColumn:"1/-1" }}>
-                  <div style={{ fontSize:10, fontWeight:800, color:"#c2410c", textTransform:"uppercase", letterSpacing:1.5, marginBottom:6 }}>🕐 Ders Saati</div>
-                  <div style={{ fontSize:20, fontWeight:900, color:"#9a3412" }}>{grp.time}</div>
-                </div>
-              )}
+              <div style={{ background:"#fff7ed", borderRadius:14, padding:"11px 12px", border:"2px solid #fed7aa" }}>
+                <div style={{ fontSize:9, fontWeight:800, color:"#c2410c", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>🕐 Ders Saati</div>
+                <div style={{ fontSize:14, fontWeight:900, color:"#1e1b4b" }}>{grp?.time || "—"}</div>
+              </div>
+              <div style={{ background:"#f5f3ff", borderRadius:14, padding:"11px 12px", border:"2px solid #ddd6fe", gridColumn:"1/-1" }}>
+                <div style={{ fontSize:9, fontWeight:800, color:"#6d28d9", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>👥 Grubu</div>
+                <div style={{ fontSize:16, fontWeight:900, color:"#1e1b4b" }}>{grp ? grp.name : "—"}</div>
+              </div>
             </div>
           </div>
 
-          {/* ── KESİKLİ AYRAÇ 2 ── */}
-          <div style={{ display:"flex", alignItems:"center", background:"#1a2e6e" }}>
-            <div style={{ width:20, height:20, borderRadius:"50%", background:"#f8faff", flexShrink:0, marginLeft:-10 }}></div>
-            <div style={{ flex:1, borderTop:"2px dashed rgba(255,255,255,0.2)", margin:"0 8px" }}></div>
-            <div style={{ width:20, height:20, borderRadius:"50%", background:"#f8faff", flexShrink:0, marginRight:-10 }}></div>
+          {/* ── KESİKLİ AYRAÇ ── */}
+          <div style={{ display:"flex", alignItems:"center", background:"linear-gradient(160deg,#b8d9ff,#d4c0ff)" }}>
+            <div style={{ width:22, height:22, borderRadius:"50%", background:"#f8fafc", flexShrink:0, marginLeft:-11 }}></div>
+            <div style={{ flex:1, borderTop:"2.5px dashed rgba(99,102,241,0.4)", margin:"0 6px" }}></div>
+            <div style={{ width:22, height:22, borderRadius:"50%", background:"#f8fafc", flexShrink:0, marginRight:-11 }}></div>
           </div>
 
           {/* ── QR BÖLÜMÜ ── */}
-          <div style={{ background:"linear-gradient(180deg,#1a2e6e 0%,#0d1f4e 100%)", padding:"20px 24px 22px", textAlign:"center" }}>
-            <div style={{ fontSize:10, fontWeight:800, color:"rgba(255,255,255,0.5)", textTransform:"uppercase", letterSpacing:3, marginBottom:14 }}>Giriş QR Kodu</div>
-            <div style={{ display:"inline-block", background:"#fff", padding:10, borderRadius:16, boxShadow:"0 8px 24px rgba(0,0,0,0.4)" }}>
+          <div style={{ background:"linear-gradient(160deg,#b8d9ff 0%,#c8b8ff 50%,#d4c0ff 100%)", padding:"16px 22px 20px", textAlign:"center" }}>
+            <div style={{ fontSize:11, fontWeight:800, color:"#4c1d95", textTransform:"uppercase", letterSpacing:2, marginBottom:12 }}>
+              📱 Giriş ve Katılım için QR Kodunu Göster
+            </div>
+            <div style={{ display:"inline-block", background:"#fff", padding:10, borderRadius:16, border:"3px solid #fbbf24", boxShadow:"0 6px 20px rgba(0,0,0,0.2)" }}>
               <div ref={qrRef} style={{ lineHeight:0 }}></div>
             </div>
-            <div style={{ marginTop:12, display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-              <div style={{ flex:1, height:"1px", background:"rgba(255,255,255,0.1)" }}></div>
-              <div style={{ fontSize:11, color:"rgba(255,255,255,0.4)", fontWeight:700, letterSpacing:2, fontVariantNumeric:"tabular-nums" }}>#{tid.slice(-10)}</div>
-              <div style={{ flex:1, height:"1px", background:"rgba(255,255,255,0.1)" }}></div>
-            </div>
-            <div style={{ marginTop:10, fontSize:10, color:"rgba(255,255,255,0.4)", fontWeight:600 }}>
-              kids-station.com · Sorularınız için: 0(212) XXX XX XX
+            <div style={{ marginTop:10, fontSize:10, color:"rgba(76,29,149,0.6)", fontWeight:700, letterSpacing:1 }}>
+              Bilet No: #{tid.slice(-10)}
             </div>
           </div>
         </div>
 
         {/* ── BUTONLAR ── */}
-        <div style={{ display:"flex", gap:10, marginTop:16 }}>
+        <div style={{ display:"flex", gap:10, marginTop:14 }}>
           <button onClick={handleShare} disabled={sharing}
-            style={{ flex:1, padding:"14px 0", borderRadius:14, background:"linear-gradient(135deg,#f07b00,#f59e0b)", color:"#fff", fontWeight:900, fontSize:15, border:"none", cursor:sharing?"not-allowed":"pointer", opacity:sharing?0.7:1, letterSpacing:0.3, boxShadow:"0 4px 16px rgba(240,123,0,0.4)" }}>
+            style={{ flex:1, padding:"14px 0", borderRadius:14, background:"linear-gradient(135deg,#f07b00,#fbbf24)", color:"#fff", fontWeight:900, fontSize:14, border:"none", cursor:sharing?"not-allowed":"pointer", opacity:sharing?0.7:1, boxShadow:"0 4px 16px rgba(240,123,0,0.5)" }}>
             {sharing ? "⏳ Hazırlanıyor..." : "📤 İndir / WhatsApp'a Gönder"}
           </button>
           <button onClick={onClose}
