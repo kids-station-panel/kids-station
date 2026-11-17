@@ -193,6 +193,7 @@
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 </head>
 <body>
 <div id="root"></div>
@@ -2225,6 +2226,127 @@ function ParentDetail({ parent, onBack, parents, setParents, finance, setFinance
   );
 }
 
+// ── DENEME DERSİ BİLETİ (QR TİCKET MODAL) ───────────────────
+function TrialTicketModal({ child, parent, groups, onClose, onSaveTicketId }) {
+  const ticketRef = useRef(null);
+  const qrRef = useRef(null);
+  const [ticketId, setTicketId] = useState(child.trialTicketId || null);
+  const [sharing, setSharing] = useState(false);
+
+  useEffect(() => {
+    let tid = child.trialTicketId;
+    if (!tid) {
+      tid = "TKT" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,6).toUpperCase();
+      setTicketId(tid);
+      onSaveTicketId(tid);
+    }
+    setTimeout(() => {
+      if (qrRef.current) {
+        qrRef.current.innerHTML = "";
+        try {
+          new QRCode(qrRef.current, { text: tid, width: 148, height: 148, colorDark: "#1e1b4b", colorLight: "#ffffff", correctLevel: QRCode.CorrectLevel.M });
+        } catch(e) {
+          if (qrRef.current) qrRef.current.innerHTML = '<div style="padding:10px;text-align:center;font-size:11px;color:#999">QR yüklenemedi</div>';
+        }
+      }
+    }, 120);
+  }, []);
+
+  const grp = (groups||[]).find(g => String(g.id) === String(child.trialGroupId));
+  const tid = ticketId || child.trialTicketId || "TKTXXXXXX";
+  const zigzag = "polygon(0 0,2.5% 100%,5% 0,7.5% 100%,10% 0,12.5% 100%,15% 0,17.5% 100%,20% 0,22.5% 100%,25% 0,27.5% 100%,30% 0,32.5% 100%,35% 0,37.5% 100%,40% 0,42.5% 100%,45% 0,47.5% 100%,50% 0,52.5% 100%,55% 0,57.5% 100%,60% 0,62.5% 100%,65% 0,67.5% 100%,70% 0,72.5% 100%,75% 0,77.5% 100%,80% 0,82.5% 100%,85% 0,87.5% 100%,90% 0,92.5% 100%,95% 0,97.5% 100%,100% 0,100% 0,0 0)";
+
+  const handleShare = async () => {
+    if (!ticketRef.current) return;
+    setSharing(true);
+    try {
+      const canvas = await html2canvas(ticketRef.current, { scale: 2, useCORS: true, logging: false });
+      canvas.toBlob(async (blob) => {
+        if (!blob) { setSharing(false); return; }
+        const file = new File([blob], `bilet-${child.name}.png`, { type: 'image/png' });
+        if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+          try { await navigator.share({ files: [file], title: `${child.name} — Deneme Dersi Bileti` }); } catch(e) {}
+        } else {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = `bilet-${child.name}.png`;
+          document.body.appendChild(a); a.click();
+          document.body.removeChild(a); URL.revokeObjectURL(url);
+        }
+        setSharing(false);
+      }, 'image/png');
+    } catch(e) { showKsToast('Görsel oluşturulamadı', '#ef4444'); setSharing(false); }
+  };
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.82)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
+      <div style={{ maxWidth:380, width:"100%", maxHeight:"90vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
+        <div ref={ticketRef} style={{ background:"linear-gradient(135deg,#667eea 0%,#764ba2 100%)", borderRadius:24, overflow:"hidden", fontFamily:"system-ui,-apple-system,sans-serif" }}>
+          <div style={{ background:"rgba(255,255,255,0.13)", padding:"22px 24px 18px", textAlign:"center", position:"relative" }}>
+            <span style={{ position:"absolute", top:8, left:14, fontSize:22, opacity:0.45 }}>⭐</span>
+            <span style={{ position:"absolute", top:14, right:18, fontSize:14, opacity:0.35 }}>✨</span>
+            <span style={{ position:"absolute", bottom:8, left:"40%", fontSize:11, opacity:0.3 }}>🌟</span>
+            <div style={{ fontSize:40 }}>🏫</div>
+            <div style={{ color:"#fff", fontWeight:900, fontSize:20, marginTop:4, letterSpacing:1 }}>Kids Station</div>
+            <div style={{ color:"rgba(255,255,255,0.8)", fontSize:11, fontWeight:800, letterSpacing:3, textTransform:"uppercase", marginTop:3 }}>Deneme Dersi Bileti</div>
+          </div>
+          <div style={{ height:16, background:"#fff", clipPath:zigzag }}></div>
+          <div style={{ background:"#fff", padding:"18px 24px 10px" }}>
+            <div style={{ textAlign:"center", marginBottom:16 }}>
+              <div style={{ fontSize:11, fontWeight:800, color:"#8b5cf6", textTransform:"uppercase", letterSpacing:2, marginBottom:4 }}>Merhaba!</div>
+              <div style={{ fontSize:28, fontWeight:900, color:"#1e1b4b", lineHeight:1.2 }}>🎉 {child.name}</div>
+              <div style={{ fontSize:12, color:"#6b7280", marginTop:5, fontWeight:600 }}>Sizi aramızda görmekten mutluluk duyarız</div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+              <div style={{ background:"#f0f9ff", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+                <div style={{ fontSize:9, fontWeight:800, color:"#0369a1", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Tarih</div>
+                <div style={{ fontSize:18 }}>📅</div>
+                <div style={{ fontSize:12, fontWeight:800, color:"#0c4a6e" }}>{child.trialDate ? fmtDate(child.trialDate) : "—"}</div>
+              </div>
+              <div style={{ background:"#fdf4ff", borderRadius:12, padding:"10px 12px", textAlign:"center" }}>
+                <div style={{ fontSize:9, fontWeight:800, color:"#7e22ce", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Grup</div>
+                <div style={{ fontSize:18 }}>👥</div>
+                <div style={{ fontSize:12, fontWeight:800, color:"#581c87" }}>{grp ? grp.name : "—"}</div>
+              </div>
+              {grp?.time && (
+                <div style={{ background:"#f0fdf4", borderRadius:12, padding:"10px 12px", textAlign:"center", gridColumn:"1/-1" }}>
+                  <div style={{ fontSize:9, fontWeight:800, color:"#166534", textTransform:"uppercase", letterSpacing:1, marginBottom:4 }}>Saat</div>
+                  <div style={{ fontSize:18 }}>🕐</div>
+                  <div style={{ fontSize:14, fontWeight:800, color:"#14532d" }}>{grp.time}</div>
+                </div>
+              )}
+            </div>
+            <div style={{ textAlign:"center", marginBottom:14 }}>
+              <div style={{ fontSize:9, fontWeight:800, color:"#9ca3af", textTransform:"uppercase", letterSpacing:2, marginBottom:8 }}>QR Kod — Girişte Okutun</div>
+              <div style={{ display:"inline-block", background:"#fff", padding:8, borderRadius:14, border:"2.5px solid #e9d5ff", boxShadow:"0 4px 12px rgba(139,92,246,0.15)" }}>
+                <div ref={qrRef} style={{ lineHeight:0 }}></div>
+              </div>
+              <div style={{ fontSize:10, color:"#9ca3af", marginTop:6, fontWeight:700, letterSpacing:1 }}>#{tid.slice(-8)}</div>
+            </div>
+          </div>
+          <div style={{ height:16, background:"#fff", transform:"scaleY(-1)", clipPath:zigzag }}></div>
+          <div style={{ background:"linear-gradient(135deg,#667eea 0%,#764ba2 100%)", padding:"12px 24px", textAlign:"center" }}>
+            <div style={{ color:"rgba(255,255,255,0.75)", fontSize:10, fontWeight:700, letterSpacing:1 }}>📍 Ailenizi de getirmeyi unutmayın! 🌟</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:10, marginTop:16 }}>
+          <button onClick={handleShare} disabled={sharing}
+            style={{ flex:1, padding:"13px 0", borderRadius:14, background:"linear-gradient(135deg,#667eea,#764ba2)", color:"#fff", fontWeight:800, fontSize:14, border:"none", cursor:sharing?"not-allowed":"pointer", opacity:sharing?0.7:1 }}>
+            {sharing ? "⏳ Hazırlanıyor..." : "📤 İndir / Paylaş"}
+          </button>
+          <button onClick={onClose}
+            style={{ padding:"13px 20px", borderRadius:14, background:"rgba(255,255,255,0.18)", color:"#fff", fontWeight:800, fontSize:14, border:"2px solid rgba(255,255,255,0.3)", cursor:"pointer" }}>
+            ✕
+          </button>
+        </div>
+        <div style={{ textAlign:"center", marginTop:8, fontSize:11, color:"rgba(255,255,255,0.55)" }}>
+          Ekran görüntüsü alın veya "İndir" ile kaydedin, WhatsApp'tan veliye gönderin
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── VELİ LİSTESİ (ANA ÜYELER SAYFASI) ──────────────────────
 function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, groups, canEdit = true, hideFinance = false }) {
   const [search, setSearch] = useState("");
@@ -2237,6 +2359,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   const [trialAddForm, setTrialAddForm] = useState({ childFirstName:"", childLastName:"", birthDate:"", parentPhone:"", targetGroupId:"", trialDate: new Date().toISOString().slice(0,10) });
   const [trialEditId, setTrialEditId] = useState(null);
   const [trialEditForm, setTrialEditForm] = useState({});
+  const [ticketModal, setTicketModal] = useState(null);
 
   const allChildren = parents.flatMap(p => p.children || []);
   const trialChildren = allChildren.filter(c => c.isTrialStudent);
@@ -2458,7 +2581,8 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
                     const childId = `tc_${Date.now()}`;
                     const parentId = `tp_${Date.now()}`;
                     const childName = `${fn} ${ln}`;
-                    const newChild = { id: childId, name: childName, birthDate: trialAddForm.birthDate, isTrialStudent: true, trialDate: trialAddForm.trialDate, trialGroupId: trialAddForm.targetGroupId, parentPhone: ph, enrollments: [], status: "Deneme", addedByTeacher: "Admin", addedAt: new Date().toISOString() };
+                    const trialTicketId = "TKT" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,6).toUpperCase();
+                    const newChild = { id: childId, name: childName, birthDate: trialAddForm.birthDate, isTrialStudent: true, trialDate: trialAddForm.trialDate, trialGroupId: trialAddForm.targetGroupId, parentPhone: ph, trialTicketId, enrollments: [], status: "Deneme", addedByTeacher: "Admin", addedAt: new Date().toISOString() };
                     const newParent = { id: parentId, name: childName, parent1Phone: ph, isActive: true, source: "Deneme Kaydı", children: [newChild], createdAt: new Date().toISOString() };
                     setParents(prev => [...(prev||[]), newParent]);
                     setTrialAddForm({ childFirstName:"", childLastName:"", birthDate:"", parentPhone:"", targetGroupId:"", trialDate: new Date().toISOString().slice(0,10) });
@@ -2505,6 +2629,8 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
                           showKsToast(`✅ ${c.name} aktif öğrenciye dönüştürüldü! Paket ekleyebilirsiniz.`, "#22c55e", 5000);
                           setSelectedParent(p);
                         }}>🎓 Aktife Al</button>
+                      <button style={{ fontSize:11, padding:"5px 12px", borderRadius:8, background:"linear-gradient(135deg,#8b5cf6,#7c3aed)", color:"#fff", border:"none", cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}
+                        onClick={() => setTicketModal({ child: c, parent: p })}>🎫 Ticket</button>
                       <button style={{ fontSize:11, padding:"5px 12px", borderRadius:8, background:"transparent", color:C.blue, border:`1.5px solid ${C.blue}`, cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}
                         onClick={() => {
                           if (trialEditId === c.id) { setTrialEditId(null); return; }
@@ -2651,6 +2777,20 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
         {statusFilter !== "Deneme" && <div style={{ marginTop: 12, fontSize: 13, color: C.textDim, fontWeight: 700 }}>{filtered.length} veli gösteriliyor · Detay için tıklayın</div>}
       </Card>
     </div>
+    {ticketModal && (
+      <TrialTicketModal
+        child={ticketModal.child}
+        parent={ticketModal.parent}
+        groups={groups||[]}
+        onClose={() => setTicketModal(null)}
+        onSaveTicketId={(tid) => {
+          setParents(prev => prev.map(pp => pp.id === ticketModal.parent.id
+            ? { ...pp, children: (pp.children||[]).map(ch => ch.id === ticketModal.child.id ? { ...ch, trialTicketId: tid } : ch) }
+            : pp));
+          setTicketModal(tm => tm ? { ...tm, child: { ...tm.child, trialTicketId: tid } } : null);
+        }}
+      />
+    )}
   );
 }
 
@@ -4486,6 +4626,126 @@ function UserManagementPage({ onTeacherCreated, onTeacherStatusChange, onTeacher
   );
 }
 
+// ── QR KOD TARAYICI SAYFASI ───────────────────────────────────
+function QRScannerPage({ allParents, setAllParents }) {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const animRef = useRef(null);
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [camError, setCamError] = useState(null);
+
+  const stopScan = () => {
+    if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; }
+    if (animRef.current) { cancelAnimationFrame(animRef.current); animRef.current = null; }
+    setScanning(false);
+  };
+
+  useEffect(() => () => stopScan(), []);
+
+  const scanFrame = () => {
+    const video = videoRef.current, canvas = canvasRef.current;
+    if (!video || !canvas || !streamRef.current) return;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
+      try {
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = window.jsQR && window.jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: "dontInvert" });
+        if (code?.data) { handleQRFound(code.data); return; }
+      } catch(e) {}
+    }
+    animRef.current = requestAnimationFrame(scanFrame);
+  };
+
+  const startScan = async () => {
+    setResult(null); setCamError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      streamRef.current = stream;
+      if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
+      setScanning(true);
+      animRef.current = requestAnimationFrame(scanFrame);
+    } catch(e) { setCamError("Kamera açılamadı: " + (e.message || "İzin reddedildi")); }
+  };
+
+  const handleQRFound = (ticketId) => {
+    stopScan();
+    let fp = null, fc = null;
+    for (const p of allParents||[]) {
+      for (const c of p.children||[]) {
+        if (c.isTrialStudent && c.trialTicketId === ticketId) { fp = p; fc = c; break; }
+      }
+      if (fc) break;
+    }
+    if (!fc) { setResult({ ok: false, msg: "QR kod tanınmadı veya kayıt bulunamadı." }); return; }
+    if (fc.trialStatus === "Geldi") { setResult({ ok: true, name: fc.name, msg: `${fc.name} zaten giriş kaydetti! ✅` }); return; }
+    setAllParents(prev => (prev||[]).map(p => p.id === fp.id ? { ...p, children: (p.children||[]).map(c => c.id === fc.id ? { ...c, trialStatus: "Geldi", checkinTime: new Date().toISOString() } : c) } : p));
+    setResult({ ok: true, name: fc.name, msg: `Hoş geldiniz! 🎉\n${fc.name} giriş kaydedildi.` });
+  };
+
+  return (
+    <div style={{ padding:16 }}>
+      <Card>
+        <CardTitle icon="📷" color="#8b5cf6">QR Kod Tarayıcı</CardTitle>
+        <div style={{ fontSize:13, color:C.textDim, marginBottom:16 }}>Veliye gönderilen bilet QR kodunu okutun — çocuk "Geldi" olarak işaretlenir.</div>
+
+        {camError && <div style={{ background:"#fef2f2", border:"1px solid #fecaca", borderRadius:10, padding:12, color:"#dc2626", fontWeight:700, marginBottom:12, fontSize:13 }}>❌ {camError}</div>}
+
+        {result && (
+          <div style={{ background:result.ok?"#f0fdf4":"#fef2f2", border:`1.5px solid ${result.ok?"#86efac":"#fecaca"}`, borderRadius:16, padding:20, marginBottom:16, textAlign:"center" }}>
+            <div style={{ fontSize:44, marginBottom:8 }}>{result.ok ? "✅" : "❌"}</div>
+            <div style={{ fontSize:16, fontWeight:900, color:result.ok?"#166534":"#dc2626", whiteSpace:"pre-line", lineHeight:1.5 }}>{result.msg}</div>
+            <button onClick={() => { setResult(null); startScan(); }}
+              style={{ marginTop:14, padding:"10px 24px", borderRadius:12, background:result.ok?"#22c55e":"#8b5cf6", color:"#fff", fontWeight:800, fontSize:14, border:"none", cursor:"pointer" }}>
+              🔄 Yeni Tara
+            </button>
+          </div>
+        )}
+
+        {!scanning && !result && (
+          <button onClick={startScan} style={{ width:"100%", padding:"16px 0", fontSize:16, borderRadius:14, background:"#8b5cf6", color:"#fff", fontWeight:800, border:"none", cursor:"pointer" }}>
+            📷 Kamerayı Aç ve Tara
+          </button>
+        )}
+
+        {scanning && (
+          <div>
+            <div style={{ position:"relative", borderRadius:16, overflow:"hidden", marginBottom:12, background:"#000" }}>
+              <video ref={videoRef} style={{ width:"100%", display:"block", maxHeight:320, objectFit:"cover" }} playsInline muted />
+              <canvas ref={canvasRef} style={{ display:"none" }} />
+              <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}>
+                <div style={{ width:200, height:200, position:"relative" }}>
+                  <div style={{ position:"absolute", inset:0, border:"2px solid rgba(139,92,246,0.4)", borderRadius:16, boxShadow:"0 0 0 9999px rgba(0,0,0,0.5)" }}></div>
+                  <div style={{ position:"absolute", top:0, left:0, width:30, height:30, borderTop:"4px solid #8b5cf6", borderLeft:"4px solid #8b5cf6", borderRadius:"12px 0 0 0" }}></div>
+                  <div style={{ position:"absolute", top:0, right:0, width:30, height:30, borderTop:"4px solid #8b5cf6", borderRight:"4px solid #8b5cf6", borderRadius:"0 12px 0 0" }}></div>
+                  <div style={{ position:"absolute", bottom:0, left:0, width:30, height:30, borderBottom:"4px solid #8b5cf6", borderLeft:"4px solid #8b5cf6", borderRadius:"0 0 0 12px" }}></div>
+                  <div style={{ position:"absolute", bottom:0, right:0, width:30, height:30, borderBottom:"4px solid #8b5cf6", borderRight:"4px solid #8b5cf6", borderRadius:"0 0 12px 0" }}></div>
+                </div>
+              </div>
+            </div>
+            <button onClick={stopScan}
+              style={{ width:"100%", padding:"12px 0", borderRadius:12, background:"transparent", color:C.red, border:`2px solid ${C.red}`, fontWeight:800, fontSize:14, cursor:"pointer" }}>
+              ⏹ Durdur
+            </button>
+          </div>
+        )}
+
+        <div style={{ marginTop:16, fontSize:12, color:C.textDim, background:C.card, borderRadius:10, padding:12, border:`1px solid ${C.border}` }}>
+          <div style={{ fontWeight:800, marginBottom:6 }}>📋 Nasıl kullanılır?</div>
+          <div style={{ lineHeight:1.8 }}>
+            1. "Kamerayı Aç" butonuna basın<br/>
+            2. Velinin bileti üzerindeki QR kodu kameraya tutun<br/>
+            3. Sistem otomatik okuyarak öğrenciyi "Geldi" olarak işaretler
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
 // ── ÖĞRETMEN PANELİ ───────────────────────────────────────
 function TeacherPanel({ user, members, announcements, setAnnouncements, attendance, setAttendance, staff, setStaff, allParents, setAllParents, channels, channelMessages, schedule, setSchedule, groups, setGroups, branches, finance, setFinance, onUpdatePhoto, onGroupAttSave, timeEntries, saveTimeEntry, deleteTimeEntry }) {
   const isCoordinator = user?.role === "manager";
@@ -4550,6 +4810,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     { key: "notes",        label: "Seans Notları",   icon: "📝" },
     { key: "development",  label: "Gelişim",         icon: "📈" },
     { key: "calendar",     label: "Program",         icon: "📅" },
+    { key: "qrscan",       label: "QR Tara",         icon: "📷" },
     ...(isCoordinator ? [
       { key: "coord_members", label: "Üyeler",       icon: "🧑‍🤝‍🧑" },
       { key: "coord_groups",  label: "Gruplar",      icon: "🗂️" },
@@ -5703,7 +5964,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     if (!trialForm.trialDate) { setTrialMsg("⚠️ Deneme tarihini girin."); return; }
                     const childId = Date.now();
                     const childName = (trialForm.childFirstName + " " + trialForm.childLastName).trim();
-                    const newChild = { id: childId, name: childName, birthDate: trialForm.birthDate, isTrialStudent: true, trialDate: trialForm.trialDate, trialGroupId: trialForm.targetGroupId, parentPhone: trialForm.parentPhone, enrollments: [], status: "Deneme", addedByTeacher: user.name, addedAt: new Date().toISOString() };
+                    const trialTicketId = "TKT" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,6).toUpperCase();
+                    const newChild = { id: childId, name: childName, birthDate: trialForm.birthDate, isTrialStudent: true, trialDate: trialForm.trialDate, trialGroupId: trialForm.targetGroupId, parentPhone: trialForm.parentPhone, trialTicketId, enrollments: [], status: "Deneme", addedByTeacher: user.name, addedAt: new Date().toISOString() };
                     const newParentRec = {
                       id: childId + 1,
                       name: "Veli - " + childName,
@@ -6202,6 +6464,9 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         )}
         {page === "coord_groups" && isCoordinator && (
           <GroupsPage groups={groups} setGroups={setGroups} branches={branches} staff={staff||[]} members={allParents||[]} canEdit={true} userAccounts={[]} />
+        )}
+        {page === "qrscan" && (
+          <QRScannerPage allParents={allParents||[]} setAllParents={setAllParents} />
         )}
       </div>
     </div>
@@ -8133,6 +8398,22 @@ function App() {
     setAttendanceRaw(next);
     fsSave("attendance", next).then(ok => { if (!ok) setAttendanceRaw(prev); });
   };
+
+  // Süresi geçmiş deneme öğrencilerini (gelmeyenleri) uygulama açılışında otomatik sil
+  const _trialCleanupDone = useRef(false);
+  useEffect(() => {
+    if (!dbReady || _trialCleanupDone.current) return;
+    _trialCleanupDone.current = true;
+    const today = new Date().toISOString().slice(0, 10);
+    const toRemove = members.flatMap(p => (p.children||[]).filter(c => c.isTrialStudent && c.trialStatus !== "Geldi" && c.trialDate && c.trialDate < today)).length;
+    if (!toRemove) return;
+    const nextMembers = members
+      .map(p => ({ ...p, children: (p.children||[]).filter(c => !(c.isTrialStudent && c.trialStatus !== "Geldi" && c.trialDate && c.trialDate < today)) }))
+      .filter(p => (p.children||[]).length > 0 || !(p.source||"").includes("Deneme"));
+    setMembersRaw(nextMembers);
+    fsSave("members", nextMembers);
+    showKsToast(`🧹 ${toRemove} gelmemiş deneme kaydı otomatik silindi.`, "#f97316", 6000);
+  }, [dbReady]);
 
   const saveTimeEntry = async (entry) => {
     const next = [...(timeEntries||[]).filter(e => e.id !== entry.id), entry];
