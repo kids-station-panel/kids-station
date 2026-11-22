@@ -6973,14 +6973,20 @@ function useNotifications(members, finance, staff) {
         alerts.push({ id:`pay-${child.id}-${enrIdx}`, type:"info", icon:"💳", title:"Ödeme Bekleniyor", desc:`${child.name}${branchLabel} için ${pkg.name} paketi ödenmemiş.`, child });
     });
 
-    // 2 haftadır gelmemiş - tüm enrollment devamsızlıklarına bak
-    const allAtt = enrollments.flatMap(e => e.attendance||[]);
-    if (allAtt.length > 0) {
-      const lastDate = allAtt.map(a=>a.date).sort().reverse()[0];
-      const daysSince = Math.floor((today - new Date(lastDate)) / (1000*60*60*24));
+    // 2 haftadır gelmemiş - sadece geçmiş gerçek yoklama kayıtlarına bak
+    const todayStr = today.toISOString().slice(0,10);
+    const realAtt = enrollments.flatMap(e => e.attendance||[]).filter(a => a.status !== "Bekliyor" && a.date <= todayStr);
+    if (realAtt.length > 0) {
+      const lastDate = realAtt.map(a=>a.date).sort().reverse()[0];
+      const daysSince = Math.floor((today - new Date(lastDate+"T12:00:00")) / (1000*60*60*24));
       if (daysSince >= 14)
         alerts.push({ id:`absent-${child.id}`, type:"info", icon:"👤", title:"Uzun Süredir Gelmiyor", desc:`${child.name} son ${daysSince} gündür derse katılmadı.`, child });
     }
+
+    // Geçmiş tarihli "Bekliyor" yoklama kayıtları — öğretmen işaretlememiş
+    const unmarked = enrollments.flatMap(e => e.attendance||[]).filter(a => a.status === "Bekliyor" && a.date < todayStr);
+    if (unmarked.length > 0)
+      alerts.push({ id:`unmarked-${child.id}`, type:"warning", icon:"📋", title:"Yoklama İşaretlenmemiş", desc:`${child.name} için ${unmarked.length} geçmiş ders tarihi işaretlenmemiş (${unmarked.map(a=>a.date).sort()[0]}'den itibaren).`, child });
   });
 
   // Öğretmen tarafından eklenen, henüz paket girilmemiş öğrenciler
