@@ -2391,10 +2391,10 @@ function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onRejec
   }
   function buildMsg() {
     const childName = `${pending.childFirstName} ${pending.childLastName}`;
-    const dateStr = selDate ? new Date(selDate + 'T12:00:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' }) : '—';
+    const dateStr = selDate ? new Date(selDate + 'T12:00:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : '—';
     const timeStr = selGroup?.time || '—';
     const groupName = selGroup?.name || '—';
-    return `Merhaba ${pending.parentName} 👋\n\n${childName} için deneme dersimiz oluşturulmuştur! 🎉\n\n📅 Tarih: ${dateStr}\n🕐 Saat: ${timeStr}\n👥 Grup: ${groupName}\n\nGirişte deneme bileti QR kodunuzu gösteriniz 🎟️\n\nKids Station | Spora Yolculuk Burada Başlar! 🏃`;
+    return `Sayın ${pending.parentName},\n\nKids Station'a gösterdiğiniz ilgi için teşekkür ederiz.\n\n${childName} için deneme dersi randevunuz oluşturulmuştur.\n\n📅 Tarih: ${dateStr}\n🕐 Saat: ${timeStr}\n👥 Grup: ${groupName}\n\nLütfen ders saatinden 15 dakika önce merkezimizde hazır bulununuz. Girişte size özel QR biletinizi göstermeniz gerekmektedir.\n\nSorularınız için bu numaraya yazabilirsiniz.\n\nSaygılarımızla,\nKids Station Ekibi\n🌐 Spora Yolculuk Burada Başlar!`;
   }
   const openWA = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(buildMsg())}`, '_blank');
   const openWALoc = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(`📍 Kids Station Konumumuz:\n${KS_MAPS_URL}\n\nBizi ziyaret edin! 🏫`)}`, '_blank');
@@ -8291,11 +8291,22 @@ function MesaiPage({ timeEntries, staff }) {
 // ── HALKA AÇIK DENEME DERSİ KAYIT FORMU ──────────────────────
 // Erişim: ?kayit=deneme URL parametresiyle, login gerektirmez
 function PublicTrialForm() {
-  const [form, setForm] = useState({ parentName:"", parentPhone:"", childFirstName:"", childLastName:"", birthDate:"", note:"" });
+  const [form, setForm] = useState({ parentName:"", parentPhone:"", childFirstName:"", childLastName:"", birthDate:"" });
+  const [agreed, setAgreed] = useState(false);
   const [step, setStep] = useState("form"); // form | submitting | success
   const [errMsg, setErrMsg] = useState("");
   const LOGO_URL = "/kids-station/logo.jpg";
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const TERMS = [
+    "Deneme dersi tamamen ücretsizdir; herhangi bir ücret talep edilmez.",
+    "Çocuğunuzun rahat hareket edebileceği spor kıyafeti ve spor ayakkabısı ile gelmesi gerekmektedir.",
+    "Ders saatinden en az 15 dakika önce merkezimizde hazır bulunmanız rica olunur.",
+    "Girişte size özel QR bilet gösterilmesi zorunludur; biletin kaybolmaması veli sorumluluğundadır.",
+    "Kids Station yetkilileri, zorunlu hallerde ders tarih ve saatini değiştirme hakkını saklı tutar.",
+    "Başvuru sırasında paylaşılan kişisel bilgiler, 6698 sayılı KVKK kapsamında yalnızca deneme dersi organizasyonu amacıyla kullanılacak ve üçüncü şahıslarla paylaşılmayacaktır.",
+    "Dersler sırasında çekilen fotoğraf/video görüntüleri Kids Station sosyal medya hesaplarında paylaşılabilir. Karşı görüşünüz varsa lütfen yöneticimize bildirin.",
+  ];
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -8303,6 +8314,7 @@ function PublicTrialForm() {
     if (!parentName.trim() || !parentPhone.trim() || !childFirstName.trim() || !childLastName.trim() || !birthDate) {
       setErrMsg("Lütfen tüm zorunlu alanları doldurun."); return;
     }
+    if (!agreed) { setErrMsg("Devam etmek için katılım koşullarını onaylamanız gerekmektedir."); return; }
     setStep("submitting"); setErrMsg("");
     try {
       await firebase.auth().signInAnonymously();
@@ -8310,7 +8322,7 @@ function PublicTrialForm() {
       await db.collection("pendingTrials").doc(id).set({
         id, parentName: parentName.trim(), parentPhone: parentPhone.trim(),
         childFirstName: childFirstName.trim(), childLastName: childLastName.trim(),
-        birthDate, note: form.note.trim(), submittedAt: new Date().toISOString(), status: "pending"
+        birthDate, submittedAt: new Date().toISOString(), status: "pending"
       });
       setStep("success");
     } catch(err) {
@@ -8323,55 +8335,117 @@ function PublicTrialForm() {
   };
 
   if (step === "success") return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#fff", borderRadius:24, padding:"32px 28px", maxWidth:380, width:"100%", textAlign:"center", boxShadow:"0 24px 60px rgba(0,0,0,0.3)" }}>
-        <img src={LOGO_URL} alt="Kids Station" style={{ height:65, objectFit:"contain", marginBottom:20 }} />
-        <div style={{ fontSize:56, lineHeight:1, marginBottom:16 }}>🎉</div>
-        <div style={{ fontSize:22, fontWeight:900, color:"#1e1b4b", marginBottom:12 }}>Başvurunuz Alındı!</div>
-        <div style={{ fontSize:14, color:"#6b7280", lineHeight:1.7 }}>
-          Deneme dersi talebinizi aldık.<br/>
-          <strong style={{ color:"#4f46e5" }}>En kısa sürede WhatsApp'tan ders günü ve saatini bildireceğiz.</strong>
+    <div style={{ minHeight:"100vh", background:"#f8fafc", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#fff", borderRadius:16, padding:"40px 32px", maxWidth:400, width:"100%", textAlign:"center", boxShadow:"0 4px 24px rgba(0,0,0,0.08)", border:"1px solid #e5e7eb" }}>
+        <div style={{ width:64, height:64, borderRadius:"50%", background:"#dcfce7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:28, margin:"0 auto 20px" }}>✅</div>
+        <div style={{ fontSize:22, fontWeight:800, color:"#111827", marginBottom:10 }}>Başvurunuz Alındı</div>
+        <div style={{ fontSize:14, color:"#6b7280", lineHeight:1.75, marginBottom:24 }}>
+          Deneme dersi talebiniz başarıyla iletildi. Uzmanlarımız en kısa sürede sizi WhatsApp üzerinden bilgilendirecektir.
         </div>
-        <div style={{ marginTop:20, fontSize:12, color:"#9ca3af" }}>Kids Station — Spora Yolculuk Burada Başlar!</div>
+        <div style={{ background:"#f0f7ff", borderRadius:10, padding:"12px 16px", fontSize:12, color:"#1d4ed8", fontWeight:600, lineHeight:1.6 }}>
+          📱 Bilgilendirme mesajı <strong>{form.parentPhone || "kayıtlı numaranıza"}</strong> gönderilecektir.
+        </div>
+        <div style={{ marginTop:24, paddingTop:20, borderTop:"1px solid #f3f4f6", fontSize:11, color:"#9ca3af" }}>
+          Kids Station · Spora Yolculuk Burada Başlar!
+        </div>
       </div>
     </div>
   );
 
-  const inp = { width:"100%", padding:"11px 13px", borderRadius:11, border:"2px solid #e5e7eb", fontSize:15, fontFamily:"inherit", outline:"none", boxSizing:"border-box" };
-  const lbl = { fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 };
+  const inp = { width:"100%", padding:"11px 14px", borderRadius:8, border:"1.5px solid #d1d5db", fontSize:14, fontFamily:"inherit", outline:"none", boxSizing:"border-box", color:"#111827", background:"#fff", transition:"border-color 0.15s" };
+  const lbl = { fontSize:12, fontWeight:600, color:"#374151", display:"block", marginBottom:5 };
 
   return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-      <div style={{ maxWidth:420, width:"100%", background:"#fff", borderRadius:24, overflow:"hidden", boxShadow:"0 24px 60px rgba(0,0,0,0.3)" }}>
-        <div style={{ background:"#fff", padding:"18px 22px 12px", borderBottom:"2px solid #f3f4f6", textAlign:"center" }}>
-          <img src={LOGO_URL} alt="Kids Station" style={{ height:58, objectFit:"contain" }} />
-          <div style={{ marginTop:10, fontSize:17, fontWeight:900, color:"#1e1b4b" }}>Deneme Dersi Başvurusu</div>
-          <div style={{ fontSize:12, color:"#6b7280", marginTop:3 }}>Bilgileri doldurun, biz sizi arayalım 🤙</div>
+    <div style={{ minHeight:"100vh", background:"#f8fafc", display:"flex", flexDirection:"column", alignItems:"center", padding:"24px 16px 40px" }}>
+
+      {/* ── HEADER ── */}
+      <div style={{ width:"100%", maxWidth:480, background:"#fff", borderRadius:"16px 16px 0 0", borderBottom:"1px solid #e5e7eb", padding:"24px 28px 20px", textAlign:"center", boxShadow:"0 2px 8px rgba(0,0,0,0.04)" }}>
+        <div style={{ background:"#fff", display:"inline-block", borderRadius:12, padding:"6px 16px", marginBottom:12, border:"1px solid #e5e7eb" }}>
+          <img src={LOGO_URL} alt="Kids Station" style={{ height:52, objectFit:"contain", display:"block" }} />
         </div>
-        <form onSubmit={handleSubmit} style={{ padding:"18px 22px 22px" }}>
-          <div style={{ background:"#f0f7ff", borderRadius:14, padding:"13px 15px", marginBottom:14 }}>
-            <div style={{ fontSize:12, fontWeight:900, color:"#1d4ed8", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>👦 Çocuk Bilgileri</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:9, marginBottom:9 }}>
-              <div><label style={lbl}>Adı *</label><input style={inp} value={form.childFirstName} onChange={e => set("childFirstName", e.target.value)} placeholder="Çocuğun adı" /></div>
-              <div><label style={lbl}>Soyadı *</label><input style={inp} value={form.childLastName} onChange={e => set("childLastName", e.target.value)} placeholder="Soyadı" /></div>
+        <div style={{ fontSize:20, fontWeight:800, color:"#111827", marginBottom:4 }}>Deneme Dersi Başvurusu</div>
+        <div style={{ fontSize:13, color:"#6b7280", lineHeight:1.5 }}>
+          Formu doldurun, uzmanlarımız sizi en kısa sürede arasın ve uygun saat için randevu oluştursun.
+        </div>
+      </div>
+
+      {/* ── FORM ── */}
+      <div style={{ width:"100%", maxWidth:480, background:"#fff", padding:"24px 28px 28px", borderRadius:"0 0 16px 16px", boxShadow:"0 4px 16px rgba(0,0,0,0.06)" }}>
+        <form onSubmit={handleSubmit}>
+
+          {/* Çocuk */}
+          <div style={{ marginBottom:20 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.2, marginBottom:12, paddingBottom:8, borderBottom:"1px solid #e5e7eb" }}>
+              Öğrenci Bilgileri
             </div>
-            <div><label style={lbl}>Doğum Tarihi *</label><input type="date" style={inp} value={form.birthDate} onChange={e => set("birthDate", e.target.value)} /></div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
+              <div>
+                <label style={lbl}>Adı <span style={{ color:"#ef4444" }}>*</span></label>
+                <input style={inp} value={form.childFirstName} onChange={e => set("childFirstName", e.target.value)} placeholder="Öğrenci adı" />
+              </div>
+              <div>
+                <label style={lbl}>Soyadı <span style={{ color:"#ef4444" }}>*</span></label>
+                <input style={inp} value={form.childLastName} onChange={e => set("childLastName", e.target.value)} placeholder="Soyadı" />
+              </div>
+            </div>
+            <div>
+              <label style={lbl}>Doğum Tarihi <span style={{ color:"#ef4444" }}>*</span></label>
+              <input type="date" style={inp} value={form.birthDate} onChange={e => set("birthDate", e.target.value)} />
+            </div>
           </div>
-          <div style={{ background:"#f5f3ff", borderRadius:14, padding:"13px 15px", marginBottom:14 }}>
-            <div style={{ fontSize:12, fontWeight:900, color:"#7c3aed", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>👨‍👩‍👧 Veli Bilgileri</div>
-            <div style={{ marginBottom:9 }}><label style={{ ...lbl, color:"#7c3aed" }}>Ad Soyad *</label><input style={inp} value={form.parentName} onChange={e => set("parentName", e.target.value)} placeholder="Veli adı soyadı" /></div>
-            <div><label style={{ ...lbl, color:"#7c3aed" }}>WhatsApp Telefon *</label><input type="tel" style={inp} value={form.parentPhone} onChange={e => set("parentPhone", e.target.value)} placeholder="0532 XXX XX XX" /></div>
+
+          {/* Veli */}
+          <div style={{ marginBottom:20 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.2, marginBottom:12, paddingBottom:8, borderBottom:"1px solid #e5e7eb" }}>
+              Veli / Yetkili Bilgileri
+            </div>
+            <div style={{ marginBottom:12 }}>
+              <label style={lbl}>Ad Soyad <span style={{ color:"#ef4444" }}>*</span></label>
+              <input style={inp} value={form.parentName} onChange={e => set("parentName", e.target.value)} placeholder="Velinin adı ve soyadı" />
+            </div>
+            <div>
+              <label style={lbl}>WhatsApp Telefon <span style={{ color:"#ef4444" }}>*</span></label>
+              <input type="tel" style={inp} value={form.parentPhone} onChange={e => set("parentPhone", e.target.value)} placeholder="05XX XXX XX XX" />
+              <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>Bilgilendirme mesajı bu numaraya iletilecektir.</div>
+            </div>
           </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={lbl}>Not (opsiyonel)</label>
-            <textarea style={{ ...inp, minHeight:60, resize:"vertical" }} value={form.note} onChange={e => set("note", e.target.value)} placeholder="Eklemek istediğiniz not..." />
+
+          {/* Şartlar ve Koşullar */}
+          <div style={{ marginBottom:20 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.2, marginBottom:12, paddingBottom:8, borderBottom:"1px solid #e5e7eb" }}>
+              Katılım Koşulları
+            </div>
+            <div style={{ background:"#f9fafb", border:"1.5px solid #e5e7eb", borderRadius:10, padding:"14px 16px", maxHeight:180, overflowY:"auto", marginBottom:14 }}>
+              <ol style={{ margin:0, padding:"0 0 0 18px", listStyle:"decimal" }}>
+                {TERMS.map((t, i) => (
+                  <li key={i} style={{ fontSize:12, color:"#4b5563", lineHeight:1.65, marginBottom: i < TERMS.length - 1 ? 8 : 0 }}>{t}</li>
+                ))}
+              </ol>
+            </div>
+            <label style={{ display:"flex", alignItems:"flex-start", gap:10, cursor:"pointer" }}>
+              <input type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
+                style={{ marginTop:2, width:16, height:16, accentColor:"#4f46e5", flexShrink:0, cursor:"pointer" }} />
+              <span style={{ fontSize:13, color:"#374151", fontWeight:600, lineHeight:1.5 }}>
+                Yukarıdaki katılım koşullarını okudum ve kabul ediyorum.
+              </span>
+            </label>
           </div>
-          {errMsg && <div style={{ background:"#fee2e2", border:"1.5px solid #fca5a5", borderRadius:10, padding:"9px 13px", fontSize:13, color:"#dc2626", fontWeight:600, marginBottom:12 }}>{errMsg}</div>}
+
+          {errMsg && (
+            <div style={{ background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#dc2626", fontWeight:600, marginBottom:14 }}>
+              {errMsg}
+            </div>
+          )}
+
           <button type="submit" disabled={step === "submitting"}
-            style={{ width:"100%", padding:"14px 0", borderRadius:13, background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"#fff", fontWeight:900, fontSize:16, border:"none", cursor:step==="submitting"?"not-allowed":"pointer", opacity:step==="submitting"?0.7:1 }}>
-            {step === "submitting" ? "⏳ Gönderiliyor..." : "📩 Başvuru Gönder"}
+            style={{ width:"100%", padding:"14px 0", borderRadius:10, background: agreed ? "#4f46e5" : "#9ca3af", color:"#fff", fontWeight:700, fontSize:15, border:"none", cursor: agreed && step !== "submitting" ? "pointer" : "not-allowed", letterSpacing:0.3, transition:"background 0.2s" }}>
+            {step === "submitting" ? "Gönderiliyor..." : "Başvuruyu Tamamla"}
           </button>
-          <div style={{ textAlign:"center", marginTop:10, fontSize:11, color:"#9ca3af" }}>Bilgileriniz yalnızca deneme dersi organizasyonu için kullanılır.</div>
+
+          <div style={{ textAlign:"center", marginTop:14, fontSize:11, color:"#9ca3af", lineHeight:1.6 }}>
+            Kişisel verileriniz KVKK kapsamında korunmaktadır.<br/>
+            Kids Station · İstanbul
+          </div>
         </form>
       </div>
     </div>
