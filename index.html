@@ -8339,7 +8339,8 @@ function PublicTrialForm() {
     if (!childLastName.trim()) errs.childLastName = true;
     if (!birthDate) errs.birthDate = true;
     if (!parentName.trim()) errs.parentName = true;
-    if (!parentPhone.trim()) errs.parentPhone = true;
+    const phoneDigits = parentPhone.replace(/\D/g, '');
+    if (!parentPhone.trim() || !(phoneDigits.length === 11 && phoneDigits.startsWith('05')) && !(phoneDigits.length === 12 && phoneDigits.startsWith('90'))) errs.parentPhone = "format";
     if (!agreed1) errs.agreed1 = true;
     if (!agreed2) errs.agreed2 = true;
     setFieldErrors(errs);
@@ -8465,7 +8466,7 @@ function PublicTrialForm() {
               <input type="tel" style={inp(fieldErrors.parentPhone)} value={form.parentPhone}
                 onChange={e => { set("parentPhone", e.target.value); clearErr("parentPhone"); }}
                 placeholder="05XX XXX XX XX" />
-              {fieldErrors.parentPhone && <div style={ferr}>Zorunlu alan</div>}
+              {fieldErrors.parentPhone && <div style={ferr}>{fieldErrors.parentPhone === "format" ? "Geçerli bir telefon numarası girin (05XX XXX XX XX)" : "Zorunlu alan"}</div>}
               <div style={{ fontSize:12, color:"#a0aec0", marginTop:5, fontWeight:500 }}>Randevu bilgisi bu numaraya iletilecektir.</div>
             </div>
           </div>
