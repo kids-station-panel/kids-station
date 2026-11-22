@@ -4094,7 +4094,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
   const activeCount = allChildren.filter(c => c.status === "Aktif").length;
   const currentYM = new Date().toISOString().slice(0, 7);
   const monthlyIncome = (finance||[]).filter(f => f.type === "Gelir" && (f.date||"").startsWith(currentYM)).reduce((s, f) => s + f.amount, 0);
-  const alertCount = useNotifications(members, finance, staff).filter(a => a.type === "danger" || a.type === "warning").length;
+  const alertCount = useNotifications(members, finance, staff).filter(a => a.type === "danger" || a.type === "warning").length + (pendingTrials || []).length;
 
   const renderPage = () => {
     // ── DASHBOARD ──
@@ -4220,6 +4220,18 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
       <div className="fade-in">
         <div className="ks-page-title" style={{ marginBottom:4, color:C.text }}>🔔 Bildirimler</div>
         <div style={{ fontSize:14, color:C.textDim, marginBottom:18, fontWeight:600 }}>Sistem bildirimleri</div>
+        {(pendingTrials||[]).length > 0 && (
+          <div style={{ background:"#fff7ed", border:"2px solid #fb923c", borderRadius:12, padding:"14px 16px", marginBottom:16, display:"flex", alignItems:"center", gap:14 }}>
+            <div style={{ width:44, height:44, borderRadius:10, background:"#fb923c", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, fontSize:20 }}>📋</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontWeight:800, fontSize:14, color:"#9a3412" }}>{(pendingTrials||[]).length} Bekleyen Deneme Başvurusu</div>
+              <div style={{ fontSize:12, color:"#c2410c", marginTop:2, fontWeight:600 }}>Veliler form doldurdu, değerlendirme bekliyor.</div>
+            </div>
+            <button onClick={() => setPage("members")} style={{ background:"#fb923c", color:"#fff", border:"none", borderRadius:8, padding:"8px 14px", fontWeight:800, fontSize:12, cursor:"pointer", flexShrink:0 }}>
+              İncele →
+            </button>
+          </div>
+        )}
         <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs||[]} setDismissedNotifs={setDismissedNotifs||(() => {})} readNotifs={readNotifs||[]} setReadNotifs={setReadNotifs||(() => {})} />
       </div>
     );
