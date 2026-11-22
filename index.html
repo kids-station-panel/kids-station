@@ -2394,7 +2394,7 @@ function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onRejec
     const dateStr = selDate ? new Date(selDate + 'T12:00:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : '—';
     const timeStr = selGroup?.time || '—';
     const groupName = selGroup?.name || '—';
-    return "✅ *Kids Station – Deneme Dersi Randevusu*\n\nSayın " + pending.parentName + ",\n\n" + childName + " için deneme dersi randevunuz oluşturulmuştur.\n\n📆 *Tarih:* " + dateStr + "\n🕕 *Saat:* " + timeStr + "\n🎯 *Grup:* " + groupName + "\n\n⏰ Ders saatinden 5 dakika önce merkezimizde hazır bulunmanız yeterlidir.\n\nSorularınız için bu numaraya yazabilirsiniz.\n\nGörüşmek üzere,\nKids Station Ekibi 💪";
+    return "*Kids Station – Deneme Dersi Randevusu*\n\nSayın " + pending.parentName + ",\n\n" + childName + " için deneme dersi randevunuz oluşturulmuştur.\n\n*Tarih:* " + dateStr + "\n*Saat:* " + timeStr + "\n*Grup:* " + groupName + "\n\nDers saatinden 5 dakika önce merkezimizde hazır bulunmanız yeterlidir.\n\nSorularınız için bu numaraya yazabilirsiniz.\n\nGörüşmek üzere,\nKids Station Ekibi";
   }
   const openWA = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(buildMsg())}`, '_blank');
   const openWALoc = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(`📍 Kids Station Konumumuz:\n${KS_MAPS_URL}\n\nBizi ziyaret edin! 🏫`)}`, '_blank');
