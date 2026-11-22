@@ -8348,7 +8348,8 @@ function PublicTrialForm() {
     if (Object.keys(errs).length > 0) { setErrMsg("Lütfen tüm alanları doldurun ve onay kutularını işaretleyin."); return; }
     setStep("submitting"); setErrMsg("");
     try {
-      if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
+      const currentUser = await new Promise(resolve => { const u = firebase.auth().onAuthStateChanged(user => { u(); resolve(user); }); });
+      if (!currentUser) await firebase.auth().signInAnonymously();
       const id = "PEND_" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,4).toUpperCase();
       const now = new Date().toISOString();
       await db.collection("pendingTrials").doc(id).set({
@@ -8363,7 +8364,7 @@ function PublicTrialForm() {
       setStep("success");
     } catch(err) {
       console.error(err);
-      setErrMsg(err.code === "auth/operation-not-allowed" ? "Sistem şu an kapalı. Lütfen daha sonra tekrar deneyin." : "Gönderim hatası. Lütfen tekrar deneyin.");
+      setErrMsg(err.code === "auth/operation-not-allowed" ? "Sistem şu an kapalı. Lütfen daha sonra tekrar deneyin." : err.code === "permission-denied" ? "Kayıt izni hatası. Lütfen sayfayı yenileyip tekrar deneyin." : `Gönderim hatası (${err.code||"bilinmiyor"}). Lütfen tekrar deneyin.`);
       setStep("form");
     }
   };
