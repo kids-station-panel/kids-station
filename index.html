@@ -2278,7 +2278,7 @@ function TrialTicketModal({ child, parent, groups, onClose, onSaveTicketId }) {
     } catch(e) { showKsToast('Görsel oluşturulamadı', '#ef4444'); setSharing(false); }
   };
 
-  const LOGO_URL = "/kids-station/logo.jpg";
+  const LOGO_URL = "/kids-station/logo.jpg?v=2";
   return (
     <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(10,20,50,0.92)", display:"flex", alignItems:"center", justifyContent:"center", padding:12 }} onClick={onClose}>
       <div style={{ maxWidth:400, width:"100%", maxHeight:"94vh", overflowY:"auto" }} onClick={e => e.stopPropagation()}>
@@ -8299,7 +8299,7 @@ function PublicTrialForm() {
   const [step, setStep] = useState("form");
   const [errMsg, setErrMsg] = useState("");
   const conditionsRef = useRef(null);
-  const LOGO_URL = "/kids-station/logo.jpg";
+  const LOGO_URL = "/kids-station/logo.jpg?v=2";
   const CONSENT_VERSION = "ks-atasehir-v1";
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
