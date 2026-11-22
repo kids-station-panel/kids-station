@@ -194,6 +194,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script async src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 </head>
 <body>
 <div id="root"></div>
@@ -2454,6 +2456,233 @@ function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onRejec
 }
 
 // ── VELİ LİSTESİ (ANA ÜYELER SAYFASI) ──────────────────────
+// ── PDF İÇE AKTARMA ────────────────────────────────────────────
+function PdfImportModal({ onClose, parents, setParents, dynamicBranches }) {
+  const { useState, useRef, useEffect } = React;
+  const [results, setResults] = useState([]);
+  const [processing, setProcessing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+  const fileRef = useRef(null);
+
+  const parsePdfText = (text) => {
+    const nameMatch = text.match(/[Öö][ğg]renci\s+Ad[ıi]\s*[:\s]+([A-ZÇŞĞÜÖİa-zçşğüöı\s]+?)(?:\s{2,}|\n|$)/);
+    const studentName = nameMatch ? nameMatch[1].trim() : null;
+    const dateRegex = /\d+\.DERS\s+(\d{2}\.\d{2}\.\d{4})/g;
+    const dates = [];
+    let m;
+    while ((m = dateRegex.exec(text)) !== null) {
+      const parts = m[1].split('.');
+      dates.push(`${parts[2]}-${parts[1]}-${parts[0]}`);
+    }
+    const groupMatch = text.match(/([A-ZÇŞĞÜÖİa-zçşğüöı\s\.]+GRUP\s+DERSİ)/i);
+    const groupName = groupMatch ? groupMatch[1].trim() : null;
+    return { studentName, dates, lessonCount: dates.length, groupName };
+  };
+
+  const findStudent = (name) => {
+    if (!name) return null;
+    const norm = name.toLowerCase().replace(/\s+/g, ' ').trim();
+    for (const parent of parents) {
+      for (const child of (parent.children || [])) {
+        const cn = (child.name || '').toLowerCase().trim();
+        if (cn === norm) return { parent, child };
+      }
+    }
+    for (const parent of parents) {
+      for (const child of (parent.children || [])) {
+        const cn = (child.name || '').toLowerCase().trim();
+        if (cn.includes(norm) || norm.includes(cn)) return { parent, child };
+      }
+    }
+    return null;
+  };
+
+  const extractPdfText = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        if (!window.pdfjsLib) { reject(new Error('PDF.js yüklenmedi')); return; }
+        const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(e.target.result) }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map(x => x.str).join(' ') + '\n';
+        }
+        resolve(text);
+      } catch(err) { reject(err); }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+
+  const processFiles = async (fileList) => {
+    setProcessing(true);
+    const newResults = [];
+    for (const file of Array.from(fileList)) {
+      if (!file.name.endsWith('.pdf')) continue;
+      try {
+        const text = await extractPdfText(file);
+        const { studentName, dates, lessonCount, groupName } = parsePdfText(text);
+        const match = findStudent(studentName);
+        const firstEnrollId = match?.child?.enrollments?.[0]?.id || null;
+        newResults.push({
+          key: file.name + Date.now(),
+          fileName: file.name,
+          studentName, dates, lessonCount, groupName,
+          parent: match?.parent || null,
+          child: match?.child || null,
+          enrollmentId: firstEnrollId,
+          amount: '', paid: false,
+          status: match ? 'ready' : 'unmatched'
+        });
+      } catch(err) {
+        newResults.push({ key: file.name, fileName: file.name, error: err.message, status: 'error' });
+      }
+    }
+    setResults(prev => [...prev, ...newResults]);
+    setProcessing(false);
+  };
+
+  const doImport = () => {
+    setImporting(true);
+    let updated = [...parents];
+    let count = 0;
+    for (const r of results) {
+      if (r.status !== 'ready' || !r.child || !r.enrollmentId) continue;
+      const sortedDates = [...r.dates].sort();
+      const pkgId = Date.now() + Math.floor(Math.random() * 10000);
+      const newPkg = {
+        id: pkgId,
+        name: `${r.lessonCount} Derslik Paket`,
+        totalLessons: r.lessonCount,
+        usedLessons: 0,
+        startDate: sortedDates[0] || '',
+        endDate: sortedDates[sortedDates.length - 1] || '',
+        scheduledDates: sortedDates,
+        paid: r.paid,
+        paymentStatus: r.paid ? 'odendi' : 'bekliyor',
+        amount: Number(r.amount) || 0,
+        source: 'pdf_import'
+      };
+      updated = updated.map(p => {
+        if (String(p.id) !== String(r.parent.id)) return p;
+        return { ...p, children: (p.children || []).map(c => {
+          if (String(c.id) !== String(r.child.id)) return c;
+          return { ...c, enrollments: (c.enrollments || []).map(e => {
+            if (String(e.id) !== String(r.enrollmentId)) return e;
+            const history = e.activePackage ? [...(e.packageHistory || []), e.activePackage] : (e.packageHistory || []);
+            return { ...e, activePackage: newPkg, packageHistory: history, attendance: [] };
+          })};
+        })};
+      });
+      count++;
+    }
+    setParents(updated);
+    showKsToast(`✅ ${count} öğrenci için paket oluşturuldu.`, C.green);
+    setImporting(false);
+    onClose();
+  };
+
+  const readyCount = results.filter(r => r.status === 'ready').length;
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.6)', zIndex:99999, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+      onClick={onClose}>
+      <div style={{ background:'#fff', borderRadius:20, padding:24, maxWidth:620, width:'100%', maxHeight:'90vh', overflowY:'auto', position:'relative' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+          <div>
+            <div style={{ fontWeight:900, fontSize:18, color:C.text }}>📄 PDF'den Paket Aktar</div>
+            <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>Ders takvimi PDF dosyalarını yükleyin, sistem otomatik eşleştirir</div>
+          </div>
+          <button onClick={onClose} style={{ background:'transparent', border:'none', fontSize:22, cursor:'pointer', color:C.textDim }}>✕</button>
+        </div>
+
+        <div
+          onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={e => { e.preventDefault(); setDragOver(false); processFiles(e.dataTransfer.files); }}
+          onClick={() => fileRef.current?.click()}
+          style={{ border:`2px dashed ${dragOver ? C.blue : C.border}`, borderRadius:14, padding:'28px 20px', textAlign:'center', cursor:'pointer', background: dragOver ? C.blue+'0a' : '#fafbff', marginBottom:20, transition:'all 0.2s' }}>
+          <div style={{ fontSize:36, marginBottom:8 }}>📁</div>
+          <div style={{ fontWeight:800, color:C.text, marginBottom:4 }}>PDF dosyalarını buraya sürükleyin</div>
+          <div style={{ fontSize:13, color:C.textDim }}>veya tıklayarak seçin — birden fazla dosya seçebilirsiniz</div>
+          <input ref={fileRef} type="file" accept=".pdf" multiple style={{ display:'none' }} onChange={e => processFiles(e.target.files)} />
+        </div>
+
+        {processing && (
+          <div style={{ textAlign:'center', padding:'16px 0', color:C.blue, fontWeight:800 }}>⏳ PDF'ler okunuyor...</div>
+        )}
+
+        {results.length > 0 && (
+          <div>
+            {results.map((r, i) => (
+              <div key={r.key} style={{ background: r.status==='ready' ? '#f0fdf4' : r.status==='unmatched' ? '#fff7ed' : '#fef2f2', border:`1.5px solid ${r.status==='ready' ? '#86efac' : r.status==='unmatched' ? '#fdba74' : '#fca5a5'}`, borderRadius:12, padding:'14px 16px', marginBottom:12 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:8 }}>
+                  <span style={{ fontSize:18 }}>{r.status==='ready' ? '✅' : r.status==='unmatched' ? '⚠️' : '❌'}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{r.studentName || '?'}</div>
+                    <div style={{ fontSize:12, color:C.textDim }}>{r.fileName}</div>
+                  </div>
+                  {r.status==='ready' && <div style={{ fontSize:12, fontWeight:800, color:'#16a34a', background:'#dcfce7', padding:'3px 10px', borderRadius:20 }}>{r.lessonCount} ders</div>}
+                  {r.status==='unmatched' && <div style={{ fontSize:12, fontWeight:800, color:'#c2410c', background:'#fed7aa', padding:'3px 10px', borderRadius:20 }}>Eşleşme yok</div>}
+                </div>
+
+                {r.status==='ready' && (
+                  <div>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:10 }}>
+                      {r.dates.map(d => (
+                        <span key={d} style={{ background:'#fff', border:'1.5px solid #86efac', borderRadius:20, padding:'2px 10px', fontSize:11, fontWeight:700, color:'#15803d' }}>
+                          {new Date(d+'T12:00:00').toLocaleDateString('tr-TR',{day:'numeric',month:'long'})}
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
+                      {(r.child?.enrollments||[]).length > 1 && (
+                        <select value={r.enrollmentId||''} onChange={e => setResults(prev => prev.map((x,j) => j===i ? {...x, enrollmentId: e.target.value} : x))}
+                          style={{ ...inputStyle, fontSize:12, padding:'6px 10px' }}>
+                          {(r.child.enrollments||[]).map(e => (
+                            <option key={e.id} value={e.id}>{e.branchName}</option>
+                          ))}
+                        </select>
+                      )}
+                      {(r.child?.enrollments||[]).length === 1 && (
+                        <span style={{ fontSize:12, fontWeight:700, color:C.textDim }}>Branş: {r.child.enrollments[0].branchName}</span>
+                      )}
+                      <input type="number" placeholder="Ücret (₺)" value={r.amount}
+                        onChange={e => setResults(prev => prev.map((x,j) => j===i ? {...x, amount: e.target.value} : x))}
+                        style={{ ...inputStyle, fontSize:12, padding:'6px 10px', width:110 }} />
+                      <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                        <input type="checkbox" checked={r.paid} onChange={e => setResults(prev => prev.map((x,j) => j===i ? {...x, paid: e.target.checked} : x))} />
+                        Ödendi
+                      </label>
+                    </div>
+                  </div>
+                )}
+
+                {r.status==='unmatched' && (
+                  <div style={{ fontSize:12, color:'#c2410c' }}>Sistemde "{r.studentName}" adında öğrenci bulunamadı. Önce öğrenciyi ekleyin.</div>
+                )}
+                {r.status==='error' && (
+                  <div style={{ fontSize:12, color:'#dc2626' }}>Hata: {r.error}</div>
+                )}
+              </div>
+            ))}
+
+            {readyCount > 0 && (
+              <button onClick={doImport} disabled={importing}
+                style={{ ...btnStyle(C.green), width:'100%', fontSize:15, padding:'13px 0', marginTop:4 }}>
+                {importing ? '⏳ Aktarılıyor...' : `✅ ${readyCount} Öğrenci için Paketi Oluştur`}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, groups, canEdit = true, hideFinance = false, pendingTrials = [], setPendingTrials = () => {} }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -2467,6 +2696,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   const [trialEditForm, setTrialEditForm] = useState({});
   const [ticketModal, setTicketModal] = useState(null);
   const [pendingModal, setPendingModal] = useState(null);
+  const [showPdfImport, setShowPdfImport] = useState(false);
 
   const allChildren = parents.flatMap(p => p.children || []);
   const trialChildren = allChildren.filter(c => c.isTrialStudent);
@@ -2536,6 +2766,8 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   return (
     <div className="fade-in">
 
+      {showPdfImport && <PdfImportModal onClose={() => setShowPdfImport(false)} parents={parents} setParents={setParents} dynamicBranches={dynamicBranches} />}
+
       {confirmPassive && (() => {
         const p = confirmPassive;
         const nowActive = p.isActive !== false;
@@ -2590,6 +2822,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
         <div style={{ display: "flex", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
           <input style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder="🔍  Veli adı, telefon veya çocuk adı ara..." value={search} onChange={e => setSearch(e.target.value)} />
           {canEdit && <button style={btnStyle(C.blue)} onClick={() => setShowAdd(!showAdd)}>+ Yeni Veli</button>}
+          {canEdit && <button style={btnStyle("#7c3aed")} onClick={() => setShowPdfImport(true)}>📄 PDF Aktar</button>}
         </div>
 
         <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
