@@ -1334,7 +1334,7 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
     reader.readAsDataURL(file);
   };
   const deleteReport = (rid) => updateChild({ reports: (freshChild.reports || []).filter(r => r.id !== rid) });
-  const statusColor = (s) => s === "Geldi" ? C.green : s === "Gelmedi" ? C.red : C.orange;
+  const statusColor = (s) => s === "Geldi" ? C.green : s === "Gelmedi" ? C.red : s === "Bekliyor" ? C.blue : C.orange;
 
   const pkg = activeEnrollment?.activePackage;
   const att = activeEnrollment?.attendance || [];
@@ -1749,7 +1749,20 @@ function ChildDetail({ child, parent, onBack, parents, setParents, finance, setF
                           </div>
                         </div>
                         <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                          <Badge color={statusColor(a.status)}>{a.status}</Badge>
+                          {a.status === "Bekliyor" && canEdit ? (
+                            <div style={{ display:"flex", gap:4 }}>
+                              {["Geldi","Gelmedi","İzinli"].map(s => (
+                                <button key={s} onClick={() => {
+                                  const updatedAtt = att.map(x => x.id===a.id ? {...x, status:s} : x);
+                                  let updatedPkg = activeEnrollment.activePackage ? {...activeEnrollment.activePackage} : null;
+                                  if (s==="Geldi" && updatedPkg) updatedPkg.usedLessons = Math.min((updatedPkg.usedLessons||0)+1, updatedPkg.totalLessons);
+                                  updateEnrollment(activeEnrollment.id, { attendance: updatedAtt, activePackage: updatedPkg });
+                                }} style={{ background: s==="Geldi"?C.green:s==="Gelmedi"?C.red:C.orange, color:"#fff", border:"none", borderRadius:8, padding:"4px 8px", fontSize:11, fontWeight:800, cursor:"pointer" }}>{s}</button>
+                              ))}
+                            </div>
+                          ) : (
+                            <Badge color={statusColor(a.status)}>{a.status}</Badge>
+                          )}
                           {a.status==="Geldi" && <span style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>−1 ders</span>}
                           {canEdit && <button onClick={() => deleteAttendance(a.id)} style={{ background:"none", border:"none", cursor:"pointer", color:C.textDim, fontSize:15, padding:"2px 4px" }}>🗑️</button>}
                         </div>
@@ -2579,6 +2592,11 @@ function PdfImportModal({ onClose, parents, setParents, dynamicBranches }) {
         amount: Number(r.amount) || 0,
         source: 'pdf_import'
       };
+      const preAttendance = sortedDates.map((d, idx) => ({
+        id: pkgId + idx + 1,
+        date: d,
+        status: 'Bekliyor'
+      }));
       updated = updated.map(p => {
         if (String(p.id) !== String(r.parent.id)) return p;
         return { ...p, children: (p.children || []).map(c => {
@@ -2586,7 +2604,7 @@ function PdfImportModal({ onClose, parents, setParents, dynamicBranches }) {
           return { ...c, enrollments: (c.enrollments || []).map(e => {
             if (String(e.id) !== String(r.enrollmentId)) return e;
             const history = e.activePackage ? [...(e.packageHistory || []), e.activePackage] : (e.packageHistory || []);
-            return { ...e, activePackage: newPkg, packageHistory: history, attendance: [] };
+            return { ...e, activePackage: newPkg, packageHistory: history, attendance: preAttendance };
           })};
         })};
       });
