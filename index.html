@@ -8340,14 +8340,15 @@ function PublicTrialForm() {
     if (!birthDate) errs.birthDate = true;
     if (!parentName.trim()) errs.parentName = true;
     const phoneDigits = parentPhone.replace(/\D/g, '');
-    if (!parentPhone.trim() || !(phoneDigits.length === 11 && phoneDigits.startsWith('05')) && !(phoneDigits.length === 12 && phoneDigits.startsWith('90'))) errs.parentPhone = "format";
+    const validPhone = (phoneDigits.length === 11 && phoneDigits.startsWith('05')) || (phoneDigits.length === 10 && phoneDigits.startsWith('5')) || (phoneDigits.length === 12 && phoneDigits.startsWith('90'));
+    if (!parentPhone.trim() || !validPhone) errs.parentPhone = "format";
     if (!agreed1) errs.agreed1 = true;
     if (!agreed2) errs.agreed2 = true;
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) { setErrMsg("Lütfen tüm alanları doldurun ve onay kutularını işaretleyin."); return; }
     setStep("submitting"); setErrMsg("");
     try {
-      await firebase.auth().signInAnonymously();
+      if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
       const id = "PEND_" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,4).toUpperCase();
       const now = new Date().toISOString();
       await db.collection("pendingTrials").doc(id).set({
