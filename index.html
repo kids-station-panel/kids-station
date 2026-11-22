@@ -2375,8 +2375,86 @@ function TrialTicketModal({ child, parent, groups, onClose, onSaveTicketId }) {
   );
 }
 
+// ── BEKLEYEN BAŞVURU DEĞERLENDİRME MODALI ──────────────────
+function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onReject }) {
+  const [selGroupId, setSelGroupId] = useState("");
+  const [selDate, setSelDate] = useState(new Date().toISOString().slice(0,10));
+  const KS_MAPS_URL = "https://maps.google.com/?q=Kids+Station";
+  const selGroup = (groups||[]).find(g => String(g.id) === String(selGroupId));
+
+  function waPhone(p) {
+    p = (p||"").replace(/[\s\-\(\)\.]/g, '');
+    if (p.startsWith('+')) p = p.slice(1);
+    if (p.startsWith('0')) p = '90' + p.slice(1);
+    if (!p.startsWith('90')) p = '90' + p;
+    return p;
+  }
+  function buildMsg() {
+    const childName = `${pending.childFirstName} ${pending.childLastName}`;
+    const dateStr = selDate ? new Date(selDate + 'T12:00:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' }) : '—';
+    const timeStr = selGroup?.time || '—';
+    const groupName = selGroup?.name || '—';
+    return `Merhaba ${pending.parentName} 👋\n\n${childName} için deneme dersimiz oluşturulmuştur! 🎉\n\n📅 Tarih: ${dateStr}\n🕐 Saat: ${timeStr}\n👥 Grup: ${groupName}\n\nGirişte deneme bileti QR kodunuzu gösteriniz 🎟️\n\nKids Station | Spora Yolculuk Burada Başlar! 🏃`;
+  }
+  const openWA = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(buildMsg())}`, '_blank');
+  const openWALoc = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(`📍 Kids Station Konumumuz:\n${KS_MAPS_URL}\n\nBizi ziyaret edin! 🏫`)}`, '_blank');
+
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
+      <div style={{ maxWidth:400, width:"100%", background:"#fff", borderRadius:20, overflow:"hidden", boxShadow:"0 24px 60px rgba(0,0,0,0.5)" }} onClick={e => e.stopPropagation()}>
+        <div style={{ background:"linear-gradient(135deg,#4f46e5,#7c3aed)", padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div>
+            <div style={{ color:"#fff", fontWeight:900, fontSize:15 }}>📋 Başvuruyu Değerlendir</div>
+            <div style={{ color:"rgba(255,255,255,0.65)", fontSize:11 }}>{new Date(pending.submittedAt).toLocaleDateString('tr-TR')}</div>
+          </div>
+          <button onClick={onClose} style={{ background:"rgba(255,255,255,0.15)", border:"none", borderRadius:8, color:"#fff", fontWeight:800, fontSize:16, padding:"4px 10px", cursor:"pointer" }}>✕</button>
+        </div>
+        <div style={{ padding:"16px 18px", maxHeight:"72vh", overflowY:"auto" }}>
+          <div style={{ background:"#f8fafc", borderRadius:12, padding:"12px 14px", marginBottom:14 }}>
+            <div style={{ fontWeight:900, fontSize:16, color:"#1e1b4b", marginBottom:3 }}>{pending.childFirstName} {pending.childLastName}</div>
+            {pending.birthDate && <div style={{ fontSize:12, color:"#6b7280" }}>🎂 Doğum: {new Date(pending.birthDate + 'T12:00:00').toLocaleDateString('tr-TR')}</div>}
+            <div style={{ marginTop:6, fontSize:13, fontWeight:700, color:"#374151" }}>👤 {pending.parentName}</div>
+            <div style={{ fontSize:13, color:"#4b5563" }}>📱 {pending.parentPhone}</div>
+            {pending.note && <div style={{ marginTop:6, fontSize:12, color:"#7c3aed", fontStyle:"italic" }}>💬 {pending.note}</div>}
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Grup Seç (opsiyonel)</div>
+            <select value={selGroupId} onChange={e => setSelGroupId(e.target.value)}
+              style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"2px solid #e5e7eb", fontSize:14, fontFamily:"inherit", background:"#fff" }}>
+              <option value="">— Grup seçin —</option>
+              {(groups||[]).map(g => <option key={g.id} value={g.id}>{g.name}{g.time ? ` (${g.time})` : ""}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Deneme Tarihi *</div>
+            <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
+              style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"2px solid #e5e7eb", fontSize:14, fontFamily:"inherit", boxSizing:"border-box" }} />
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
+            <button onClick={openWA} style={{ padding:"11px 10px", borderRadius:12, background:"#25D366", color:"#fff", fontWeight:800, fontSize:13, border:"none", cursor:"pointer" }}>
+              💬 WhatsApp Bildir
+            </button>
+            <button onClick={openWALoc} style={{ padding:"11px 10px", borderRadius:12, background:"#1d4ed8", color:"#fff", fontWeight:800, fontSize:13, border:"none", cursor:"pointer" }}>
+              📍 Konum Gönder
+            </button>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+            <button onClick={onReject} style={{ padding:"12px 0", borderRadius:12, background:"#fee2e2", color:"#dc2626", fontWeight:800, fontSize:13, border:"2px solid #fca5a5", cursor:"pointer" }}>
+              ❌ Reddet
+            </button>
+            <button onClick={() => onApprove({ groupId: selGroupId, date: selDate })} disabled={!selDate}
+              style={{ padding:"12px 0", borderRadius:12, background: selDate ? "linear-gradient(135deg,#22c55e,#16a34a)" : "#e5e7eb", color: selDate ? "#fff" : "#9ca3af", fontWeight:800, fontSize:13, border:"none", cursor: selDate ? "pointer" : "not-allowed" }}>
+              ✅ Sisteme Ekle
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── VELİ LİSTESİ (ANA ÜYELER SAYFASI) ──────────────────────
-function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, groups, canEdit = true, hideFinance = false }) {
+function MembersPage({ members: parents, setMembers: setParents, finance, setFinance, branches: dynamicBranches, groups, canEdit = true, hideFinance = false, pendingTrials = [], setPendingTrials = () => {} }) {
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedParent, setSelectedParent] = useState(null);
@@ -2388,6 +2466,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
   const [trialEditId, setTrialEditId] = useState(null);
   const [trialEditForm, setTrialEditForm] = useState({});
   const [ticketModal, setTicketModal] = useState(null);
+  const [pendingModal, setPendingModal] = useState(null);
 
   const allChildren = parents.flatMap(p => p.children || []);
   const trialChildren = allChildren.filter(c => c.isTrialStudent);
@@ -2518,7 +2597,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
             { key:"Tümü", label:`Tümü (${searchFiltered.length})`, color:C.blue },
             { key:"Aktif", label:`Aktif (${searchFiltered.filter(p=>p.isActive!==false&&p.source!=='mediatopia').length})`, color:C.green },
             { key:"Pasif", label:`Pasif (${searchFiltered.filter(p=>p.isActive===false).length})`, color:"#94a3b8" },
-            { key:"Deneme", label:`Deneme (${searchFiltered.filter(p=>(p.children||[]).some(c=>c.isTrialStudent)).length})`, color:C.orange },
+            { key:"Deneme", label:`Deneme (${searchFiltered.filter(p=>(p.children||[]).some(c=>c.isTrialStudent)).length})${pendingTrials.length > 0 ? ` · 📋${pendingTrials.length}` : ""}`, color:C.orange },
             { key:"Mediatopia", label:`Mediatopia (${searchFiltered.filter(p=>p.source==='mediatopia').length})`, color:"#7c3aed" },
           ].map(({key,label,color}) => (
             <button key={key} onClick={() => setStatusFilter(key)}
@@ -2568,6 +2647,29 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
               <button style={btnStyle(C.green)} onClick={addParent}>✓ Kaydet</button>
               <button style={btnOutlineStyle(C.red)} onClick={() => setShowAdd(false)}>İptal</button>
             </div>
+          </div>
+        )}
+
+        {statusFilter === "Deneme" && canEdit && pendingTrials.length > 0 && (
+          <div style={{ marginBottom:14, background:"#fffbeb", borderRadius:14, border:"2px solid #fbbf24", overflow:"hidden" }}>
+            <div style={{ padding:"10px 16px", background:"linear-gradient(135deg,#fbbf24,#f97316)", display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ fontWeight:900, color:"#fff", fontSize:14 }}>📋 Bekleyen Başvurular</span>
+              <span style={{ background:"#fff", color:"#f97316", fontWeight:900, fontSize:12, borderRadius:20, padding:"2px 10px" }}>{pendingTrials.length}</span>
+            </div>
+            {pendingTrials.map(pt => (
+              <div key={pt.id} style={{ padding:"11px 16px", borderBottom:"1px solid #fde68a", display:"flex", justifyContent:"space-between", alignItems:"center", gap:8, background:"#fff" }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:800, fontSize:14, color:"#1e1b4b" }}>{pt.childFirstName} {pt.childLastName}</div>
+                  <div style={{ fontSize:12, color:"#6b7280", marginTop:2 }}>👤 {pt.parentName} · 📱 {pt.parentPhone}</div>
+                  <div style={{ fontSize:11, color:"#9ca3af", marginTop:1 }}>{new Date(pt.submittedAt).toLocaleDateString('tr-TR', { day:'numeric', month:'long', hour:'2-digit', minute:'2-digit' })}</div>
+                  {pt.note && <div style={{ fontSize:11, color:"#7c3aed", marginTop:2, fontStyle:"italic" }}>💬 {pt.note}</div>}
+                </div>
+                <button onClick={() => setPendingModal(pt)}
+                  style={{ padding:"8px 14px", borderRadius:10, background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"#fff", fontWeight:800, fontSize:12, border:"none", cursor:"pointer", whiteSpace:"nowrap" }}>
+                  Değerlendir
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
@@ -2804,6 +2906,35 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
         )}
         {statusFilter !== "Deneme" && <div style={{ marginTop: 12, fontSize: 13, color: C.textDim, fontWeight: 700 }}>{filtered.length} veli gösteriliyor · Detay için tıklayın</div>}
       </Card>
+      {pendingModal && (
+        <PendingTrialApproveModal
+          pending={pendingModal}
+          groups={groups||[]}
+          onClose={() => setPendingModal(null)}
+          onApprove={({ groupId, date }) => {
+            if (!pendingModal || !date) return;
+            const pt = pendingModal;
+            const childId = `tc_${Date.now()}`;
+            const parentId = `tp_${Date.now()}`;
+            const childName = `${pt.childFirstName} ${pt.childLastName}`;
+            const trialTicketId = "TKT" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,6).toUpperCase();
+            const newChild = { id: childId, name: childName, birthDate: pt.birthDate, isTrialStudent: true, trialDate: date, trialGroupId: groupId, parentPhone: pt.parentPhone, trialTicketId, enrollments: [], status: "Deneme", source: "Form", addedAt: new Date().toISOString() };
+            const newParent = { id: parentId, parent1Name: pt.parentName, parent1Phone: pt.parentPhone, isActive: true, source: "Deneme Kayıt Formu", children: [newChild], createdAt: new Date().toISOString() };
+            setParents(prev => [...(prev||[]), newParent]);
+            db.collection("pendingTrials").doc(pt.id).delete().catch(() => {});
+            setPendingTrials(prev => prev.filter(p => p.id !== pt.id));
+            setPendingModal(null);
+            showKsToast(`✅ ${childName} deneme dersine eklendi!`, "#22c55e");
+          }}
+          onReject={() => {
+            if (!pendingModal) return;
+            db.collection("pendingTrials").doc(pendingModal.id).delete().catch(() => {});
+            setPendingTrials(prev => prev.filter(p => p.id !== pendingModal.id));
+            setPendingModal(null);
+            showKsToast("🗑️ Başvuru reddedildi.", "#ef4444");
+          }}
+        />
+      )}
       {ticketModal && (
         <TrialTicketModal
           child={ticketModal.child}
@@ -8157,6 +8288,96 @@ function MesaiPage({ timeEntries, staff }) {
   );
 }
 
+// ── HALKA AÇIK DENEME DERSİ KAYIT FORMU ──────────────────────
+// Erişim: ?kayit=deneme URL parametresiyle, login gerektirmez
+function PublicTrialForm() {
+  const [form, setForm] = useState({ parentName:"", parentPhone:"", childFirstName:"", childLastName:"", birthDate:"", note:"" });
+  const [step, setStep] = useState("form"); // form | submitting | success
+  const [errMsg, setErrMsg] = useState("");
+  const LOGO_URL = "/kids-station/logo.jpg";
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const { parentName, parentPhone, childFirstName, childLastName, birthDate } = form;
+    if (!parentName.trim() || !parentPhone.trim() || !childFirstName.trim() || !childLastName.trim() || !birthDate) {
+      setErrMsg("Lütfen tüm zorunlu alanları doldurun."); return;
+    }
+    setStep("submitting"); setErrMsg("");
+    try {
+      await firebase.auth().signInAnonymously();
+      const id = "PEND_" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,4).toUpperCase();
+      await db.collection("pendingTrials").doc(id).set({
+        id, parentName: parentName.trim(), parentPhone: parentPhone.trim(),
+        childFirstName: childFirstName.trim(), childLastName: childLastName.trim(),
+        birthDate, note: form.note.trim(), submittedAt: new Date().toISOString(), status: "pending"
+      });
+      setStep("success");
+    } catch(err) {
+      console.error(err);
+      setErrMsg(err.code === "auth/operation-not-allowed"
+        ? "Sistem şu an kapalı. Lütfen daha sonra tekrar deneyin."
+        : "Gönderim hatası. Lütfen tekrar deneyin.");
+      setStep("form");
+    }
+  };
+
+  if (step === "success") return (
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#fff", borderRadius:24, padding:"32px 28px", maxWidth:380, width:"100%", textAlign:"center", boxShadow:"0 24px 60px rgba(0,0,0,0.3)" }}>
+        <img src={LOGO_URL} alt="Kids Station" style={{ height:65, objectFit:"contain", marginBottom:20 }} />
+        <div style={{ fontSize:56, lineHeight:1, marginBottom:16 }}>🎉</div>
+        <div style={{ fontSize:22, fontWeight:900, color:"#1e1b4b", marginBottom:12 }}>Başvurunuz Alındı!</div>
+        <div style={{ fontSize:14, color:"#6b7280", lineHeight:1.7 }}>
+          Deneme dersi talebinizi aldık.<br/>
+          <strong style={{ color:"#4f46e5" }}>En kısa sürede WhatsApp'tan ders günü ve saatini bildireceğiz.</strong>
+        </div>
+        <div style={{ marginTop:20, fontSize:12, color:"#9ca3af" }}>Kids Station — Spora Yolculuk Burada Başlar!</div>
+      </div>
+    </div>
+  );
+
+  const inp = { width:"100%", padding:"11px 13px", borderRadius:11, border:"2px solid #e5e7eb", fontSize:15, fontFamily:"inherit", outline:"none", boxSizing:"border-box" };
+  const lbl = { fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1, display:"block", marginBottom:5 };
+
+  return (
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#4f46e5,#7c3aed)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+      <div style={{ maxWidth:420, width:"100%", background:"#fff", borderRadius:24, overflow:"hidden", boxShadow:"0 24px 60px rgba(0,0,0,0.3)" }}>
+        <div style={{ background:"#fff", padding:"18px 22px 12px", borderBottom:"2px solid #f3f4f6", textAlign:"center" }}>
+          <img src={LOGO_URL} alt="Kids Station" style={{ height:58, objectFit:"contain" }} />
+          <div style={{ marginTop:10, fontSize:17, fontWeight:900, color:"#1e1b4b" }}>Deneme Dersi Başvurusu</div>
+          <div style={{ fontSize:12, color:"#6b7280", marginTop:3 }}>Bilgileri doldurun, biz sizi arayalım 🤙</div>
+        </div>
+        <form onSubmit={handleSubmit} style={{ padding:"18px 22px 22px" }}>
+          <div style={{ background:"#f0f7ff", borderRadius:14, padding:"13px 15px", marginBottom:14 }}>
+            <div style={{ fontSize:12, fontWeight:900, color:"#1d4ed8", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>👦 Çocuk Bilgileri</div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:9, marginBottom:9 }}>
+              <div><label style={lbl}>Adı *</label><input style={inp} value={form.childFirstName} onChange={e => set("childFirstName", e.target.value)} placeholder="Çocuğun adı" /></div>
+              <div><label style={lbl}>Soyadı *</label><input style={inp} value={form.childLastName} onChange={e => set("childLastName", e.target.value)} placeholder="Soyadı" /></div>
+            </div>
+            <div><label style={lbl}>Doğum Tarihi *</label><input type="date" style={inp} value={form.birthDate} onChange={e => set("birthDate", e.target.value)} /></div>
+          </div>
+          <div style={{ background:"#f5f3ff", borderRadius:14, padding:"13px 15px", marginBottom:14 }}>
+            <div style={{ fontSize:12, fontWeight:900, color:"#7c3aed", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>👨‍👩‍👧 Veli Bilgileri</div>
+            <div style={{ marginBottom:9 }}><label style={{ ...lbl, color:"#7c3aed" }}>Ad Soyad *</label><input style={inp} value={form.parentName} onChange={e => set("parentName", e.target.value)} placeholder="Veli adı soyadı" /></div>
+            <div><label style={{ ...lbl, color:"#7c3aed" }}>WhatsApp Telefon *</label><input type="tel" style={inp} value={form.parentPhone} onChange={e => set("parentPhone", e.target.value)} placeholder="0532 XXX XX XX" /></div>
+          </div>
+          <div style={{ marginBottom:14 }}>
+            <label style={lbl}>Not (opsiyonel)</label>
+            <textarea style={{ ...inp, minHeight:60, resize:"vertical" }} value={form.note} onChange={e => set("note", e.target.value)} placeholder="Eklemek istediğiniz not..." />
+          </div>
+          {errMsg && <div style={{ background:"#fee2e2", border:"1.5px solid #fca5a5", borderRadius:10, padding:"9px 13px", fontSize:13, color:"#dc2626", fontWeight:600, marginBottom:12 }}>{errMsg}</div>}
+          <button type="submit" disabled={step === "submitting"}
+            style={{ width:"100%", padding:"14px 0", borderRadius:13, background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"#fff", fontWeight:900, fontSize:16, border:"none", cursor:step==="submitting"?"not-allowed":"pointer", opacity:step==="submitting"?0.7:1 }}>
+            {step === "submitting" ? "⏳ Gönderiliyor..." : "📩 Başvuru Gönder"}
+          </button>
+          <div style={{ textAlign:"center", marginTop:10, fontSize:11, color:"#9ca3af" }}>Bilgileriniz yalnızca deneme dersi organizasyonu için kullanılır.</div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const isMobile = useIsMobile(600);
   const [user, setUser] = useState(null);
@@ -8177,6 +8398,7 @@ function App() {
   const [finAyarlar, setFinAyarlarRaw] = useState([]);
   const [appUsers, setAppUsersRaw] = useState([]);
   const [timeEntries, setTimeEntriesRaw] = useState([]);
+  const [pendingTrials, setPendingTrialsRaw] = useState([]);
   const [previewTeacher, setPreviewTeacher] = useState(null);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
@@ -8321,6 +8543,13 @@ function App() {
       };
       attach();
     });
+
+    // pendingTrials koleksiyonu ayrı dinle (anonim yazılar dahil)
+    const pendUnsub = db.collection("pendingTrials").onSnapshot(snap => {
+      const items = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status === "pending");
+      setPendingTrialsRaw(items);
+    }, () => {});
+    unsubs.push(pendUnsub);
 
     // Tab odağa geldiğinde verileri yenile (arka plandan döndüğünde)
     const onVisible = () => { if (!document.hidden) refreshAll(); };
@@ -8565,7 +8794,7 @@ function App() {
 
   const pages = {
     dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} groups={groups} />,
-    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} groups={groups} canEdit={canEdit} />,
+    members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} groups={groups} canEdit={canEdit} pendingTrials={pendingTrials} setPendingTrials={setPendingTrialsRaw} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
     reports: <ReportsPage members={members} finance={finance} staff={visibleStaff} reports={reports} setReports={setReports} canEdit={canEdit} />,
@@ -8718,7 +8947,8 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+const _publicFormMode = new URLSearchParams(window.location.search).get('kayit') === 'deneme';
+ReactDOM.createRoot(document.getElementById('root')).render(_publicFormMode ? <PublicTrialForm /> : <App />);
 </script>
 <script>
   if ("serviceWorker" in navigator) {

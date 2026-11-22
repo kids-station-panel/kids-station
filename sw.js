@@ -1,3 +1,3 @@
-const CACHE = "ks-v20";
+const CACHE = "ks-v21";
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/kids-station/"]))));
 self.addEventListener("fetch", e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
