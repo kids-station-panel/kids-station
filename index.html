@@ -4976,6 +4976,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     { key: "groups",       label: "Grup Dersleri",   icon: "👥" },
     { key: "mesai",        label: "Mesai",           icon: "⏱️" },
     { key: "students",     label: "Öğrenciler",      icon: "👨‍🎓" },
+    { key: "coord_members", label: "Üyeler",         icon: "🧑‍🤝‍🧑" },
     { key: "attendance",   label: "Devamsızlık",     icon: "📅" },
     { key: "individual",   label: "Bireysel Dersler",icon: "📚" },
     { key: "notes",        label: "Seans Notları",   icon: "📝" },
@@ -4983,7 +4984,6 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
     { key: "calendar",     label: "Program",         icon: "📅" },
     { key: "qrscan",       label: "QR Tara",         icon: "📷" },
     ...(isCoordinator ? [
-      { key: "coord_members", label: "Üyeler",       icon: "🧑‍🤝‍🧑" },
       { key: "coord_groups",  label: "Gruplar",      icon: "🗂️" },
     ] : []),
   ];
@@ -6630,7 +6630,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
         {page === "calendar" && (
           <CalendarPage members={allChildren.map(c=>({children:[c],...c}))} staff={staff||[]} schedule={schedule} setSchedule={setSchedule||(() => {})} isAdmin={false} currentUser={user} canAdd={true} groups={groups} branches={branches} />
         )}
-        {page === "coord_members" && isCoordinator && (
+        {page === "coord_members" && (
           <MembersPage members={allParents||[]} setMembers={setAllParents} finance={finance||[]} setFinance={setFinance||(() => {})} branches={branches} groups={groups} canEdit={true} hideFinance={true} />
         )}
         {page === "coord_groups" && isCoordinator && (
