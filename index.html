@@ -8294,32 +8294,30 @@ function PublicTrialForm() {
   const [form, setForm] = useState({ parentName:"", parentPhone:"", childFirstName:"", childLastName:"", birthDate:"" });
   const [agreed1, setAgreed1] = useState(false);
   const [agreed2, setAgreed2] = useState(false);
-  const [accordionOpen, setAccordionOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
-  const [step, setStep] = useState("form"); // form | submitting | success
+  const [step, setStep] = useState("form");
   const [errMsg, setErrMsg] = useState("");
+  const conditionsRef = useRef(null);
   const LOGO_URL = "/kids-station/logo.jpg";
   const CONSENT_VERSION = "ks-atasehir-v1";
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   const CONDITIONS = [
-    { icon:"🕐", title:"Ders Başlangıç Saati", desc:"Ders başlangıcından 5 dakika önce merkezimizde bulunmanız yeterlidir." },
-    { icon:"📅", title:"Randevu ve Katılım", desc:"Deneme dersleri yalnızca onaylanan randevularla gerçekleştirilir. Katılamayacağınız durumlarda en az bir gün önceden bilgi vermenizi rica ederiz." },
-    { icon:"👕", title:"Ders Kıyafeti", desc:"Kesin kayıt sonrasında öğrencilerimizin derslere Kids Station tişörtüyle katılması zorunludur. Tişört, kayıt paketine dahildir." },
-    { icon:"🛡️", title:"Ders Düzeni ve Güvenlik", desc:"Ders boyunca eğitmenlerin yönergelerine uyulması gerekmektedir. Baby Gym haricindeki derslere ebeveyn katılımı bulunmamaktadır. Velilerimiz belirlenen bekleme alanında bulunabilir." },
-    { icon:"❤️", title:"Sağlık Bilgilendirmesi", desc:"Çocuğunuzun ders katılımını etkileyebilecek sağlık durumlarının ders öncesinde eğitmenlerimizle paylaşılması gerekmektedir." },
-    { icon:"🎒", title:"Deneme Dersine Hazırlık", desc:"Deneme dersine rahat spor kıyafetleriyle gelinmesi, yanınızda su ve yedek kıyafet bulundurulması önemlidir." },
+    { num:"01", title:"Ders Başlangıç Saati", desc:"Ders başlangıcından 5 dakika önce merkezimizde bulunmanız yeterlidir." },
+    { num:"02", title:"Randevu ve Katılım", desc:"Deneme dersleri yalnızca onaylanan randevularla gerçekleştirilir. Katılamayacağınız durumlarda en az bir gün önceden bilgi vermenizi rica ederiz." },
+    { num:"03", title:"Ders Kıyafeti", desc:"Kesin kayıt sonrasında öğrencilerimizin derslere Kids Station tişörtüyle katılması zorunludur. Tişört, kayıt paketine dahildir." },
+    { num:"04", title:"Ders Düzeni ve Güvenlik", desc:"Ders boyunca eğitmenlerin yönergelerine uyulması gerekmektedir. Baby Gym haricindeki derslere ebeveyn katılımı bulunmamaktadır. Velilerimiz belirlenen bekleme alanında bulunabilir." },
+    { num:"05", title:"Sağlık Bilgilendirmesi", desc:"Çocuğunuzun ders katılımını etkileyebilecek sağlık durumlarının ders öncesinde eğitmenlerimizle paylaşılması gerekmektedir." },
+    { num:"06", title:"Deneme Dersine Hazırlık", desc:"Deneme dersine rahat spor kıyafetleriyle gelinmesi, yanınızda su ve yedek kıyafet bulundurulması önemlidir." },
   ];
 
-  const TERMS = [
-    "Deneme dersi tamamen ücretsizdir; herhangi bir ücret talep edilmez.",
-    "Çocuğunuzun rahat hareket edebileceği spor kıyafeti ve spor ayakkabısı ile gelmesi gerekmektedir.",
-    "Ders saatinden en az 15 dakika önce merkezimizde hazır bulunmanız rica olunur.",
-    "Girişte size özel QR bilet gösterilmesi zorunludur; biletin kaybolmaması veli sorumluluğundadır.",
-    "Kids Station yetkilileri, zorunlu hallerde ders tarih ve saatini değiştirme hakkını saklı tutar.",
-    "Başvuru sırasında paylaşılan kişisel bilgiler, 6698 sayılı KVKK kapsamında yalnızca deneme dersi organizasyonu amacıyla kullanılacak ve üçüncü şahıslarla paylaşılmayacaktır.",
-    "Dersler sırasında çekilen fotoğraf/video görüntüleri Kids Station sosyal medya hesaplarında paylaşılabilir. Karşı görüşünüz varsa lütfen yöneticimize bildirin.",
-  ];
+  const handleConditionScroll = (e) => {
+    const el = e.target;
+    if (!hasScrolled && el.scrollHeight - el.scrollTop <= el.clientHeight + 20) {
+      setHasScrolled(true);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -8357,118 +8355,163 @@ function PublicTrialForm() {
   };
 
   const clearErr = k => setFieldErrors(f => ({ ...f, [k]: false }));
-  const inp = err => ({ width:"100%", padding:"11px 14px", borderRadius:8, border: err ? "1.5px solid #ef4444" : "1.5px solid #d1d5db", fontSize:14, fontFamily:"inherit", outline:"none", boxSizing:"border-box", color:"#111827", background:"#fff" });
-  const lbl = { fontSize:12, fontWeight:600, color:"#374151", display:"block", marginBottom:5 };
-  const ferr = { fontSize:11, color:"#ef4444", marginTop:3, fontWeight:500 };
+
+  const inp = err => ({
+    width:"100%", padding:"12px 14px", borderRadius:8,
+    border: err ? "2px solid #ef4444" : "2px solid #dde3ea",
+    fontSize:15, fontFamily:"inherit", outline:"none",
+    boxSizing:"border-box", color:"#1a202c", background:"#fff",
+    fontWeight:500
+  });
+  const lbl = { fontSize:13, fontWeight:700, color:"#2d3748", display:"block", marginBottom:6 };
+  const ferr = { fontSize:12, color:"#e53e3e", marginTop:4, fontWeight:600 };
 
   if (step === "success") return (
-    <div style={{ minHeight:"100vh", background:"#f1f5f9", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
-      <div style={{ background:"#fff", borderRadius:16, padding:"36px 28px", maxWidth:400, width:"100%", textAlign:"center", boxShadow:"0 4px 24px rgba(0,0,0,0.08)", border:"1px solid #e5e7eb" }}>
-        <div style={{ width:56, height:56, borderRadius:"50%", background:"#dcfce7", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24, margin:"0 auto 18px" }}>✅</div>
-        <div style={{ fontSize:20, fontWeight:800, color:"#111827", marginBottom:8 }}>Başvurunuz Alındı</div>
-        <div style={{ fontSize:13, color:"#6b7280", lineHeight:1.75, marginBottom:18 }}>
-          Deneme dersi talebiniz başarıyla iletildi. Uzmanlarımız en kısa sürede sizi <strong>WhatsApp</strong> üzerinden bilgilendirecektir.
+    <div style={{ minHeight:"100vh", background:"#edf2f7", display:"flex", alignItems:"center", justifyContent:"center", padding:20 }}>
+      <div style={{ background:"#fff", borderRadius:16, padding:"40px 28px", maxWidth:400, width:"100%", textAlign:"center", boxShadow:"0 8px 32px rgba(0,0,0,0.10)" }}>
+        <div style={{ width:64, height:64, borderRadius:"50%", background:"#c6f6d5", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 20px" }}>
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#276749" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
         </div>
-        <div style={{ background:"#f0f7ff", borderRadius:10, padding:"10px 14px", fontSize:12, color:"#1d4ed8", fontWeight:600 }}>
-          📱 {form.parentPhone}
+        <div style={{ fontSize:22, fontWeight:800, color:"#1a202c", marginBottom:10 }}>Başvurunuz Alındı</div>
+        <div style={{ fontSize:14, color:"#4a5568", lineHeight:1.8, marginBottom:20 }}>
+          Deneme dersi talebiniz iletildi. Ekibimiz en kısa sürede sizi <strong>WhatsApp</strong> üzerinden bilgilendirecektir.
         </div>
-        <div style={{ marginTop:20, fontSize:11, color:"#9ca3af", paddingTop:16, borderTop:"1px solid #f3f4f6" }}>
-          Kids Station Ataşehir · Spora Yolculuk Burada Başlar!
+        <div style={{ background:"#ebf8ff", borderRadius:10, padding:"12px 16px", fontSize:13, color:"#2b6cb0", fontWeight:700, letterSpacing:0.3 }}>
+          {form.parentPhone}
+        </div>
+        <div style={{ marginTop:24, fontSize:12, color:"#a0aec0", paddingTop:18, borderTop:"1px solid #edf2f7" }}>
+          Kids Station Ataşehir
         </div>
       </div>
     </div>
   );
 
   return (
-    <div style={{ minHeight:"100vh", background:"#f1f5f9", padding:"20px 0 40px" }}>
+    <div style={{ minHeight:"100vh", background:"#edf2f7", padding:"24px 0 48px" }}>
       <div style={{ maxWidth:480, margin:"0 auto", padding:"0 16px" }}>
 
-        {/* Logo / Başlık */}
-        <div style={{ background:"#fff", borderRadius:12, padding:"20px 20px 16px", marginBottom:10, textAlign:"center", boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-          <div style={{ display:"inline-block", padding:"6px 14px", background:"#fff", borderRadius:8, border:"1px solid #e5e7eb", marginBottom:12 }}>
-            <img src={LOGO_URL} alt="Kids Station" style={{ height:46, objectFit:"contain", display:"block" }} />
+        {/* Header */}
+        <div style={{ background:"#fff", borderRadius:14, padding:"22px 22px 18px", marginBottom:12, textAlign:"center", boxShadow:"0 2px 10px rgba(0,0,0,0.07)" }}>
+          <div style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", padding:"8px 18px", background:"#ffffff", borderRadius:8, marginBottom:14 }}>
+            <img
+              src={LOGO_URL}
+              alt="Kids Station"
+              style={{ height:52, objectFit:"contain", display:"block", backgroundColor:"#ffffff" }}
+            />
           </div>
-          <div style={{ fontSize:17, fontWeight:800, color:"#111827", marginBottom:3 }}>Deneme Dersi Başvurusu</div>
-          <div style={{ fontSize:12, color:"#6b7280" }}>Kids Station Ataşehir</div>
+          <div style={{ fontSize:19, fontWeight:800, color:"#1a202c", marginBottom:4 }}>Deneme Dersi Başvurusu</div>
+          <div style={{ fontSize:13, color:"#718096", fontWeight:500 }}>Kids Station Ataşehir</div>
         </div>
 
         <form onSubmit={handleSubmit}>
 
           {/* Öğrenci bilgileri */}
-          <div style={{ background:"#fff", borderRadius:12, padding:"16px 18px", marginBottom:10, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.2, marginBottom:12 }}>Öğrenci Bilgileri</div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+          <div style={{ background:"#fff", borderRadius:12, padding:"18px 20px", marginBottom:10, boxShadow:"0 1px 6px rgba(0,0,0,0.06)" }}>
+            <div style={{ fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.5, marginBottom:14, paddingBottom:10, borderBottom:"2px solid #edf2f7" }}>
+              Öğrenci Bilgileri
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:12 }}>
               <div>
-                <label style={lbl}>Adı <span style={{ color:"#ef4444" }}>*</span></label>
-                <input style={inp(fieldErrors.childFirstName)} value={form.childFirstName} onChange={e => { set("childFirstName", e.target.value); clearErr("childFirstName"); }} placeholder="Öğrenci adı" />
+                <label style={lbl}>Adı <span style={{ color:"#e53e3e" }}>*</span></label>
+                <input style={inp(fieldErrors.childFirstName)} value={form.childFirstName}
+                  onChange={e => { set("childFirstName", e.target.value); clearErr("childFirstName"); }}
+                  placeholder="Öğrenci adı" />
                 {fieldErrors.childFirstName && <div style={ferr}>Zorunlu alan</div>}
               </div>
               <div>
-                <label style={lbl}>Soyadı <span style={{ color:"#ef4444" }}>*</span></label>
-                <input style={inp(fieldErrors.childLastName)} value={form.childLastName} onChange={e => { set("childLastName", e.target.value); clearErr("childLastName"); }} placeholder="Soyadı" />
+                <label style={lbl}>Soyadı <span style={{ color:"#e53e3e" }}>*</span></label>
+                <input style={inp(fieldErrors.childLastName)} value={form.childLastName}
+                  onChange={e => { set("childLastName", e.target.value); clearErr("childLastName"); }}
+                  placeholder="Soyadı" />
                 {fieldErrors.childLastName && <div style={ferr}>Zorunlu alan</div>}
               </div>
             </div>
             <div>
-              <label style={lbl}>Doğum Tarihi <span style={{ color:"#ef4444" }}>*</span></label>
-              <input type="date" style={inp(fieldErrors.birthDate)} value={form.birthDate} onChange={e => { set("birthDate", e.target.value); clearErr("birthDate"); }} />
+              <label style={lbl}>Doğum Tarihi <span style={{ color:"#e53e3e" }}>*</span></label>
+              <input type="date" style={inp(fieldErrors.birthDate)} value={form.birthDate}
+                onChange={e => { set("birthDate", e.target.value); clearErr("birthDate"); }} />
               {fieldErrors.birthDate && <div style={ferr}>Zorunlu alan</div>}
             </div>
           </div>
 
           {/* Veli bilgileri */}
-          <div style={{ background:"#fff", borderRadius:12, padding:"16px 18px", marginBottom:10, boxShadow:"0 1px 4px rgba(0,0,0,0.06)" }}>
-            <div style={{ fontSize:10, fontWeight:700, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.2, marginBottom:12 }}>Veli / Yetkili Bilgileri</div>
-            <div style={{ marginBottom:10 }}>
-              <label style={lbl}>Ad Soyad <span style={{ color:"#ef4444" }}>*</span></label>
-              <input style={inp(fieldErrors.parentName)} value={form.parentName} onChange={e => { set("parentName", e.target.value); clearErr("parentName"); }} placeholder="Velinin adı ve soyadı" />
+          <div style={{ background:"#fff", borderRadius:12, padding:"18px 20px", marginBottom:10, boxShadow:"0 1px 6px rgba(0,0,0,0.06)" }}>
+            <div style={{ fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.5, marginBottom:14, paddingBottom:10, borderBottom:"2px solid #edf2f7" }}>
+              Veli / Yetkili Bilgileri
+            </div>
+            <div style={{ marginBottom:12 }}>
+              <label style={lbl}>Ad Soyad <span style={{ color:"#e53e3e" }}>*</span></label>
+              <input style={inp(fieldErrors.parentName)} value={form.parentName}
+                onChange={e => { set("parentName", e.target.value); clearErr("parentName"); }}
+                placeholder="Velinin adı ve soyadı" />
               {fieldErrors.parentName && <div style={ferr}>Zorunlu alan</div>}
             </div>
             <div>
-              <label style={lbl}>WhatsApp Telefon <span style={{ color:"#ef4444" }}>*</span></label>
-              <input type="tel" style={inp(fieldErrors.parentPhone)} value={form.parentPhone} onChange={e => { set("parentPhone", e.target.value); clearErr("parentPhone"); }} placeholder="05XX XXX XX XX" />
+              <label style={lbl}>WhatsApp Telefon <span style={{ color:"#e53e3e" }}>*</span></label>
+              <input type="tel" style={inp(fieldErrors.parentPhone)} value={form.parentPhone}
+                onChange={e => { set("parentPhone", e.target.value); clearErr("parentPhone"); }}
+                placeholder="05XX XXX XX XX" />
               {fieldErrors.parentPhone && <div style={ferr}>Zorunlu alan</div>}
-              <div style={{ fontSize:11, color:"#9ca3af", marginTop:4 }}>Randevu bilgisi bu numaraya iletilecektir.</div>
+              <div style={{ fontSize:12, color:"#a0aec0", marginTop:5, fontWeight:500 }}>Randevu bilgisi bu numaraya iletilecektir.</div>
             </div>
           </div>
 
-          {/* Katılım Koşulları – accordion */}
-          <div style={{ background:"#fff", borderRadius:12, marginBottom:10, boxShadow:"0 1px 4px rgba(0,0,0,0.06)", overflow:"hidden" }}>
+          {/* Katılım Koşulları */}
+          <div style={{ background:"#fff", borderRadius:12, marginBottom:10, boxShadow:"0 1px 6px rgba(0,0,0,0.06)", overflow:"hidden" }}>
+            <div style={{ padding:"16px 20px 12px", borderBottom:"2px solid #edf2f7" }}>
+              <div style={{ fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1.5, marginBottom:4 }}>Katılım Koşulları</div>
+              {!hasScrolled && (
+                <div style={{ fontSize:12, color:"#718096", fontWeight:500 }}>
+                  Onay vermeden önce koşulları aşağı kaydırarak okuyun.
+                </div>
+              )}
+              {hasScrolled && (
+                <div style={{ fontSize:12, color:"#2f855a", fontWeight:600 }}>
+                  Koşullar okundu. Onay verebilirsiniz.
+                </div>
+              )}
+            </div>
 
-            {/* Accordion başlık */}
-            <button type="button" onClick={() => setAccordionOpen(o => !o)}
-              style={{ width:"100%", padding:"14px 18px", display:"flex", justifyContent:"space-between", alignItems:"center", background:"none", border:"none", cursor:"pointer", textAlign:"left" }}>
-              <div>
-                <div style={{ fontSize:13, fontWeight:700, color:"#111827" }}>📋 Katılım Koşulları ve Bilgilendirme</div>
-                <div style={{ fontSize:11, color:"#9ca3af", marginTop:1 }}>Onaylamadan önce lütfen okuyun</div>
-              </div>
-              <span style={{ fontSize:14, color:"#9ca3af", flexShrink:0, transform: accordionOpen ? "rotate(180deg)" : "none", transition:"transform 0.2s", marginLeft:8 }}>▼</span>
-            </button>
-
-            {/* Koşullar listesi */}
-            {accordionOpen && (
-              <div style={{ padding:"0 18px 14px", borderTop:"1px solid #f3f4f6" }}>
+            {/* Scroll edilebilir koşullar listesi */}
+            <div style={{ position:"relative" }}>
+              <div
+                ref={conditionsRef}
+                onScroll={handleConditionScroll}
+                style={{ maxHeight:220, overflowY:"auto", padding:"4px 20px 8px" }}
+              >
                 {CONDITIONS.map((c, i) => (
-                  <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"10px 0", borderBottom: i < CONDITIONS.length - 1 ? "1px solid #f9fafb" : "none" }}>
-                    <span style={{ fontSize:15, flexShrink:0, lineHeight:1.5 }}>{c.icon}</span>
+                  <div key={i} style={{ display:"flex", gap:14, alignItems:"flex-start", padding:"12px 0", borderBottom: i < CONDITIONS.length - 1 ? "1px solid #f7fafc" : "none" }}>
+                    <div style={{ flexShrink:0, width:28, height:28, borderRadius:6, background:"#ebf4ff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color:"#3b82f6", letterSpacing:0.5, marginTop:1 }}>
+                      {c.num}
+                    </div>
                     <div>
-                      <div style={{ fontSize:12, fontWeight:700, color:"#1f2937", marginBottom:2 }}>{c.title}</div>
-                      <div style={{ fontSize:12, color:"#6b7280", lineHeight:1.6 }}>{c.desc}</div>
+                      <div style={{ fontSize:13, fontWeight:700, color:"#1a202c", marginBottom:3 }}>{c.title}</div>
+                      <div style={{ fontSize:13, color:"#4a5568", lineHeight:1.65 }}>{c.desc}</div>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
+              {/* Gradient fade — aşağı kaydır ipucu */}
+              {!hasScrolled && (
+                <div style={{ position:"absolute", bottom:0, left:0, right:0, height:52, background:"linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.97))", display:"flex", alignItems:"flex-end", justifyContent:"center", paddingBottom:6, pointerEvents:"none" }}>
+                  <div style={{ fontSize:11, color:"#718096", fontWeight:600, letterSpacing:0.3 }}>↓ aşağı kaydırın</div>
+                </div>
+              )}
+            </div>
 
-            {/* Onay kutuları – her zaman görünür */}
-            <div style={{ padding:"14px 18px 16px", borderTop:"1px solid #f3f4f6", background:"#fafafa" }}>
+            {/* Onay kutuları */}
+            <div style={{ padding:"14px 20px 18px", borderTop:"2px solid #edf2f7", background:"#f7fafc" }}>
 
               {/* Onay 1 */}
-              <label style={{ display:"flex", gap:10, alignItems:"flex-start", cursor:"pointer", marginBottom:12 }}>
-                <input type="checkbox" checked={agreed1} onChange={e => { setAgreed1(e.target.checked); clearErr("agreed1"); }}
-                  style={{ marginTop:3, width:18, height:18, accentColor:"#4f46e5", flexShrink:0, cursor:"pointer" }} />
+              <label style={{ display:"flex", gap:12, alignItems:"flex-start", cursor: hasScrolled ? "pointer" : "default", marginBottom:14, opacity: hasScrolled ? 1 : 0.4 }}>
+                <input type="checkbox" checked={agreed1}
+                  disabled={!hasScrolled}
+                  onChange={e => { setAgreed1(e.target.checked); clearErr("agreed1"); }}
+                  style={{ marginTop:3, width:18, height:18, accentColor:"#4f46e5", flexShrink:0, cursor: hasScrolled ? "pointer" : "not-allowed" }} />
                 <div>
-                  <span style={{ fontSize:13, color:"#1f2937", fontWeight:600, lineHeight:1.5 }}>
+                  <span style={{ fontSize:13, color:"#1a202c", fontWeight:700, lineHeight:1.55 }}>
                     Kids Station Ataşehir deneme dersi katılım koşullarını okudum, anladım ve kabul ediyorum.
                   </span>
                   {fieldErrors.agreed1 && <div style={ferr}>Bu onayı işaretlemeniz gerekmektedir.</div>}
@@ -8476,14 +8519,16 @@ function PublicTrialForm() {
               </label>
 
               {/* Onay 2 */}
-              <label style={{ display:"flex", gap:10, alignItems:"flex-start", cursor:"pointer" }}>
-                <input type="checkbox" checked={agreed2} onChange={e => { setAgreed2(e.target.checked); clearErr("agreed2"); }}
-                  style={{ marginTop:3, width:18, height:18, accentColor:"#4f46e5", flexShrink:0, cursor:"pointer" }} />
+              <label style={{ display:"flex", gap:12, alignItems:"flex-start", cursor: hasScrolled ? "pointer" : "default", opacity: hasScrolled ? 1 : 0.4 }}>
+                <input type="checkbox" checked={agreed2}
+                  disabled={!hasScrolled}
+                  onChange={e => { setAgreed2(e.target.checked); clearErr("agreed2"); }}
+                  style={{ marginTop:3, width:18, height:18, accentColor:"#4f46e5", flexShrink:0, cursor: hasScrolled ? "pointer" : "not-allowed" }} />
                 <div>
-                  <span style={{ fontSize:13, color:"#1f2937", fontWeight:600, lineHeight:1.5 }}>
+                  <span style={{ fontSize:13, color:"#1a202c", fontWeight:700, lineHeight:1.55 }}>
                     Çocuğumun yaşına ve gelişim düzeyine uygun sportif etkinliklere katılmasına izin veriyorum.
                   </span>
-                  <div style={{ fontSize:11, color:"#6b7280", marginTop:3, lineHeight:1.55 }}>
+                  <div style={{ fontSize:12, color:"#718096", marginTop:4, lineHeight:1.6, fontWeight:500 }}>
                     Fiziksel aktivitelerin olası riskleri hakkında bilgilendirildiğimi ve çocuğumun katılımını etkileyebilecek sağlık durumlarını merkeze bildireceğimi kabul ediyorum.
                   </div>
                   {fieldErrors.agreed2 && <div style={ferr}>Bu onayı işaretlemeniz gerekmektedir.</div>}
@@ -8493,19 +8538,19 @@ function PublicTrialForm() {
           </div>
 
           {/* KVKK notu */}
-          <div style={{ fontSize:11, color:"#9ca3af", lineHeight:1.6, padding:"4px 4px 14px" }}>
-            🔒 Kişisel verileriniz 6698 sayılı KVKK kapsamında korunmakta olup yalnızca deneme dersi organizasyonu amacıyla kullanılacaktır.
+          <div style={{ fontSize:12, color:"#a0aec0", lineHeight:1.65, padding:"4px 4px 16px", fontWeight:500 }}>
+            Kişisel verileriniz 6698 sayılı KVKK kapsamında korunmakta olup yalnızca deneme dersi organizasyonu amacıyla kullanılacaktır.
           </div>
 
           {errMsg && (
-            <div style={{ background:"#fef2f2", border:"1.5px solid #fecaca", borderRadius:8, padding:"10px 14px", fontSize:13, color:"#dc2626", fontWeight:600, marginBottom:12 }}>
+            <div style={{ background:"#fff5f5", border:"2px solid #feb2b2", borderRadius:8, padding:"11px 14px", fontSize:13, color:"#c53030", fontWeight:700, marginBottom:14 }}>
               {errMsg}
             </div>
           )}
 
           <button type="submit" disabled={step === "submitting"}
-            style={{ width:"100%", padding:"14px 0", borderRadius:10, background:"#4f46e5", color:"#fff", fontWeight:700, fontSize:15, border:"none", cursor: step === "submitting" ? "not-allowed" : "pointer", opacity: step === "submitting" ? 0.7 : 1 }}>
-            {step === "submitting" ? "Gönderiliyor..." : "Başvuruyu Tamamla →"}
+            style={{ width:"100%", padding:"15px 0", borderRadius:10, background:"#4f46e5", color:"#fff", fontWeight:800, fontSize:15, border:"none", cursor: step === "submitting" ? "not-allowed" : "pointer", opacity: step === "submitting" ? 0.6 : 1, letterSpacing:0.4 }}>
+            {step === "submitting" ? "Gönderiliyor..." : "Başvuruyu Tamamla"}
           </button>
         </form>
       </div>
