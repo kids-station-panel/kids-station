@@ -8765,14 +8765,20 @@ function PublicTrialForm() {
             </div>
             <div>
               <label style={lbl}>İletişim Telefonu <span style={{ color:"#e53e3e" }}>*</span></label>
-              <input type="tel" inputMode="numeric" style={inp(fieldErrors.parentPhone)} value={form.parentPhone} maxLength={11}
+              <input type="tel" inputMode="numeric" style={inp(fieldErrors.parentPhone)} value={form.parentPhone} maxLength={14}
                 onChange={e => {
                   let v = e.target.value.replace(/\D/g, '');
                   if (v.length > 0 && v[0] === '5') v = '0' + v;
+                  if (v.length > 0 && v[0] !== '0') v = '';
+                  if (v.length > 1 && v[1] !== '5') v = v[0];
                   if (v.length > 11) v = v.slice(0, 11);
-                  set("parentPhone", v); clearErr("parentPhone");
+                  let fmt = v;
+                  if (v.length > 4) fmt = v.slice(0,4) + ' ' + v.slice(4);
+                  if (v.length > 7) fmt = v.slice(0,4) + ' ' + v.slice(4,7) + ' ' + v.slice(7);
+                  if (v.length > 9) fmt = v.slice(0,4) + ' ' + v.slice(4,7) + ' ' + v.slice(7,9) + ' ' + v.slice(9);
+                  set("parentPhone", fmt); clearErr("parentPhone");
                 }}
-                placeholder="05XX XXX XX XX" />
+                placeholder="0555 777 88 99" />
               {fieldErrors.parentPhone && <div style={ferr}>{fieldErrors.parentPhone === "format" ? "Geçerli bir telefon numarası girin (05XX XXX XX XX)" : "Zorunlu alan"}</div>}
               <div style={{ fontSize:12, color:"#a0aec0", marginTop:5, fontWeight:500 }}>Randevu bilgisi bu numaraya iletilecektir.</div>
             </div>
