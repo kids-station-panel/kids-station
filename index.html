@@ -8707,18 +8707,46 @@ function PublicTrialForm() {
 
   const childName = form.childFirstName.trim();
 
+  const getTurkishAcc = (name) => {
+    const n = name.trim();
+    if (!n) return n;
+    const lastChar = n[n.length - 1];
+    const isVowel = 'aeıioöuüAEIİOÖUÜ'.includes(lastChar);
+    let lastVowel = 'i';
+    for (let i = n.length - 1; i >= 0; i--) {
+      if ('aeıioöuüAEIİOÖUÜ'.includes(n[i])) { lastVowel = n[i].toLowerCase(); break; }
+    }
+    const sfx = 'aıou'.includes(lastVowel) ? 'ı' : 'i';
+    return `${n}'${isVowel ? 'y' : ''}${sfx}`;
+  };
+
   if (intro) return (
-    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#0a2255 0%,#1e5cb3 60%,#1a7a3c 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24 }}>
+    <div style={{ minHeight:"100vh", background:"linear-gradient(135deg,#06112b 0%,#0f2460 45%,#0a2b1e 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:24, overflow:"hidden", position:"relative" }}>
       <style>{`
-        @keyframes ks-pop { 0%{opacity:0;transform:scale(0.8)} 60%{transform:scale(1.05)} 100%{opacity:1;transform:scale(1)} }
-        @keyframes ks-up { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes ks-pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+        @keyframes ks-pop { 0%{opacity:0;transform:scale(0.7)} 70%{transform:scale(1.08)} 100%{opacity:1;transform:scale(1)} }
+        @keyframes ks-up { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes ks-float { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-14px) rotate(8deg)} }
+        @keyframes ks-floatR { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-18px) rotate(-10deg)} }
+        @keyframes ks-glow { 0%,100%{opacity:0.25;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.08)} }
+        @keyframes ks-fill { from{width:0} to{width:100%} }
       `}</style>
-      <img src={LOGO_URL} alt="Kids Station" style={{ width:200, maxWidth:"70vw", borderRadius:16, boxShadow:"0 12px 48px #0006", animation:"ks-pop 0.9s cubic-bezier(.34,1.56,.64,1) forwards" }} />
-      <div style={{ color:"#fff", fontSize:22, fontWeight:900, marginTop:28, textAlign:"center", animation:"ks-up 0.7s 0.6s ease both", textShadow:"0 2px 12px #0004" }}>Kids Station Ataşehir</div>
-      <div style={{ color:"#ffffffbb", fontSize:15, marginTop:10, textAlign:"center", animation:"ks-up 0.7s 0.9s ease both", fontWeight:500 }}>Sizi bekliyoruz ✨</div>
-      <div style={{ marginTop:40, display:"flex", gap:8, animation:"ks-pulse 1.2s 1.2s ease infinite both" }}>
-        {[0,1,2].map(i => <div key={i} style={{ width:8, height:8, borderRadius:"50%", background:"#ffffff66" }} />)}
+
+      {[{e:'⚽',top:'7%',left:'4%',d:2.2,s:'ks-float'},{e:'🤸',top:'12%',right:'6%',d:1.6,s:'ks-floatR'},{e:'🥊',bottom:'18%',left:'5%',d:1.9,s:'ks-float'},{e:'🏊',bottom:'10%',right:'4%',d:2.4,s:'ks-floatR'},{e:'🏆',top:'42%',left:'3%',d:1.7,s:'ks-float'},{e:'🎯',top:'28%',right:'3%',d:2.1,s:'ks-floatR'},{e:'⭐',bottom:'35%',right:'7%',d:1.5,s:'ks-float'},{e:'💪',bottom:'28%',left:'8%',d:2.0,s:'ks-floatR'}].map((item,i) => (
+        <div key={i} style={{ position:"absolute", top:item.top, left:item.left, right:item.right, bottom:item.bottom, fontSize:34, opacity:0.3, animation:`${item.s} ${item.d+1.5}s ease-in-out infinite`, animationDelay:`${i*0.25}s`, pointerEvents:"none" }}>{item.e}</div>
+      ))}
+
+      <div style={{ position:"relative", marginBottom:24 }}>
+        <div style={{ position:"absolute", inset:-24, borderRadius:"50%", background:"radial-gradient(circle,#1e5cb355,transparent 70%)", animation:"ks-glow 2s ease-in-out infinite", pointerEvents:"none" }} />
+        <div style={{ background:"#fff", borderRadius:22, padding:"18px 24px", boxShadow:"0 12px 48px #0008,0 0 0 1px #ffffff18", animation:"ks-pop 0.9s cubic-bezier(.34,1.56,.64,1) forwards" }}>
+          <img src={LOGO_URL} alt="Kids Station" style={{ height:80, objectFit:"contain", display:"block" }} />
+        </div>
+      </div>
+
+      <div style={{ color:"#fff", fontSize:24, fontWeight:900, textAlign:"center", animation:"ks-up 0.7s 0.65s ease both", textShadow:"0 2px 20px #0006", letterSpacing:0.5 }}>Kids Station Ataşehir</div>
+      <div style={{ fontSize:12, fontWeight:800, marginTop:10, textAlign:"center", animation:"ks-up 0.7s 0.9s ease both", letterSpacing:2.5, textTransform:"uppercase", background:"linear-gradient(90deg,#f5c400,#ff8c00)", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>Spora Yolculuk Burada Başlar!</div>
+
+      <div style={{ marginTop:44, width:140, height:3, background:"#ffffff15", borderRadius:99, overflow:"hidden", animation:"ks-up 0.5s 1.1s ease both" }}>
+        <div style={{ height:"100%", background:"linear-gradient(90deg,#f5c400,#27a844)", borderRadius:99, animation:"ks-fill 1.8s 1.2s ease forwards", width:0 }} />
       </div>
     </div>
   );
@@ -8730,11 +8758,13 @@ function PublicTrialForm() {
 
         {/* Header */}
         <div style={{ background:"linear-gradient(135deg,#0a2255,#1e5cb3)", borderRadius:18, padding:"28px 22px 22px", marginBottom:12, textAlign:"center", boxShadow:"0 8px 32px #1e5cb322" }}>
-          <img src={LOGO_URL} alt="Kids Station" style={{ height:64, objectFit:"contain", display:"block", margin:"0 auto 16px", filter:"drop-shadow(0 4px 12px #0004)" }} />
+          <div style={{ display:"inline-block", background:"#fff", borderRadius:16, padding:"12px 18px", marginBottom:16, boxShadow:"0 4px 20px #0003" }}>
+            <img src={LOGO_URL} alt="Kids Station" style={{ height:56, objectFit:"contain", display:"block" }} />
+          </div>
           {childName.length >= 2
             ? <>
                 <div style={{ fontSize:13, color:"#ffffff99", fontWeight:600, marginBottom:4 }}>Hoş geldiniz 👋</div>
-                <div style={{ fontSize:20, fontWeight:900, color:"#fff", marginBottom:4 }}>{childName}'ı aramıza bekliyoruz 🌟</div>
+                <div style={{ fontSize:20, fontWeight:900, color:"#fff", marginBottom:4 }}>{getTurkishAcc(childName)} aramıza bekliyoruz 🌟</div>
                 <div style={{ fontSize:12, color:"#ffffff88", fontWeight:500 }}>Kids Station Ataşehir</div>
               </>
             : <>
