@@ -9442,8 +9442,51 @@ function App() {
   );
 }
 
-const _publicFormMode = new URLSearchParams(window.location.search).get('kayit') === 'deneme';
-ReactDOM.createRoot(document.getElementById('root')).render(_publicFormMode ? <PublicTrialForm /> : <App />);
+function LandingPage() {
+  const go = (path) => { window.location.href = path; };
+  return (
+    <div style={{ minHeight:"100vh", background:"linear-gradient(160deg,#0d2d6b 0%,#1e5cb3 55%,#1a7a3c 100%)", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"32px 20px", fontFamily:"system-ui,sans-serif", position:"relative" }}>
+      {/* logo */}
+      <img src="/logo.jpg" alt="Kids Station" style={{ width:200, maxWidth:"70vw", borderRadius:16, boxShadow:"0 8px 32px #0005", marginBottom:24 }} />
+
+      {/* başlık */}
+      <div style={{ color:"#fff", fontSize:22, fontWeight:900, textAlign:"center", marginBottom:4, textShadow:"0 2px 8px #0004" }}>Kids Station Ataşehir</div>
+      <div style={{ color:"#ffffffcc", fontSize:14, fontWeight:600, textAlign:"center", marginBottom:40, letterSpacing:1 }}>Spora Yolculuk Burada Başlar!</div>
+
+      {/* ana buton */}
+      <button onClick={() => go("/?kayit=deneme")} style={{ background:"#f5c400", color:"#0d2d6b", border:"none", borderRadius:16, padding:"18px 40px", fontSize:18, fontWeight:900, cursor:"pointer", boxShadow:"0 4px 20px #f5c40066", marginBottom:16, width:"100%", maxWidth:340, letterSpacing:0.5 }}>
+        🎯 Deneme Dersi Kaydı
+      </button>
+
+      {/* bilgi */}
+      <div style={{ background:"#ffffff18", borderRadius:14, padding:"16px 20px", maxWidth:340, width:"100%", marginBottom:32 }}>
+        <div style={{ color:"#fff", fontSize:13, fontWeight:700, marginBottom:8, textAlign:"center" }}>📍 Ataşehir, İstanbul</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {[["🤸", "Cimnastik"], ["🥊", "Boks"], ["⚽", "Futbol"], ["🏊", "Yüzme"]].map(([ic, ad]) => (
+            <div key={ad} style={{ background:"#ffffff15", borderRadius:10, padding:"10px 8px", textAlign:"center" }}>
+              <div style={{ fontSize:22, marginBottom:4 }}>{ic}</div>
+              <div style={{ color:"#fff", fontSize:12, fontWeight:700 }}>{ad}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* gizli panel linki */}
+      <button onClick={() => go("/?panel=1")} style={{ background:"transparent", border:"none", color:"#ffffff44", fontSize:11, cursor:"pointer", padding:8, fontFamily:"inherit" }}>
+        Personel Girişi
+      </button>
+    </div>
+  );
+}
+
+const _params = new URLSearchParams(window.location.search);
+const _publicFormMode = _params.get('kayit') === 'deneme';
+const _panelMode = _params.get('panel') === '1';
+ReactDOM.createRoot(document.getElementById('root')).render(
+  _publicFormMode ? <PublicTrialForm /> :
+  _panelMode ? <App /> :
+  <LandingPage />
+);
 </script>
 <script>
   if ("serviceWorker" in navigator) {
