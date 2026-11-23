@@ -8717,14 +8717,13 @@ function PublicTrialForm() {
           <div style={{ fontSize:14, fontWeight:900, color:"#0f2460", marginBottom:14 }}>📋 Derse Gelirken Unutmayın</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
             {[
-              ["🧴","Çocuğunuz için su şişesi getirin"],
-              ["👚","Yedek kıyafet çantaya koyun"],
-              ["⏰","5 dakika erken gelirseniz harika olur"],
-              ["👟","Rahat spor ayakkabı giydirin"],
+              ["💧","Su şişesini unutmayın"],
+              ["🎽","Yedek kıyafet getirin"],
+              ["⏰","5 dk erken gelirseniz harika olur"],
             ].map(([ic,txt]) => (
-              <div key={txt} style={{ background:"#f8faff", borderRadius:14, padding:"14px 12px", textAlign:"center" }}>
-                <div style={{ fontSize:30, marginBottom:8 }}>{ic}</div>
-                <div style={{ fontSize:12, color:"#4a5568", fontWeight:600, lineHeight:1.5 }}>{txt}</div>
+              <div key={txt} style={{ background:"#f8faff", borderRadius:14, padding:"16px 12px", textAlign:"center", gridColumn: txt.includes("erken") ? "1 / -1" : undefined }}>
+                <div style={{ fontSize:32, marginBottom:8 }}>{ic}</div>
+                <div style={{ fontSize:13, color:"#4a5568", fontWeight:600, lineHeight:1.5 }}>{txt}</div>
               </div>
             ))}
           </div>
