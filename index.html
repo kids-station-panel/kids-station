@@ -8764,9 +8764,14 @@ function PublicTrialForm() {
               {fieldErrors.parentName && <div style={ferr}>Zorunlu alan</div>}
             </div>
             <div>
-              <label style={lbl}>WhatsApp Telefon <span style={{ color:"#e53e3e" }}>*</span></label>
-              <input type="tel" style={inp(fieldErrors.parentPhone)} value={form.parentPhone}
-                onChange={e => { set("parentPhone", e.target.value); clearErr("parentPhone"); }}
+              <label style={lbl}>İletişim Telefonu <span style={{ color:"#e53e3e" }}>*</span></label>
+              <input type="tel" inputMode="numeric" style={inp(fieldErrors.parentPhone)} value={form.parentPhone} maxLength={11}
+                onChange={e => {
+                  let v = e.target.value.replace(/\D/g, '');
+                  if (v.length > 0 && v[0] === '5') v = '0' + v;
+                  if (v.length > 11) v = v.slice(0, 11);
+                  set("parentPhone", v); clearErr("parentPhone");
+                }}
                 placeholder="05XX XXX XX XX" />
               {fieldErrors.parentPhone && <div style={ferr}>{fieldErrors.parentPhone === "format" ? "Geçerli bir telefon numarası girin (05XX XXX XX XX)" : "Zorunlu alan"}</div>}
               <div style={{ fontSize:12, color:"#a0aec0", marginTop:5, fontWeight:500 }}>Randevu bilgisi bu numaraya iletilecektir.</div>
