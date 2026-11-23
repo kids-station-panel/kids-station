@@ -8663,7 +8663,7 @@ function PublicTrialForm() {
           activity: { agreed: true, agreedAt: now, version: CONSENT_VERSION }
         }
       });
-      setStep("success"); window.scrollTo({top:0, behavior:"smooth"});
+      setStep("success"); setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 50);
     } catch(err) {
       console.error(err);
       setErrMsg(err.code === "auth/operation-not-allowed" ? "Sistem şu an kapalı. Lütfen daha sonra tekrar deneyin." : err.code === "permission-denied" ? "Kayıt izni hatası. Lütfen sayfayı yenileyip tekrar deneyin." : `Gönderim hatası (${err.code||"bilinmiyor"}). Lütfen tekrar deneyin.`);
@@ -8714,17 +8714,17 @@ function PublicTrialForm() {
 
         {/* Hatırlatmalar */}
         <div style={{ background:"#fff", borderRadius:20, padding:"20px", marginBottom:12, boxShadow:"0 4px 24px #0003", animation:"ks-up2 0.5s 0.9s ease both" }}>
-          <div style={{ fontSize:12, fontWeight:900, color:"#0f2460", marginBottom:14, letterSpacing:1, textTransform:"uppercase" }}>✅ Derse Gelirken Unutmayın</div>
+          <div style={{ fontSize:14, fontWeight:900, color:"#0f2460", marginBottom:14 }}>📋 Derse Gelirken Unutmayın</div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
             {[
-              ["🥤","Su şişen olsun"],
-              ["🩱","Yedek kıyafet al"],
-              ["🕐","5 dk önce gel"],
-              ["😄","Enerjini getir!"],
+              ["🧴","Çocuğunuz için su şişesi getirin"],
+              ["👚","Yedek kıyafet çantaya koyun"],
+              ["⏰","5 dakika erken gelirseniz harika olur"],
+              ["👟","Rahat spor ayakkabı giydirin"],
             ].map(([ic,txt]) => (
               <div key={txt} style={{ background:"#f8faff", borderRadius:14, padding:"14px 12px", textAlign:"center" }}>
-                <div style={{ fontSize:28, marginBottom:6 }}>{ic}</div>
-                <div style={{ fontSize:12, color:"#4a5568", fontWeight:700, lineHeight:1.3 }}>{txt}</div>
+                <div style={{ fontSize:30, marginBottom:8 }}>{ic}</div>
+                <div style={{ fontSize:12, color:"#4a5568", fontWeight:600, lineHeight:1.5 }}>{txt}</div>
               </div>
             ))}
           </div>
