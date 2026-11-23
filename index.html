@@ -9480,7 +9480,9 @@ function LandingPage() {
 }
 
 const _params = new URLSearchParams(window.location.search);
-const _publicFormMode = _params.get('kayit') === 'deneme';
+const _redirect = _params.get('_r');
+if (_redirect === 'basvuru') history.replaceState(null, '', '/basvuru');
+const _publicFormMode = _params.get('kayit') === 'deneme' || _redirect === 'basvuru';
 const _panelMode = _params.get('panel') === '1';
 ReactDOM.createRoot(document.getElementById('root')).render(
   _publicFormMode ? <PublicTrialForm /> :

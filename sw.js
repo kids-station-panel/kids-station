@@ -1,3 +1,3 @@
-const CACHE = "ks-v48";
+const CACHE = "ks-v49";
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/"]))));
 self.addEventListener("fetch", e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
