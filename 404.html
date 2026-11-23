@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script>
+  var seg = window.location.pathname.slice(1).replace(/\/$/, '');
+  if (seg === 'basvuru') {
+    window.location.replace('/?kayit=deneme');
+  } else {
+    window.location.replace('/');
+  }
+</script>
+</head>
+</html>
