@@ -5895,7 +5895,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                   <div style={{ color:C.textDim, fontWeight:600, fontSize:14, padding:"8px 0" }}>Bugün ders yok.</div>
                 ) : myGroupsToday.map(g => {
                   const brName = (branches||[]).find(b=>b.id===g.branchId)?.name || g.branchName || "-";
-                  const sCount = (g.studentIds||[]).length;
+                  const trialsTodayInGrp = (allChildren||[]).filter(c => c.isTrialStudent && String(c.trialGroupId) === String(g.id) && c.trialDate === todayStr).length;
+                  const sCount = (g.studentIds||[]).length + trialsTodayInGrp;
                   const savedToday = (attendance||[]).some(a => a.type==="group" && String(a.groupId)===String(g.id) && a.date===todayStr);
                   return (
                     <div key={g.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
@@ -5926,7 +5927,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                         <div key={g.id} style={{ background:C.blue+"0d", borderRadius:10, padding:"10px 14px" }}>
                           <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{g.name}</div>
                           <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:3 }}>
-                            {brName} · {(g.days||[]).join(", ")||"Gün belirtilmemiş"} · {g.time||"?"}-{g.endTime||"?"} · {(g.studentIds||[]).length} öğrenci
+                            {brName} · {(g.days||[]).join(", ")||"Gün belirtilmemiş"} · {g.time||"?"}-{g.endTime||"?"} · {(g.studentIds||[]).length + (allChildren||[]).filter(c => c.isTrialStudent && String(c.trialGroupId) === String(g.id)).length} öğrenci
                           </div>
                         </div>
                       );
@@ -6035,6 +6036,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
             ) : myGroups.map(g => {
               const branchName = (branches||[]).find(b => b.id === g.branchId)?.name || g.branchName || "-";
               const groupStudents = (g.studentIds||[]).map(sid => allChildren.find(c => String(c.id) === String(sid))).filter(Boolean);
+              const trialStudentsInGroup = (allChildren||[]).filter(c => c.isTrialStudent && String(c.trialGroupId) === String(g.id));
               const isAttMode = groupAttMode === g.id;
               const todayStr = new Date().toISOString().slice(0,10);
               const savedToday = (attendance||[]).some(a => a.type === "group" && a.groupId === g.id && a.date === todayStr);
@@ -6049,13 +6051,13 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                       <div style={{ fontSize:13, color:C.textDim, fontWeight:600, marginTop:2 }}>{branchName} · {g.type === "individual" ? "Bireysel" : "Grup Dersi"}</div>
                       <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
                         <Badge color={C.blue}>{branchName}</Badge>
-                        <Badge color={C.orange}>{groupStudents.length} öğrenci</Badge>
+                        <Badge color={C.orange}>{groupStudents.length + trialStudentsInGroup.length} öğrenci{trialStudentsInGroup.length > 0 ? ` (${trialStudentsInGroup.length} deneme)` : ""}</Badge>
                         {savedToday && <Badge color={C.green}>✅ Bugün yoklandı</Badge>}
                       </div>
                     </div>
                     <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end", flexShrink:0, marginLeft:8 }}>
                       <Badge color={g.isActive ? C.green : C.red}>{g.isActive ? "Aktif" : "Pasif"}</Badge>
-                      {!isAttMode && groupStudents.length > 0 && g.isActive !== false && (
+                      {!isAttMode && (groupStudents.length > 0 || trialStudentsInGroup.length > 0) && g.isActive !== false && (
                         savedToday ? (
                           <button style={{ ...btnStyle(C.green), fontSize:12, padding:"8px 14px", marginTop:4, opacity:0.7, cursor:"default" }} disabled>
                             ✅ Bugün Yoklandı
@@ -6201,6 +6203,36 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                             </div>
                           );
                         })}
+                        {/* Deneme öğrencileri – yoklama modunda ayrı gösterilir */}
+                        {trialStudentsInGroup.length > 0 && (
+                          <>
+                            <div style={{ fontSize:11, fontWeight:800, color:"#f97316", textTransform:"uppercase", marginTop:12, marginBottom:4, paddingLeft:4 }}>🧪 Deneme Öğrencileri</div>
+                            {trialStudentsInGroup.map(child => {
+                              const parentRec = (allParents||[]).find(p => (p.children||[]).some(ch => String(ch.id) === String(child.id)));
+                              const statusColor = child.trialStatus === "Geldi" ? C.green : child.trialStatus === "Gelmedi" ? C.red : C.orange;
+                              return (
+                                <div key={child.id} style={{ background:"#fff7ed", borderRadius:12, padding:"10px 12px", border:"1.5px solid #f9731655" }}>
+                                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", flexWrap:"wrap", gap:8 }}>
+                                    <div>
+                                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                        <span style={{ fontWeight:800, fontSize:14, color:C.text }}>{child.name}</span>
+                                        <span style={{ fontSize:10, background:"#f97316", color:"#fff", borderRadius:4, padding:"2px 6px", fontWeight:800 }}>DENEME</span>
+                                      </div>
+                                      <div style={{ fontSize:11, color:C.textDim, fontWeight:600, marginTop:2 }}>{calcAge(child.birthDate)} yaş · {fmtDate(child.trialDate)}</div>
+                                    </div>
+                                    <div style={{ display:"flex", gap:5, flexWrap:"wrap", alignItems:"center" }}>
+                                      <Badge color={statusColor}>{child.trialStatus||"Bekleniyor"}</Badge>
+                                      <button style={{ padding:"7px 12px", borderRadius:8, fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit", background:C.green+"22", color:C.green, border:`1.5px solid ${C.green}44` }}
+                                        onClick={() => { if (parentRec) setAllParents(prev => prev.map(p => p.id===parentRec.id ? {...p, children:(p.children||[]).map(c => String(c.id)===String(child.id) ? {...c,trialStatus:"Geldi"} : c)} : p)); }}>✅ Geldi</button>
+                                      <button style={{ padding:"7px 12px", borderRadius:8, fontWeight:800, fontSize:12, cursor:"pointer", fontFamily:"inherit", background:C.red+"22", color:C.red, border:`1.5px solid ${C.red}44` }}
+                                        onClick={() => { if (parentRec) setAllParents(prev => prev.map(p => p.id===parentRec.id ? {...p, children:(p.children||[]).map(c => String(c.id)===String(child.id) ? {...c,trialStatus:"Gelmedi"} : c)} : p)); }}>❌ Gelmedi</button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </>
+                        )}
                       </div>
 
                       {/* Kaydet */}
@@ -6221,7 +6253,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                             saveGroupAttendance(g, groupStudents, branchName);
                           }
                         }}>
-                        {savedOnDate ? "⚠️ Üzerine Yaz" : "💾 Yoklamayı Kaydet"} ({groupStudents.length} öğrenci · {fmtDate(groupAttDate)})
+                        {savedOnDate ? "⚠️ Üzerine Yaz" : "💾 Yoklamayı Kaydet"} ({groupStudents.length + trialStudentsInGroup.length} öğrenci · {fmtDate(groupAttDate)})
                       </button>
                     </div>
                   )}
@@ -6282,6 +6314,32 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                                 </div>
                               );
                             })}
+                          </div>
+                        )}
+                        {/* Deneme öğrencileri – liste modu */}
+                        {trialStudentsInGroup.length > 0 && (
+                          <div style={{ marginTop:12, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
+                            <div style={{ fontSize:11, fontWeight:800, color:"#f97316", textTransform:"uppercase", marginBottom:8 }}>🧪 Deneme Öğrencileri</div>
+                            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                              {trialStudentsInGroup.map(c => {
+                                const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
+                                return (
+                                  <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 12px", background:"#fff7ed", borderRadius:10, border:"1.5px solid #f9731633" }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                      <div style={{ width:10, height:10, borderRadius:"50%", background:statusColor, flexShrink:0 }} />
+                                      <div>
+                                        <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                                          <span style={{ fontWeight:800, fontSize:14, color:C.text }}>{c.name}</span>
+                                          <span style={{ fontSize:10, background:"#f97316", color:"#fff", borderRadius:4, padding:"2px 6px", fontWeight:800 }}>DENEME</span>
+                                        </div>
+                                        <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>{calcAge(c.birthDate)} yaş · {fmtDate(c.trialDate)}</div>
+                                      </div>
+                                    </div>
+                                    <Badge color={statusColor}>{c.trialStatus === "Geldi" ? "✅ Geldi" : c.trialStatus === "Gelmedi" ? "❌ Gelmedi" : "⏳ Bekleniyor"}</Badge>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </div>
