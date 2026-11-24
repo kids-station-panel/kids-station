@@ -924,155 +924,138 @@ function LoginPage({ onLogin, dbStatus }) {
 }
 
 // ── ADMIN DASHBOARD ───────────────────────────────────────
-function AdminDashboard({ members, finance, staff, groups }) {
+function AdminDashboard({ members, finance, staff, groups, pendingTrials }) {
   const isMobile = useIsMobile(600);
   const currentYM = new Date().toISOString().slice(0, 7);
   const monthlyFinance = finance.filter(f => (f.date || "").startsWith(currentYM));
   const totalIncome = monthlyFinance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0);
   const totalExpense = monthlyFinance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
-  const kasaBalance = finance.filter(f => f.type === "Gelir").reduce((s, f) => s + f.amount, 0)
-                    - finance.filter(f => f.type === "Gider").reduce((s, f) => s + f.amount, 0);
+  const net = totalIncome - totalExpense;
+
   const allChildren = members.flatMap(p => p.children || []);
-  // Trial students are separate — don't count in regular stats
   const regularChildren = allChildren.filter(c => !c.isTrialStudent);
   const trialChildren = allChildren.filter(c => c.isTrialStudent);
   const active = regularChildren.filter(c => c.status === "Aktif").length;
-  const net = totalIncome - totalExpense;
-  const monthName = new Date().toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
 
-  // Bu haftanın deneme dersleri
   const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const in7 = new Date(today); in7.setDate(today.getDate() + 7); in7.setHours(23,59,59,999);
+  const in7Str = in7.toISOString().slice(0,10);
+
   const weekStart = new Date(today); weekStart.setDate(today.getDate() - (today.getDay() === 0 ? 6 : today.getDay() - 1)); weekStart.setHours(0,0,0,0);
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6); weekEnd.setHours(23,59,59,999);
-  const trialThisWeek = trialChildren.filter(c => { if (!c.trialDate) return false; const td = new Date(c.trialDate); return td >= weekStart && td <= weekEnd; }).sort((a,b) => (a.trialDate||"").localeCompare(b.trialDate||""));
-  const trialAll = [...trialChildren].sort((a,b) => (b.addedAt||"").localeCompare(a.addedAt||""));
+
+  const trialThisWeek = trialChildren.filter(c => { if (!c.trialDate) return false; const td = new Date(c.trialDate+"T12:00:00"); return td >= weekStart && td <= weekEnd; }).sort((a,b) => (a.trialDate||"").localeCompare(b.trialDate||""));
+  const trialUpcoming = trialChildren.filter(c => c.trialDate > todayStr && c.trialDate <= in7Str && !trialThisWeek.some(t => t.id === c.id)).sort((a,b) => (a.trialDate||"").localeCompare(b.trialDate||""));
+  const trialToday = trialChildren.filter(c => c.trialDate === todayStr);
+
+  const monthName = today.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+
+  const TrialRow = ({ c }) => {
+    const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
+    const parent = members.find(p => (p.children||[]).some(ch => ch.id === c.id));
+    const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
+    return (
+      <div style={{ padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:8 }}>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontWeight:900, fontSize:15, color:C.text }}>{c.name}</div>
+            <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:3, display:"flex", flexWrap:"wrap", gap:8 }}>
+              <span>📅 {fmtDate(c.trialDate)}</span>
+              {grp && <span>👥 {grp.name}{grp.time ? ` · ${grp.time}` : ""}</span>}
+              {(c.parentPhone||parent?.parent1Phone) && <span>📞 {c.parentPhone||parent?.parent1Phone}</span>}
+              {c.birthDate && <span>🎂 {calcAgeDetailed(c.birthDate)}</span>}
+            </div>
+          </div>
+          <Badge color={statusColor}>{c.trialStatus||"Bekleniyor"}</Badge>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="fade-in">
-      <div style={{ marginBottom: isMobile ? 14 : 24 }}>
-        <div className="ks-page-title" style={{ color: C.text }}>Merhaba, Yönetici! 👋</div>
-        <div style={{ fontSize: isMobile ? 12 : 15, color: C.textDim, marginTop: 4, fontWeight: 600 }}>Kids Station — {monthName} özeti</div>
+      <div style={{ marginBottom:isMobile?14:20 }}>
+        <div className="ks-page-title" style={{ color:C.text }}>Merhaba! 👋</div>
+        <div style={{ fontSize:13, color:C.textDim, marginTop:4, fontWeight:600 }}>Kids Station · {monthName}</div>
       </div>
 
+      {/* Stat kartları */}
       <div className="stat-cards">
-        <StatCard label="Kayıtlı Çocuk" value={regularChildren.length} sub={`${active} aktif`} color={C.blue} icon="👥" />
-        <StatCard label="Deneme Öğrenci" value={trialChildren.length} sub={`${trialThisWeek.length} bu hafta`} color={C.orange} icon="🧪" />
-        <StatCard label="Bu Ay Gelir" value={`₺${totalIncome.toLocaleString()}`} sub={`Kasa: ₺${kasaBalance.toLocaleString()}`} color={C.green} icon="💰" />
-        <StatCard label="Bu Ay Gider" value={`₺${totalExpense.toLocaleString()}`} sub={`Net bu ay: ₺${net.toLocaleString()}`} color={C.red} icon="📉" />
+        <StatCard label="Aktif Öğrenci" value={active} sub={`${regularChildren.length} kayıtlı`} color={C.blue} icon="👥" />
+        <StatCard label="Bekleyen Başvuru" value={(pendingTrials||[]).length} sub="değerlendirilecek" color={C.yellow} icon="📋" />
+        <StatCard label="Bu Hafta Deneme" value={trialThisWeek.length} sub="planlanan" color={C.orange} icon="🧪" />
+        <StatCard label="Bu Ay Net" value={`₺${net.toLocaleString()}`} sub={net>=0?"kâr":"zarar"} color={net>=0?C.green:C.red} icon="💰" />
       </div>
 
-      {/* Bu haftaki deneme dersleri */}
-      <Card style={{ marginBottom:18 }}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+      {/* Bugünkü denemeler */}
+      {trialToday.length > 0 && (
+        <Card style={{ marginBottom:16, border:`2px solid ${C.orange}66`, background:"#fffbf5" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <CardTitle color={C.orange} icon="🔥">Bugün Deneme Dersleri</CardTitle>
+            <Badge color={C.orange}>{trialToday.length} adet</Badge>
+          </div>
+          {trialToday.map(c => <TrialRow key={c.id} c={c} />)}
+        </Card>
+      )}
+
+      {/* Bekleyen başvurular özeti */}
+      {(pendingTrials||[]).length > 0 && (
+        <Card style={{ marginBottom:16, border:`2px solid ${C.yellow}66`, background:"#fffdf0" }}>
+          <CardTitle color={C.yellow} icon="📋">Bekleyen Başvurular</CardTitle>
+          {(pendingTrials||[]).slice(0,4).map(pt => (
+            <div key={pt.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
+              <div>
+                <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{pt.childFirstName} {pt.childLastName}</div>
+                <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>👤 {pt.parentName} · 📱 {pt.parentPhone}</div>
+              </div>
+              <div style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{new Date(pt.submittedAt).toLocaleDateString('tr-TR',{day:'numeric',month:'short'})}</div>
+            </div>
+          ))}
+          {(pendingTrials||[]).length > 4 && <div style={{ fontSize:12, color:C.textDim, fontWeight:600, paddingTop:8 }}>+{(pendingTrials||[]).length-4} daha var → Üyeler &gt; Deneme</div>}
+        </Card>
+      )}
+
+      {/* Bu haftanın denemeleri */}
+      <Card style={{ marginBottom:16 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
           <CardTitle color={C.orange} icon="🧪">Bu Hafta Deneme Dersleri</CardTitle>
           {trialThisWeek.length > 0 && <Badge color={C.orange}>{trialThisWeek.length} adet</Badge>}
         </div>
         {trialThisWeek.length === 0 ? (
           <div style={{ color:C.textDim, fontWeight:600, fontSize:14, padding:"8px 0" }}>Bu hafta deneme dersi yok.</div>
-        ) : trialThisWeek.map(c => {
-          const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
-          const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
-          return (
-            <div key={c.id} style={{ padding:"12px 0", borderBottom:`1px solid ${C.border}` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:900, fontSize:15, color:C.text }}>{c.name}</div>
-                  <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:3, display:"flex", flexWrap:"wrap", gap:10 }}>
-                    <span>📅 {fmtDate(c.trialDate)}</span>
-                    {grp && <span>👥 {grp.name} · {grp.time||"?"}</span>}
-                    <span>📞 {c.parentPhone||"-"}</span>
-                    {c.birthDate && <span>🎂 {calcAgeDetailed(c.birthDate)}</span>}
-                    {c.addedByTeacher && <span>👤 {c.addedByTeacher}</span>}
-                  </div>
-                  {c.trialNote && (
-                    <div style={{ marginTop:8, background:"#7c3aed12", border:"1px solid #7c3aed33", borderRadius:8, padding:"7px 10px", fontSize:13, color:"#5b21b6", fontWeight:600, lineHeight:1.5 }}>
-                      📝 <strong>Öğretmen Notu:</strong> {c.trialNote}
-                      {c.trialNoteBy && <span style={{ fontSize:11, color:C.textDim, fontWeight:500 }}> — {c.trialNoteBy}{c.trialNoteAt ? ` · ${fmtDate(c.trialNoteAt)}` : ""}</span>}
-                    </div>
-                  )}
-                </div>
-                <div style={{ marginLeft:10, flexShrink:0 }}>
-                  <Badge color={statusColor}>{c.trialStatus||"Bekleniyor"}</Badge>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+        ) : trialThisWeek.map(c => <TrialRow key={c.id} c={c} />)}
       </Card>
 
-      {/* Tüm deneme öğrencileri (geçmiş + gelecek) */}
-      {trialAll.filter(c => !trialThisWeek.some(tw => tw.id === c.id)).length > 0 && (
-        <Card style={{ marginBottom:18 }}>
-          <CardTitle color={"#7c3aed"} icon="📋">Tüm Deneme Öğrencileri</CardTitle>
-          {trialAll.filter(c => !trialThisWeek.some(tw => tw.id === c.id)).slice(0, 8).map(c => {
-            const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
-            const statusColor = c.trialStatus === "Geldi" ? C.green : c.trialStatus === "Gelmedi" ? C.red : C.orange;
-            return (
-              <div key={c.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{c.name}</div>
-                  <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>
-                    {fmtDate(c.trialDate)||"Tarih yok"} {grp ? `· ${grp.name}` : ""} · {c.addedByTeacher||"-"}
-                    {c.trialNote && <span style={{ color:"#7c3aed" }}> · 📝 Not var</span>}
-                  </div>
-                </div>
-                <Badge color={statusColor}>{c.trialStatus||"Bekleniyor"}</Badge>
-              </div>
-            );
-          })}
+      {/* Yaklaşan 7 gün */}
+      {trialUpcoming.length > 0 && (
+        <Card style={{ marginBottom:16 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <CardTitle color={"#7c3aed"} icon="📆">Yaklaşan Denemeler (7 Gün)</CardTitle>
+            <Badge color={"#7c3aed"}>{trialUpcoming.length} adet</Badge>
+          </div>
+          {trialUpcoming.map(c => <TrialRow key={c.id} c={c} />)}
         </Card>
       )}
 
-      <div className="grid-2col" style={{ gap: 18 }}>
-        <Card>
-          <CardTitle color={C.blue} icon="👥">Son Kayıtlı Öğrenciler</CardTitle>
-          {regularChildren.slice(0, 5).map(m => (
-            <div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}` }}>
-              <div>
-                <div style={{ fontWeight: 800, fontSize: 14, color: C.text }}>{m.name}</div>
-                <div style={{ fontSize: 12, color: C.textDim, marginTop: 2, fontWeight: 600 }}>
-                  {m.birthDate ? calcAgeDetailed(m.birthDate) : "-"}
-                  {(m.enrollments||[]).length > 0 && " · " + (m.enrollments||[]).map(e=>e.branchName).join(", ")}
-                </div>
-              </div>
-              <Badge color={m.status === "Aktif" ? C.green : C.red}>{m.status}</Badge>
-            </div>
-          ))}
-        </Card>
-
-        <Card>
-          <CardTitle color={C.orange} icon="💹">Bu Ay Net Kâr</CardTitle>
-          <div style={{ fontSize: isMobile ? 28 : 40, fontWeight: 900, color: net >= 0 ? C.green : C.red, marginBottom: 10 }}>
-            ₺{net.toLocaleString()}
+      {/* Küçük finans özeti */}
+      <Card>
+        <CardTitle color={C.green} icon="💰">Bu Ay Finans Özeti</CardTitle>
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap", marginTop:4 }}>
+          <div style={{ flex:1, minWidth:100, background:"#f0fff4", borderRadius:12, padding:"12px 14px" }}>
+            <div style={{ fontSize:11, fontWeight:800, color:C.green, marginBottom:4 }}>GELİR</div>
+            <div style={{ fontSize:20, fontWeight:900, color:C.green }}>₺{totalIncome.toLocaleString()}</div>
           </div>
-          <div style={{ fontSize: 14, color: C.textMid, marginBottom: 6, fontWeight: 700 }}>
-            Gelir: <span style={{ color: C.green }}>₺{totalIncome.toLocaleString()}</span> &nbsp;|&nbsp;
-            Gider: <span style={{ color: C.red }}>₺{totalExpense.toLocaleString()}</span>
+          <div style={{ flex:1, minWidth:100, background:"#fff0f0", borderRadius:12, padding:"12px 14px" }}>
+            <div style={{ fontSize:11, fontWeight:800, color:C.red, marginBottom:4 }}>GİDER</div>
+            <div style={{ fontSize:20, fontWeight:900, color:C.red }}>₺{totalExpense.toLocaleString()}</div>
           </div>
-          <div style={{ fontSize: 13, fontWeight: 800, color: kasaBalance >= 0 ? C.green : C.red, background: kasaBalance >= 0 ? "#f0fff4" : "#fff0f0", borderRadius: 10, padding: "8px 12px", marginBottom: 14 }}>
-            🏦 Toplam Kasa: ₺{kasaBalance.toLocaleString()}
+          <div style={{ flex:1, minWidth:100, background: net>=0?"#f0fff4":"#fff0f0", borderRadius:12, padding:"12px 14px" }}>
+            <div style={{ fontSize:11, fontWeight:800, color:net>=0?C.green:C.red, marginBottom:4 }}>NET</div>
+            <div style={{ fontSize:20, fontWeight:900, color:net>=0?C.green:C.red }}>₺{net.toLocaleString()}</div>
           </div>
-          <div style={{ height: 14, background: "#eef2ff", borderRadius: 99, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${Math.min(totalIncome + totalExpense > 0 ? (totalIncome / (totalIncome + totalExpense)) * 100 : 0, 100)}%`, background: `linear-gradient(90deg, ${C.green}, ${C.yellow})`, borderRadius: 99 }} />
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6, fontSize: 12, color: C.textDim, fontWeight: 600 }}>
-            <span>Gelir oranı</span>
-            <span>%{Math.round(totalIncome + totalExpense > 0 ? (totalIncome / (totalIncome + totalExpense)) * 100 : 0)}</span>
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-            <CardTitle color={C.red} icon="📋">Son İşlemler</CardTitle>
-            {finance.slice(0, 4).map(f => (
-              <div key={f.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{f.desc}</div>
-                <div style={{ fontWeight: 900, fontSize: 13, color: f.type === "Gelir" ? C.green : C.red }}>
-                  {f.type === "Gelir" ? "+" : "-"}₺{f.amount.toLocaleString()}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
     </div>
   );
 }
@@ -9403,7 +9386,7 @@ function App() {
   const visibleStaff = (staff||[]).filter(s => !s.userId || activeUserIds.has(s.userId));
 
   const pages = {
-    dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} groups={groups} />,
+    dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} groups={groups} pendingTrials={pendingTrials||[]} />,
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} groups={groups} canEdit={canEdit} pendingTrials={pendingTrials} setPendingTrials={setPendingTrialsRaw} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
