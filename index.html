@@ -1132,6 +1132,18 @@ function fmtDate(d) {
   return `${day}/${mo}/${y}`;
 }
 
+// WhatsApp URL oluşturucu — emoji ve Türkçe karakterleri ham bırakır, Safari uyumlu
+function mkWAUrl(phone, msg) {
+  const enc = msg
+    .replace(/%/g, '%25')
+    .replace(/&/g, '%26')
+    .replace(/#/g, '%23')
+    .replace(/\+/g, '%2B')
+    .replace(/\n/g, '%0A')
+    .replace(/ /g, '%20');
+  return `https://wa.me/${phone}?text=${enc}`;
+}
+
 // ── ÇOCUK DETAY SAYFASI ──────────────────────────────────────
 function ChildDetail({ child, parent, onBack, parents, setParents, finance, setFinance, branches: dynamicBranches, canEdit = true, hideFinance = false }) {
   const freshChild = parents.find(p => p.id === parent.id)?.children.find(c => c.id === child.id) || child;
@@ -2440,10 +2452,10 @@ function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onRejec
     const dateStr = selDate ? new Date(selDate + 'T12:00:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : '—';
     const timeStr = selGroup?.time || '—';
     const groupName = selGroup?.name || '—';
-    return "*Kids Station – Deneme Dersi Randevusu*\n\nSayın " + pending.parentName + ",\n\n" + childName + " için deneme dersi randevunuz oluşturulmuştur.\n\n*Tarih:* " + dateStr + "\n*Saat:* " + timeStr + "\n*Grup:* " + groupName + "\n\nDers saatinden 5 dakika önce merkezimizde hazır bulunmanız yeterlidir.\n\nSorularınız için bu numaraya yazabilirsiniz.\n\nGörüşmek üzere,\nKids Station Ekibi";
+    return "🌟 *Kids Station – Deneme Dersi Randevusu*\n\nSayın " + pending.parentName + ",\n\n" + childName + " için deneme dersi randevunuz hazır! 🎉\n\n📅 *Tarih:* " + dateStr + "\n⏰ *Saat:* " + timeStr + "\n👥 *Grup:* " + groupName + "\n\n📝 *Hatırlatmalar:*\n• Su şişesi getirmeyi unutmayın 💧\n• Yedek kıyafet almanızı öneririz 👕\n• 5 dakika önce gelmeniz yeterli, sizi bekliyoruz! ⏱️\n\nSorularınız için bu numaraya yazabilirsiniz.\n\nGörüşmek üzere,\nKids Station Ekibi 🏆";
   }
-  const openWA = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(buildMsg())}`, '_blank');
-  const openWALoc = () => window.open(`https://wa.me/${waPhone(pending.parentPhone)}?text=${encodeURIComponent(`📍 Kids Station Konumumuz:\n${KS_MAPS_URL}\n\nBizi ziyaret edin! 🏫`)}`, '_blank');
+  const openWA = () => window.open(mkWAUrl(waPhone(pending.parentPhone), buildMsg()), '_blank');
+  const openWALoc = () => window.open(mkWAUrl(waPhone(pending.parentPhone), `📍 Kids Station Konumumuz:\n${KS_MAPS_URL}\n\nBizi ziyaret edin! 🏫`), '_blank');
 
   return (
     <div style={{ position:"fixed", inset:0, zIndex:9999, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }} onClick={onClose}>
@@ -3030,11 +3042,11 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
                         onClick={() => {
                           const grpWA = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
                           const dateStr = c.trialDate ? new Date(c.trialDate + 'T12:00:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : '—';
-                          const msg = `*Kids Station – Deneme Dersi Randevusu*\n\nSayın ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için deneme dersi randevunuz oluşturulmuştur.\n\n*Tarih:* ${dateStr}\n*Saat:* ${grpWA?.time||'—'}\n*Grup:* ${grpWA?.name||'—'}\n\nDers saatinden 5 dakika önce merkezimizde hazır bulunmanız yeterlidir. Su şişenizi ve yedek kıyafetinizi almayı unutmayın.\n\nSorularınız için bu numaraya yazabilirsiniz.\n\nGörüşmek üzere,\nKids Station Ekibi`;
+                          const msg = `🌟 *Kids Station – Deneme Dersi Randevusu*\n\nSayın ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için deneme dersi randevunuz hazır! 🎉\n\n📅 *Tarih:* ${dateStr}\n⏰ *Saat:* ${grpWA?.time||'—'}\n👥 *Grup:* ${grpWA?.name||'—'}\n\n📝 *Hatırlatmalar:*\n• Su şişesi getirmeyi unutmayın 💧\n• Yedek kıyafet almanızı öneririz 👕\n• 5 dakika önce gelmeniz yeterli, sizi bekliyoruz! ⏱️\n\nSorularınız için bu numaraya yazabilirsiniz.\n\nGörüşmek üzere,\nKids Station Ekibi 🏆`;
                           let ph = (c.parentPhone||p.parent1Phone||"").replace(/[\s\-\(\)\.]/g,'');
                           if (ph.startsWith('0')) ph = '90' + ph.slice(1);
                           else if (!ph.startsWith('90')) ph = '90' + ph;
-                          window.open(`https://wa.me/${ph}?text=${encodeURIComponent(msg)}`, '_blank');
+                          window.open(mkWAUrl(ph, msg), '_blank');
                         }}>📱 WA Bildir</button>
                       <button style={{ fontSize:11, padding:"5px 12px", borderRadius:8, background:"linear-gradient(135deg,#8b5cf6,#7c3aed)", color:"#fff", border:"none", cursor:"pointer", fontFamily:"inherit", fontWeight:700 }}
                         onClick={() => setTicketModal({ child: c, parent: p })}>🎫 Ticket</button>
@@ -3105,7 +3117,8 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
           const hasWarning = !isPassive && pkgSummaries.some(s => s.isLow);
           const rawPhone = (p.parent1Phone||"").replace(/\D/g,"");
           const waPhone = rawPhone.startsWith("0") ? "90"+rawPhone.slice(1) : rawPhone.startsWith("90") ? rawPhone : "90"+rawPhone;
-          const waMsg = encodeURIComponent(`Merhaba ${p.parent1Name||p.name}, çocuğunuzun spor paketi bitmek üzere. Yeni paket için bizimle iletişime geçebilirsiniz. Kids Station`);
+          const waMsgRaw = `Merhaba ${p.parent1Name||p.name} 👋\n\nÇocuğunuzun spor paketi bitmek üzere 📦\n\nYeni paket için bizimle iletişime geçebilirsiniz.\n\nKids Station 🏆`;
+          const waMsg = waMsgRaw.replace(/%/g,'%25').replace(/&/g,'%26').replace(/#/g,'%23').replace(/\+/g,'%2B').replace(/\n/g,'%0A').replace(/ /g,'%20');
           return (
             <div key={p.id} onClick={() => setSelectedParent(p)} style={{
               display:"flex", alignItems:"stretch", padding:"12px 14px",
@@ -7061,11 +7074,11 @@ function useNotifications(members, finance, staff, groups) {
     (p.children||[]).filter(c => c.isTrialStudent && c.trialDate === twoDaysStr).forEach(c => {
       const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
       const dateStr = twoDaysLater.toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' });
-      const msg = `Merhaba ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için deneme dersi randevunuz yaklaşıyor! 🎉\n\n📅 *Tarih:* ${dateStr}\n⏰ *Saat:* ${grp?.time||'—'}\n🏫 *Grup:* ${grp?.name||'—'}\n\nKatılımınızı teyit etmenizi rica ederiz. 🙏\n\nGörüşmek üzere,\nKids Station Ekibi ⭐`;
+      const msg = `🌟 *Kids Station – Deneme Dersi Hatırlatması*\n\nMerhaba ${p.parent1Name||p.name||"Veli"} 👋\n\n${c.name} için deneme dersi randevunuz yaklaşıyor! 🎉\n\n📅 *Tarih:* ${dateStr}\n⏰ *Saat:* ${grp?.time||'—'}\n👥 *Grup:* ${grp?.name||'—'}\n\n📝 *Hatırlatmalar:*\n• Su şişesi getirmeyi unutmayın 💧\n• Yedek kıyafet almanızı öneririz 👕\n• 5 dakika önce gelmeniz yeterli, sizi bekliyoruz! ⏱️\n\nGörüşmek üzere,\nKids Station Ekibi 🏆`;
       let ph = (c.parentPhone||p.parent1Phone||"").replace(/[\s\-\(\)\.]/g,'');
       if (ph.startsWith('0')) ph = '90' + ph.slice(1);
       else if (ph && !ph.startsWith('90')) ph = '90' + ph;
-      alerts.push({ id:`trial-soon-${c.id}`, type:"warning", icon:"🧪", title:"2 Gün Sonra Deneme Dersi", desc:`${c.name} öbür gün ${grp?.time||'?'} saatinde deneme dersine gelecek. Veliye hatırlatma mesajı gönderin.`, waPhone: ph, waMsg: msg });
+      alerts.push({ id:`trial-soon-${c.id}`, type:"warning", icon:"🧪", title:"2 Gün Sonra Deneme Dersi", desc:`${c.name} — ${dateStr} ${grp?.time||'?'} saatinde deneme dersine gelecek. Veliye hatırlatma gönderin.`, waPhone: ph, waMsg: msg });
     });
   });
 
@@ -7154,7 +7167,7 @@ function NotificationsPage({ members, finance, staff, groups, dismissedNotifs, s
                 <div style={{ fontSize:13, color:C.textMid, fontWeight:600, lineHeight:1.5, marginBottom:10 }}>{a.desc}</div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
                   {a.waPhone && (
-                    <button onClick={() => window.open(`https://wa.me/${a.waPhone}?text=${encodeURIComponent(a.waMsg||"")}`, '_blank')}
+                    <button onClick={() => window.open(mkWAUrl(a.waPhone, a.waMsg||""), '_blank')}
                       style={{ fontSize:12, padding:"5px 12px", borderRadius:8, background:"#25D366", color:"#fff", border:"none", cursor:"pointer", fontFamily:"inherit", fontWeight:800 }}>
                       📱 Hatırlatma Gönder
                     </button>
