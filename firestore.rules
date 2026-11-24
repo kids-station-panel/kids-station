@@ -116,6 +116,11 @@ service cloud.firestore {
       allow read, write: if isLoggedIn();
     }
 
+    // ── Bağlantı yazma testi ──────────────────────────────
+    match /_test/{doc} {
+      allow read, write: if isLoggedIn();
+    }
+
     // ── Diğer her şey: varsayılan red ─────────────────────
     match /{document=**} {
       allow read, write: if false;
