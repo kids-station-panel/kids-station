@@ -17,7 +17,15 @@ service cloud.firestore {
     // Herkes kendi kaydını okuyabilir; sadece admin yazabilir
     match /users/{uid} {
       allow read: if isLoggedIn();
-      allow write: if isAdmin() || request.auth.uid == uid;
+      // Admin her şeyi yapabilir
+      allow create, delete: if isAdmin();
+      // Kullanıcı kendi kaydını güncelleyebilir (lastLogin vb.)
+      // ama rol/durum alanlarını değiştiremez — sadece admin yapabilir
+      allow update: if isAdmin()
+        || (isLoggedIn()
+            && (request.auth.uid == uid || request.auth.token.email == resource.data.email)
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['role', 'status', 'password']));
     }
     // Eski koleksiyon adları (migration uyumluluğu)
     match /kullanicilar/{uid} {
