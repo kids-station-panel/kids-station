@@ -924,7 +924,9 @@ function LoginPage({ onLogin, dbStatus }) {
 }
 
 // ── ADMIN DASHBOARD ───────────────────────────────────────
-function AdminDashboard({ members, finance, staff, groups, pendingTrials }) {
+function AdminDashboard({ members, finance, staff, groups, pendingTrials, setMembers, setPendingTrials }) {
+  const { useState: useLocalState } = React;
+  const [pendingModal, setPendingModal] = useLocalState(null);
   const isMobile = useIsMobile(600);
   const currentYM = new Date().toISOString().slice(0, 7);
   const monthlyFinance = finance.filter(f => (f.date || "").startsWith(currentYM));
@@ -1002,18 +1004,55 @@ function AdminDashboard({ members, finance, staff, groups, pendingTrials }) {
       {/* Bekleyen başvurular özeti */}
       {(pendingTrials||[]).length > 0 && (
         <Card style={{ marginBottom:16, border:`2px solid ${C.yellow}66`, background:"#fffdf0" }}>
-          <CardTitle color={C.yellow} icon="📋">Bekleyen Başvurular</CardTitle>
-          {(pendingTrials||[]).slice(0,4).map(pt => (
-            <div key={pt.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}` }}>
-              <div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+            <CardTitle color={C.yellow} icon="📋">Bekleyen Başvurular</CardTitle>
+            <Badge color={C.yellow}>{(pendingTrials||[]).length}</Badge>
+          </div>
+          {(pendingTrials||[]).slice(0,5).map(pt => (
+            <div key={pt.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}`, gap:8 }}>
+              <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontWeight:800, fontSize:14, color:C.text }}>{pt.childFirstName} {pt.childLastName}</div>
                 <div style={{ fontSize:12, color:C.textDim, fontWeight:600, marginTop:2 }}>👤 {pt.parentName} · 📱 {pt.parentPhone}</div>
               </div>
-              <div style={{ fontSize:11, color:C.textDim, fontWeight:600 }}>{new Date(pt.submittedAt).toLocaleDateString('tr-TR',{day:'numeric',month:'short'})}</div>
+              <button onClick={() => setPendingModal(pt)}
+                style={{ padding:"7px 14px", borderRadius:10, background:"linear-gradient(135deg,#4f46e5,#7c3aed)", color:"#fff", fontWeight:800, fontSize:12, border:"none", cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
+                Değerlendir
+              </button>
             </div>
           ))}
-          {(pendingTrials||[]).length > 4 && <div style={{ fontSize:12, color:C.textDim, fontWeight:600, paddingTop:8 }}>+{(pendingTrials||[]).length-4} daha var → Üyeler &gt; Deneme</div>}
+          {(pendingTrials||[]).length > 5 && <div style={{ fontSize:12, color:C.textDim, fontWeight:600, paddingTop:8 }}>+{(pendingTrials||[]).length-5} daha var</div>}
         </Card>
+      )}
+
+      {pendingModal && (
+        <PendingTrialApproveModal
+          pending={pendingModal}
+          groups={groups||[]}
+          onClose={() => setPendingModal(null)}
+          onApprove={({ groupId, date }) => {
+            if (!pendingModal || !date) return;
+            const pt = pendingModal;
+            const childId = `tc_${Date.now()}`;
+            const parentId = `tp_${Date.now()}`;
+            const childName = `${pt.childFirstName} ${pt.childLastName}`;
+            const trialTicketId = "TKT" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,6).toUpperCase();
+            const newChild = { id: childId, name: childName, birthDate: pt.birthDate, isTrialStudent: true, trialDate: date, trialGroupId: groupId, parentPhone: pt.parentPhone, trialTicketId, enrollments: [], status: "Deneme", source: "Form", addedAt: new Date().toISOString() };
+            const newParent = { id: parentId, parent1Name: pt.parentName, parent1Phone: pt.parentPhone, isActive: true, source: "Deneme Kayıt Formu", children: [newChild], createdAt: new Date().toISOString() };
+            db.collection("members").doc(String(parentId)).set({ ...newParent, _order: Date.now() })
+              .then(() => showKsToast(`✅ ${childName} deneme dersine eklendi!`, "#22c55e"))
+              .catch(() => showKsToast("⚠️ Kayıt hatası! Tekrar deneyin.", "#ef4444"));
+            db.collection("pendingTrials").doc(pt.id).delete().catch(() => {});
+            setPendingTrials(prev => prev.filter(p => p.id !== pt.id));
+            setPendingModal(null);
+          }}
+          onReject={() => {
+            if (!pendingModal) return;
+            db.collection("pendingTrials").doc(pendingModal.id).delete().catch(() => {});
+            setPendingTrials(prev => prev.filter(p => p.id !== pendingModal.id));
+            setPendingModal(null);
+            showKsToast("🗑️ Başvuru reddedildi.", "#ef4444");
+          }}
+        />
       )}
 
       {/* Bu haftanın denemeleri */}
@@ -9386,7 +9425,7 @@ function App() {
   const visibleStaff = (staff||[]).filter(s => !s.userId || activeUserIds.has(s.userId));
 
   const pages = {
-    dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} groups={groups} pendingTrials={pendingTrials||[]} />,
+    dashboard: <AdminDashboard members={members} finance={finance} staff={visibleStaff} groups={groups} pendingTrials={pendingTrials||[]} setMembers={setMembers} setPendingTrials={setPendingTrialsRaw} />,
     members: <MembersPage members={members} setMembers={setMembers} finance={finance} setFinance={setFinance} branches={branches} groups={groups} canEdit={canEdit} pendingTrials={pendingTrials} setPendingTrials={setPendingTrialsRaw} />,
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
