@@ -8748,6 +8748,12 @@ function PublicTrialForm() {
           activity: { agreed: true, agreedAt: now, version: CONSENT_VERSION }
         }
       });
+      // Yöneticiye anlık bildirim (ntfy.sh)
+      fetch("https://ntfy.sh/ks-atasehir-9x7k2w", {
+        method: "POST",
+        headers: { "Title": "Yeni Deneme Basvurusu", "Priority": "urgent", "Tags": "clipboard,sports_medal", "Content-Type": "text/plain; charset=utf-8" },
+        body: `${childFirstName.trim()} ${childLastName.trim()} deneme dersi icin basvurdu. Panele girin ve degerlendirin.`
+      }).catch(() => {});
       setStep("success"); setTimeout(() => window.scrollTo({top:0, behavior:"smooth"}), 50);
     } catch(err) {
       console.error(err);
