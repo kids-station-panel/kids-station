@@ -6975,17 +6975,17 @@ function useNotifications(members, finance, staff, groups) {
   });
 
   // Yarın deneme dersi olan öğrenciler — hatırlatma
-  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().slice(0,10);
+  const twoDaysLater = new Date(today); twoDaysLater.setDate(today.getDate() + 2);
+  const twoDaysStr = twoDaysLater.toISOString().slice(0,10);
   (members||[]).forEach(p => {
-    (p.children||[]).filter(c => c.isTrialStudent && c.trialDate === tomorrowStr).forEach(c => {
+    (p.children||[]).filter(c => c.isTrialStudent && c.trialDate === twoDaysStr).forEach(c => {
       const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
-      const dateStr = tomorrow.toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' });
-      const msg = `Merhaba ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için *yarın* deneme dersiniz mevcuttur. 🎉\n\n📅 *Tarih:* ${dateStr}\n⏰ *Saat:* ${grp?.time||'—'}\n🏫 *Grup:* ${grp?.name||'—'}\n\nKatılımınızı teyit etmenizi rica ederiz.\n\nGörüşmek üzere,\nKids Station Ekibi 🌟`;
+      const dateStr = twoDaysLater.toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' });
+      const msg = `Merhaba ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için *öbür gün* deneme dersiniz mevcuttur. 🎉\n\n📅 *Tarih:* ${dateStr}\n⏰ *Saat:* ${grp?.time||'—'}\n🏫 *Grup:* ${grp?.name||'—'}\n\nKatılımınızı teyit etmenizi rica ederiz.\n\nGörüşmek üzere,\nKids Station Ekibi 🌟`;
       let ph = (c.parentPhone||p.parent1Phone||"").replace(/[\s\-\(\)\.]/g,'');
       if (ph.startsWith('0')) ph = '90' + ph.slice(1);
       else if (ph && !ph.startsWith('90')) ph = '90' + ph;
-      alerts.push({ id:`trial-tomorrow-${c.id}`, type:"warning", icon:"🧪", title:"Yarın Deneme Dersi", desc:`${c.name} yarın ${grp?.time||'?'} saatinde deneme dersine gelecek. Veliye hatırlatma mesajı gönderin.`, waPhone: ph, waMsg: msg });
+      alerts.push({ id:`trial-soon-${c.id}`, type:"warning", icon:"🧪", title:"2 Gün Sonra Deneme Dersi", desc:`${c.name} öbür gün ${grp?.time||'?'} saatinde deneme dersine gelecek. Veliye hatırlatma mesajı gönderin.`, waPhone: ph, waMsg: msg });
     });
   });
 
