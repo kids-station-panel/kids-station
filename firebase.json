@@ -1,16 +1,17 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "hosting": {
     "public": ".",
     "ignore": [
       "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "**",
-        "destination": "/index.html"
-      }
+      "firestore.rules",
+      "node_modules/**",
+      "app.jsx",
+      "app.js",
+      "build.sh",
+      ".babelrc"
     ]
   }
 }
