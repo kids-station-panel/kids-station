@@ -20,10 +20,6 @@ service cloud.firestore {
       allow write: if isAdmin() || request.auth.uid == uid;
     }
     // Eski koleksiyon adları (migration uyumluluğu)
-    match /kullanıcılar/{uid} {
-      allow read: if isLoggedIn();
-      allow write: if isAdmin();
-    }
     match /kullanicilar/{uid} {
       allow read: if isLoggedIn();
       allow write: if isAdmin();
