@@ -9288,20 +9288,28 @@ function App() {
     fsSave("attendance", next).then(ok => { if (!ok) setAttendanceRaw(prev); });
   };
 
-  // Süresi geçmiş deneme öğrencilerini (gelmeyenleri) uygulama açılışında otomatik sil
+  // Haftalık deneme temizliği: bu haftanın Pazartesisinden önceki "Gelmedi" denemeler silinir
   const _trialCleanupDone = useRef(false);
   useEffect(() => {
     if (!dbReady || _trialCleanupDone.current) return;
     _trialCleanupDone.current = true;
-    const today = new Date().toISOString().slice(0, 10);
-    const toRemove = members.flatMap(p => (p.children||[]).filter(c => c.isTrialStudent && c.trialStatus !== "Geldi" && c.trialDate && c.trialDate < today)).length;
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=Pazar, 1=Pazartesi...
+    const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const thisMonday = new Date(today);
+    thisMonday.setDate(today.getDate() - daysToMonday);
+    thisMonday.setHours(0,0,0,0);
+    const thisMondayStr = thisMonday.toISOString().slice(0,10);
+    // Sadece bu haftanın Pazartesisinden ÖNCE olan ve "Geldi" olmayan denemeleri sil
+    const shouldDelete = c => c.isTrialStudent && c.trialStatus !== "Geldi" && c.trialDate && c.trialDate < thisMondayStr;
+    const toRemove = members.flatMap(p => (p.children||[]).filter(shouldDelete)).length;
     if (!toRemove) return;
     const nextMembers = members
-      .map(p => ({ ...p, children: (p.children||[]).filter(c => !(c.isTrialStudent && c.trialStatus !== "Geldi" && c.trialDate && c.trialDate < today)) }))
+      .map(p => ({ ...p, children: (p.children||[]).filter(c => !shouldDelete(c)) }))
       .filter(p => (p.children||[]).length > 0 || !(p.source||"").includes("Deneme"));
     setMembersRaw(nextMembers);
     fsSave("members", nextMembers);
-    showKsToast(`🧹 ${toRemove} gelmemiş deneme kaydı otomatik silindi.`, "#f97316", 6000);
+    showKsToast(`🧹 ${toRemove} geçen haftadan kalan deneme kaydı temizlendi.`, "#f97316", 5000);
   }, [dbReady]);
 
   const saveTimeEntry = async (entry) => {
