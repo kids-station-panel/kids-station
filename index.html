@@ -1132,6 +1132,17 @@ function fmtDate(d) {
   return `${day}/${mo}/${y}`;
 }
 
+// Browser push bildirimi göster (PWA + arka plan sekme destekli)
+function showBrowserNotif(title, body) {
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const opts = { body, icon: "/logo.jpg", badge: "/logo.jpg", vibrate: [200, 100, 200], tag: "ks-trial-notif", renotify: true };
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.ready.then(reg => reg.showNotification(title, opts)).catch(() => new Notification(title, opts));
+  } else {
+    new Notification(title, opts);
+  }
+}
+
 // WhatsApp URL oluşturucu — emoji ve Türkçe karakterleri ham bırakır, Safari uyumlu
 function mkWAUrl(phone, msg) {
   const enc = msg
@@ -4386,7 +4397,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
   const activeCount = allChildren.filter(c => c.status === "Aktif").length;
   const currentYM = new Date().toISOString().slice(0, 7);
   const monthlyIncome = (finance||[]).filter(f => f.type === "Gelir" && (f.date||"").startsWith(currentYM)).reduce((s, f) => s + f.amount, 0);
-  const alertCount = useNotifications(members, finance, staff, groups).filter(a => a.type === "danger" || a.type === "warning").length + (pendingTrials || []).length;
+  const alertCount = useNotifications(members, finance, staff, groups).filter(a => (a.type === "danger" || a.type === "warning") && !(dismissedNotifs||[]).includes(a.id)).length + (pendingTrials || []).length;
 
   const renderPage = () => {
     // ── DASHBOARD ──
@@ -6323,6 +6334,10 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                                       ? <Badge color={grpStatusColor(rec.status)}>{grpStatusIcon(rec.status)} {rec.status}</Badge>
                                       : <span style={{ fontSize:12, color:C.textDim, fontWeight:700 }}>— alınmadı</span>
                                     }
+                                    {setGroups && (
+                                      <button title="Gruptan çıkar" onClick={() => setGroups(prev => (prev||[]).map(gr => String(gr.id)===String(g.id) ? { ...gr, studentIds:(gr.studentIds||[]).filter(sid => String(sid)!==String(child.id)) } : gr))}
+                                        style={{ padding:"4px 8px", borderRadius:6, fontWeight:900, fontSize:12, cursor:"pointer", fontFamily:"inherit", background:"transparent", color:C.red, border:`1px solid ${C.red}44`, lineHeight:1 }}>✕</button>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -7097,11 +7112,11 @@ function NotificationsPage({ members, finance, staff, groups, dismissedNotifs, s
   const dismissed = dismissedNotifs||[];
   const read = readNotifs||[];
 
-  const dismiss = (id) => setDismissedNotifs([...dismissed, id]);
+  const dismiss = (id) => { setDismissedNotifs([...dismissed, id]); setReadNotifs([...new Set([...read, id])]); };
   const restore = (id) => setDismissedNotifs(dismissed.filter(x => x !== id));
-  const markRead = (id) => setReadNotifs([...new Set([...read, id])]);
+  const markRead = (id) => dismiss(id);
   const markUnread = (id) => setReadNotifs(read.filter(x => x !== id));
-  const markAllRead = () => setReadNotifs(allAlerts.map(a => a.id));
+  const markAllRead = () => { setDismissedNotifs(allAlerts.map(a => a.id)); setReadNotifs(allAlerts.map(a => a.id)); };
   const hideAll = () => setDismissedNotifs(allAlerts.map(a => a.id));
   const restoreAll = () => setDismissedNotifs([]);
 
@@ -7172,12 +7187,7 @@ function NotificationsPage({ members, finance, staff, groups, dismissedNotifs, s
                       📱 Hatırlatma Gönder
                     </button>
                   )}
-                  {isRead ? (
-                    <button onClick={() => markUnread(a.id)} style={{ ...btnOutlineStyle(C.textDim), fontSize:12, padding:"5px 12px" }}>↩️ Okunmadı</button>
-                  ) : (
-                    <button onClick={() => markRead(a.id)} style={{ ...btnOutlineStyle(C.green), fontSize:12, padding:"5px 12px" }}>✅ Okundu</button>
-                  )}
-                  <button onClick={() => dismiss(a.id)} style={{ ...btnOutlineStyle(C.red), fontSize:12, padding:"5px 12px" }}>🗑️ Gizle</button>
+                  <button onClick={() => markRead(a.id)} style={{ ...btnOutlineStyle(C.green), fontSize:12, padding:"5px 12px" }}>✅ Okundu &amp; Kaldır</button>
                 </div>
               </div>
             </div>
@@ -9102,6 +9112,7 @@ function App() {
   const [appUsers, setAppUsersRaw] = useState([]);
   const [timeEntries, setTimeEntriesRaw] = useState([]);
   const [pendingTrials, setPendingTrialsRaw] = useState([]);
+  const _pendingKnownIds = useRef(null); // null = ilk yükleme, Set = bilinen id'ler
   const [previewTeacher, setPreviewTeacher] = useState(null);
   const [dbReady, setDbReady] = useState(false);
   const [dbStatus, setDbStatus] = useState("⏳ Veriler yükleniyor...");
@@ -9247,9 +9258,26 @@ function App() {
       attach();
     });
 
+    // Bildirim izni iste (bir kez)
+    if ("Notification" in window && Notification.permission === "default") {
+      setTimeout(() => Notification.requestPermission(), 2500);
+    }
+
     // pendingTrials koleksiyonu ayrı dinle (anonim yazılar dahil)
     const pendUnsub = db.collection("pendingTrials").onSnapshot(snap => {
       const items = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status === "pending");
+      if (_pendingKnownIds.current === null) {
+        // İlk yükleme: sadece id'leri kaydet, bildirim gösterme
+        _pendingKnownIds.current = new Set(items.map(i => i.id));
+      } else {
+        // Yeni gelenleri bul
+        const newOnes = items.filter(i => !_pendingKnownIds.current.has(i.id));
+        newOnes.forEach(i => {
+          _pendingKnownIds.current.add(i.id);
+          const childName = `${i.childFirstName||''} ${i.childLastName||''}`.trim() || "Yeni öğrenci";
+          showBrowserNotif("📋 Yeni Deneme Başvurusu!", `${childName} deneme dersi için başvurdu. Panele girin ve değerlendirin.`);
+        });
+      }
       setPendingTrialsRaw(items);
     }, () => {});
     unsubs.push(pendUnsub);
@@ -9495,7 +9523,7 @@ function App() {
   ];
   const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange, C.blue];
 
-  const alertCount = useNotifications(members, finance, staff, groups).filter(a=>a.type==="danger"||a.type==="warning").length;
+  const alertCount = useNotifications(members, finance, staff, groups).filter(a=>(a.type==="danger"||a.type==="warning") && !(dismissedNotifs||[]).includes(a.id)).length;
   // Yönetici rolü için yetki kontrolü
   const canEdit = hasPermission(user?.role, 'edit');
 
