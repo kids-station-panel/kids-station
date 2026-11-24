@@ -5248,6 +5248,8 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
   const [trialForm, setTrialForm] = useState({ childFirstName: "", childLastName: "", birthDate: "", parentPhone: "", targetGroupId: "", trialDate: new Date().toISOString().slice(0,10) });
   const [trialMsg, setTrialMsg] = useState("");
   const [groupAddStudentId, setGroupAddStudentId] = useState({});
+  const [teacherEditStudent, setTeacherEditStudent] = useState(null); // { childId, parentId, groupId, name, phone, birthDate }
+  const [sonYoklamalarOpen, setSonYoklamalarOpen] = useState({});
   const [quickMesaiOpen, setQuickMesaiOpen] = useState(false);
   const [trialNoteEdit, setTrialNoteEdit] = useState({ childId: null, text: "" });
   // Mesai state
@@ -6334,6 +6336,11 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                                       ? <Badge color={grpStatusColor(rec.status)}>{grpStatusIcon(rec.status)} {rec.status}</Badge>
                                       : <span style={{ fontSize:12, color:C.textDim, fontWeight:700 }}>— alınmadı</span>
                                     }
+                                    {/* Düzenle butonu */}
+                                    <button title="Düzenle" onClick={() => {
+                                      const parentRec = (allParents||[]).find(p => (p.children||[]).some(ch => String(ch.id)===String(child.id)));
+                                      setTeacherEditStudent({ childId: child.id, parentId: parentRec?.id, groupId: g.id, name: child.name||"", phone: parentRec?.phone||"", birthDate: child.birthDate||"" });
+                                    }} style={{ padding:"4px 8px", borderRadius:6, fontWeight:900, fontSize:12, cursor:"pointer", fontFamily:"inherit", background:"transparent", color:C.blue, border:`1px solid ${C.blue}44`, lineHeight:1 }}>✏️</button>
                                     {setGroups && (
                                       <button title="Gruptan çıkar" onClick={() => setGroups(prev => (prev||[]).map(gr => String(gr.id)===String(g.id) ? { ...gr, studentIds:(gr.studentIds||[]).filter(sid => String(sid)!==String(child.id)) } : gr))}
                                         style={{ padding:"4px 8px", borderRadius:6, fontWeight:900, fontSize:12, cursor:"pointer", fontFamily:"inherit", background:"transparent", color:C.red, border:`1px solid ${C.red}44`, lineHeight:1 }}>✕</button>
@@ -6403,35 +6410,80 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
                     );
                   })()}
 
-                  {/* SON YOKLAMALAR (son 3 kayıt) */}
+                  {/* SON YOKLAMALAR (toggle) */}
                   {!isAttMode && (() => {
                     const recentDates = [...new Set((attendance||[]).filter(a => a.type==="group" && a.groupId===g.id).map(a => a.date))].sort().reverse().slice(0,3);
                     if (recentDates.length === 0) return null;
+                    const isOpen = !!sonYoklamalarOpen[g.id];
                     return (
                       <div style={{ marginTop:14, paddingTop:12, borderTop:`1px solid ${C.border}` }}>
-                        <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:8, textTransform:"uppercase" }}>📋 Son Yoklamalar</div>
-                        {recentDates.map(d => {
-                          const recs = (attendance||[]).filter(a => a.type==="group" && a.groupId===g.id && a.date===d);
-                          const geldi = recs.filter(r => r.status==="Geldi").length;
-                          const gelmedi = recs.filter(r => r.status==="Gelmedi").length;
-                          const other = recs.length - geldi - gelmedi;
-                          return (
-                            <div key={d} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
-                              <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{fmtDate(d)}</span>
-                              <div style={{ display:"flex", gap:6 }}>
-                                <Badge color={C.green}>✅ {geldi}</Badge>
-                                <Badge color={C.red}>❌ {gelmedi}</Badge>
-                                {other > 0 && <Badge color={C.orange}>🟡 {other}</Badge>}
-                              </div>
-                            </div>
-                          );
-                        })}
+                        <button onClick={() => setSonYoklamalarOpen(prev => ({ ...prev, [g.id]: !isOpen }))}
+                          style={{ background:"transparent", border:"none", cursor:"pointer", fontFamily:"inherit", padding:0, display:"flex", alignItems:"center", gap:6, fontSize:12, fontWeight:800, color:C.textMid, textTransform:"uppercase" }}>
+                          <span style={{ display:"inline-block", transform: isOpen ? "rotate(90deg)" : "rotate(0deg)", transition:"transform 0.15s", fontSize:10 }}>▶</span>
+                          📋 Son Yoklamalar ({recentDates.length})
+                        </button>
+                        {isOpen && (
+                          <div style={{ marginTop:8 }}>
+                            {recentDates.map(d => {
+                              const recs = (attendance||[]).filter(a => a.type==="group" && a.groupId===g.id && a.date===d);
+                              const geldi = recs.filter(r => r.status==="Geldi").length;
+                              const gelmedi = recs.filter(r => r.status==="Gelmedi").length;
+                              const other = recs.length - geldi - gelmedi;
+                              return (
+                                <div key={d} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
+                                  <span style={{ fontSize:13, fontWeight:700, color:C.text }}>{fmtDate(d)}</span>
+                                  <div style={{ display:"flex", gap:6 }}>
+                                    <Badge color={C.green}>✅ {geldi}</Badge>
+                                    <Badge color={C.red}>❌ {gelmedi}</Badge>
+                                    {other > 0 && <Badge color={C.orange}>🟡 {other}</Badge>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
                 </Card>
               );
             })}
+          </div>
+        )}
+
+        {/* Öğrenci düzenleme modalı (öğretmen gruplar sayfası) */}
+        {teacherEditStudent && (
+          <div style={{ position:"fixed", inset:0, background:"#00000070", zIndex:9999, display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+            <div style={{ background:C.card, borderRadius:20, padding:24, width:"100%", maxWidth:420, boxShadow:"0 8px 40px #0004" }}>
+              <div style={{ fontSize:17, fontWeight:900, color:C.text, marginBottom:18 }}>✏️ Öğrenci Düzenle</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Ad Soyad</div>
+                  <input style={inputStyle} value={teacherEditStudent.name} onChange={e => setTeacherEditStudent(s => ({...s, name: e.target.value}))} />
+                </div>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Veli Telefonu</div>
+                  <input style={inputStyle} placeholder="905XXXXXXXXX" value={teacherEditStudent.phone} onChange={e => setTeacherEditStudent(s => ({...s, phone: e.target.value}))} />
+                </div>
+                <div>
+                  <div style={{ fontSize:11, fontWeight:800, color:C.textMid, marginBottom:5, textTransform:"uppercase" }}>Doğum Tarihi</div>
+                  <input style={inputStyle} type="date" value={teacherEditStudent.birthDate} onChange={e => setTeacherEditStudent(s => ({...s, birthDate: e.target.value}))} />
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:10, marginTop:20 }}>
+                <button style={{ ...btnStyle(C.blue), flex:1, padding:"12px 0" }} onClick={() => {
+                  const { childId, parentId, name, phone, birthDate } = teacherEditStudent;
+                  if (!name.trim()) return;
+                  setAllParents(prev => (prev||[]).map(p => {
+                    if (String(p.id) !== String(parentId)) return p;
+                    return { ...p, phone: phone||p.phone, children: (p.children||[]).map(c => String(c.id)===String(childId) ? {...c, name: name.trim(), birthDate} : c) };
+                  }));
+                  setTeacherEditStudent(null);
+                  showKsToast("✅ Öğrenci bilgileri güncellendi!", "#22c55e");
+                }}>💾 Kaydet</button>
+                <button style={{ ...btnOutlineStyle(C.textDim), flex:1, padding:"12px 0" }} onClick={() => setTeacherEditStudent(null)}>İptal</button>
+              </div>
+            </div>
           </div>
         )}
 
