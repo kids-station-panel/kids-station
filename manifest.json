@@ -2,11 +2,11 @@
   "name": "Kids Station Panel",
   "short_name": "Kids Station",
   "description": "Kids Station Yönetim Paneli",
-  "start_url": "/kids-station/",
-  "scope": "/kids-station/",
+  "start_url": "/?panel=1",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#1e3a5f",
-  "theme_color": "#1e3a5f",
+  "background_color": "#06112b",
+  "theme_color": "#06112b",
   "orientation": "any",
   "icons": [
     {
