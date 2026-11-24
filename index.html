@@ -3008,7 +3008,7 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
                         onClick={() => {
                           const grpWA = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
                           const dateStr = c.trialDate ? new Date(c.trialDate + 'T12:00:00').toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }) : '—';
-                          const msg = `*Kids Station – Deneme Dersi Randevusu*\n\nSayın ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için deneme dersi randevunuz oluşturulmuştur.\n\n*Tarih:* ${dateStr}\n*Saat:* ${grpWA?.time||'—'}\n*Grup:* ${grpWA?.name||'—'}\n\nDers saatinden 5 dakika önce merkezimizde hazır bulunmanız yeterlidir.\n\nGörüşmek üzere,\nKids Station Ekibi`;
+                          const msg = `🌟 *Kids Station – Deneme Dersi Randevusu* 🌟\n\nSayın ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için deneme dersi randevunuz oluşturulmuştur. 🎉\n\n📅 *Tarih:* ${dateStr}\n⏰ *Saat:* ${grpWA?.time||'—'}\n🏫 *Grup:* ${grpWA?.name||'—'}\n\n✅ Ders saatinden 5 dakika önce merkezimizde hazır bulunmanız yeterlidir.\n💧 Su şişenizi ve yedek kıyafetinizi almayı unutmayın!\n\nSorularınız için bu numaraya yazabilirsiniz. 😊\n\nGörüşmek üzere,\nKids Station Ekibi 🏆`;
                           let ph = (c.parentPhone||p.parent1Phone||"").replace(/[\s\-\(\)\.]/g,'');
                           if (ph.startsWith('0')) ph = '90' + ph.slice(1);
                           else if (!ph.startsWith('90')) ph = '90' + ph;
@@ -4351,7 +4351,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
   const activeCount = allChildren.filter(c => c.status === "Aktif").length;
   const currentYM = new Date().toISOString().slice(0, 7);
   const monthlyIncome = (finance||[]).filter(f => f.type === "Gelir" && (f.date||"").startsWith(currentYM)).reduce((s, f) => s + f.amount, 0);
-  const alertCount = useNotifications(members, finance, staff).filter(a => a.type === "danger" || a.type === "warning").length + (pendingTrials || []).length;
+  const alertCount = useNotifications(members, finance, staff, groups).filter(a => a.type === "danger" || a.type === "warning").length + (pendingTrials || []).length;
 
   const renderPage = () => {
     // ── DASHBOARD ──
@@ -4489,7 +4489,7 @@ function ManagerPanel({ user, members, staff, finance, schedule, onUpdatePhoto, 
             </button>
           </div>
         )}
-        <NotificationsPage members={members} finance={finance} staff={staff} dismissedNotifs={dismissedNotifs||[]} setDismissedNotifs={setDismissedNotifs||(() => {})} readNotifs={readNotifs||[]} setReadNotifs={setReadNotifs||(() => {})} />
+        <NotificationsPage members={members} finance={finance} staff={staff} groups={groups||[]} dismissedNotifs={dismissedNotifs||[]} setDismissedNotifs={setDismissedNotifs||(() => {})} readNotifs={readNotifs||[]} setReadNotifs={setReadNotifs||(() => {})} />
       </div>
     );
 
@@ -6899,7 +6899,7 @@ function TeacherPanel({ user, members, announcements, setAnnouncements, attendan
 }
 
 // ── BİLDİRİM & UYARI SİSTEMİ ────────────────────────────────
-function useNotifications(members, finance, staff) {
+function useNotifications(members, finance, staff, groups) {
   const alerts = [];
   const today = new Date();
 
@@ -6974,11 +6974,26 @@ function useNotifications(members, finance, staff) {
       alerts.push({ id:`salary-${s.id}`, type:"warning", icon:"💸", title:"Ödenmemiş Maaş", desc:`${s.name} için ${unpaid.length} ödeme bekliyor (₺${unpaid.reduce((a,b)=>a+b.amount,0).toLocaleString()}).` });
   });
 
+  // Yarın deneme dersi olan öğrenciler — hatırlatma
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().slice(0,10);
+  (members||[]).forEach(p => {
+    (p.children||[]).filter(c => c.isTrialStudent && c.trialDate === tomorrowStr).forEach(c => {
+      const grp = (groups||[]).find(g => String(g.id) === String(c.trialGroupId));
+      const dateStr = tomorrow.toLocaleDateString('tr-TR', { weekday:'long', day:'numeric', month:'long' });
+      const msg = `Merhaba ${p.parent1Name||p.name||"Veli"},\n\n${c.name} için *yarın* deneme dersiniz mevcuttur. 🎉\n\n📅 *Tarih:* ${dateStr}\n⏰ *Saat:* ${grp?.time||'—'}\n🏫 *Grup:* ${grp?.name||'—'}\n\nKatılımınızı teyit etmenizi rica ederiz.\n\nGörüşmek üzere,\nKids Station Ekibi 🌟`;
+      let ph = (c.parentPhone||p.parent1Phone||"").replace(/[\s\-\(\)\.]/g,'');
+      if (ph.startsWith('0')) ph = '90' + ph.slice(1);
+      else if (ph && !ph.startsWith('90')) ph = '90' + ph;
+      alerts.push({ id:`trial-tomorrow-${c.id}`, type:"warning", icon:"🧪", title:"Yarın Deneme Dersi", desc:`${c.name} yarın ${grp?.time||'?'} saatinde deneme dersine gelecek. Veliye hatırlatma mesajı gönderin.`, waPhone: ph, waMsg: msg });
+    });
+  });
+
   return alerts;
 }
 
-function NotificationsPage({ members, finance, staff, dismissedNotifs, setDismissedNotifs, readNotifs, setReadNotifs }) {
-  const allAlerts = useNotifications(members, finance, staff);
+function NotificationsPage({ members, finance, staff, groups, dismissedNotifs, setDismissedNotifs, readNotifs, setReadNotifs }) {
+  const allAlerts = useNotifications(members, finance, staff, groups);
   const isMobile = useIsMobile(600);
   const [filter, setFilter] = useState("Tümü");
   const [showDismissed, setShowDismissed] = useState(false);
@@ -7058,6 +7073,12 @@ function NotificationsPage({ members, finance, staff, dismissedNotifs, setDismis
                 </div>
                 <div style={{ fontSize:13, color:C.textMid, fontWeight:600, lineHeight:1.5, marginBottom:10 }}>{a.desc}</div>
                 <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                  {a.waPhone && (
+                    <button onClick={() => window.open(`https://wa.me/${a.waPhone}?text=${encodeURIComponent(a.waMsg||"")}`, '_blank')}
+                      style={{ fontSize:12, padding:"5px 12px", borderRadius:8, background:"#25D366", color:"#fff", border:"none", cursor:"pointer", fontFamily:"inherit", fontWeight:800 }}>
+                      📱 Hatırlatma Gönder
+                    </button>
+                  )}
                   {isRead ? (
                     <button onClick={() => markUnread(a.id)} style={{ ...btnOutlineStyle(C.textDim), fontSize:12, padding:"5px 12px" }}>↩️ Okunmadı</button>
                   ) : (
@@ -9373,7 +9394,7 @@ function App() {
   ];
   const navColors = [C.red, C.blue, C.yellow, C.orange, C.green, C.red, C.blue, C.green, C.orange, C.yellow, "#7c3aed", C.green, C.orange, C.blue];
 
-  const alertCount = useNotifications(members, finance, staff).filter(a=>a.type==="danger"||a.type==="warning").length;
+  const alertCount = useNotifications(members, finance, staff, groups).filter(a=>a.type==="danger"||a.type==="warning").length;
   // Yönetici rolü için yetki kontrolü
   const canEdit = hasPermission(user?.role, 'edit');
 
@@ -9387,7 +9408,7 @@ function App() {
     staff: null, // StaffPage is rendered persistently outside this object
     finance: <FinancePage finance={finance} setFinance={setFinance} members={members} canEdit={canEdit} finAyarlar={finAyarlar} setFinAyarlar={setFinAyarlar} />,
     reports: <ReportsPage members={members} finance={finance} staff={visibleStaff} reports={reports} setReports={setReports} canEdit={canEdit} />,
-    notifications: <NotificationsPage members={members} finance={finance} staff={visibleStaff} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
+    notifications: <NotificationsPage members={members} finance={finance} staff={visibleStaff} groups={groups||[]} dismissedNotifs={dismissedNotifs} setDismissedNotifs={setDismissedNotifs} readNotifs={readNotifs} setReadNotifs={setReadNotifs} />,
     calendar: <CalendarPage members={members} staff={visibleStaff} schedule={schedule} setSchedule={setSchedule} isAdmin={canEdit} currentUser={user} canAdd={canEdit} branches={branches} userAccounts={appUsers} groups={(groups||[]).filter(g => g.isActive !== false)} />,
     advanced: <AdvancedReportsPage members={members} finance={finance} staff={visibleStaff} />,
     messages: <MessagesPage members={members} channels={channels} setChannels={setChannels} channelMessages={channelMessages} setChannelMessages={setChannelMessages} isAdmin={canEdit} currentUser={user} />,
