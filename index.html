@@ -198,6 +198,11 @@
   <script>if(window.pdfjsLib){pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';}</script>
 </head>
 <body>
+<div id="ks-splash" style="position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#06112b 0%,#0f2460 60%,#1e5cb3 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;transition:opacity 0.35s ease">
+  <img src="/logo.jpg" alt="Kids Station" style="width:100px;height:100px;border-radius:20px;object-fit:contain;background:#fff;padding:8px;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+  <div style="width:48px;height:48px;border:4px solid rgba(255,255,255,0.2);border-top-color:#fff;border-radius:50%;animation:ks-spin 0.75s linear infinite"></div>
+  <style>@keyframes ks-spin{to{transform:rotate(360deg)}}</style>
+</div>
 <div id="root"></div>
 <script type="text/babel">
 const { useState, useEffect, useRef } = React;
@@ -9622,6 +9627,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   _panelMode ? <App /> :
   <LandingPage />
 );
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  const s = document.getElementById('ks-splash');
+  if (s) { s.style.opacity = '0'; setTimeout(() => s.remove(), 380); }
+}));
 </script>
 <script>
   if ("serviceWorker" in navigator) {
