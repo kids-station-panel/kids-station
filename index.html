@@ -2397,10 +2397,14 @@ function TrialTicketModal({ child, parent, groups, onClose, onSaveTicketId }) {
 
 // ── BEKLEYEN BAŞVURU DEĞERLENDİRME MODALI ──────────────────
 function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onReject }) {
-  const [selGroupId, setSelGroupId] = useState("");
-  const [selDate, setSelDate] = useState(new Date().toISOString().slice(0,10));
+  const [selGroupId, setSelGroupId] = useState(pending.assignedGroupId || "");
+  const [selDate, setSelDate] = useState(pending.assignedDate || new Date().toISOString().slice(0,10));
   const KS_MAPS_URL = "https://maps.google.com/?q=Kids+Station";
   const selGroup = (groups||[]).find(g => String(g.id) === String(selGroupId));
+
+  const saveAssignment = (groupId, date) => {
+    db.collection("pendingTrials").doc(pending.id).update({ assignedGroupId: groupId, assignedDate: date }).catch(() => {});
+  };
 
   function waPhone(p) {
     p = (p||"").replace(/[\s\-\(\)\.]/g, '');
@@ -2439,7 +2443,7 @@ function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onRejec
           </div>
           <div style={{ marginBottom:12 }}>
             <div style={{ fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Grup Seç (opsiyonel)</div>
-            <select value={selGroupId} onChange={e => setSelGroupId(e.target.value)}
+            <select value={selGroupId} onChange={e => { setSelGroupId(e.target.value); saveAssignment(e.target.value, selDate); }}
               style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"2px solid #e5e7eb", fontSize:14, fontFamily:"inherit", background:"#fff" }}>
               <option value="">— Grup seçin —</option>
               {(groups||[]).map(g => <option key={g.id} value={g.id}>{g.name}{g.time ? ` (${g.time})` : ""}</option>)}
@@ -2447,7 +2451,7 @@ function PendingTrialApproveModal({ pending, groups, onClose, onApprove, onRejec
           </div>
           <div style={{ marginBottom:14 }}>
             <div style={{ fontSize:11, fontWeight:800, color:"#4f46e5", textTransform:"uppercase", letterSpacing:1, marginBottom:5 }}>Deneme Tarihi *</div>
-            <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)}
+            <input type="date" value={selDate} onChange={e => { setSelDate(e.target.value); saveAssignment(selGroupId, e.target.value); }}
               style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:"2px solid #e5e7eb", fontSize:14, fontFamily:"inherit", boxSizing:"border-box" }} />
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8, marginBottom:12 }}>
@@ -2974,58 +2978,6 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
           </div>
         )}
 
-        {statusFilter === "Deneme" && canEdit && (
-          <div style={{ marginBottom:14 }}>
-            <button style={btnStyle(C.orange)} onClick={() => setShowTrialAdd(v => !v)}>
-              {showTrialAdd ? "✕ İptal" : "🧪 Yeni Deneme Kaydı"}
-            </button>
-            {showTrialAdd && (
-              <div style={{ background:"#fff7ed", borderRadius:14, padding:18, marginTop:12, border:`2px dashed ${C.orange}44` }}>
-                <div style={{ fontWeight:900, color:C.orange, marginBottom:14, fontSize:15 }}>🧪 Deneme Dersi Kaydı</div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Çocuk Adı *</div>
-                    <input style={inputStyle} placeholder="Adı" value={trialAddForm.childFirstName} onChange={e => setTrialAddForm(f => ({...f, childFirstName: e.target.value}))} /></div>
-                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Çocuk Soyadı *</div>
-                    <input style={inputStyle} placeholder="Soyadı" value={trialAddForm.childLastName} onChange={e => setTrialAddForm(f => ({...f, childLastName: e.target.value}))} /></div>
-                </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Doğum Tarihi</div>
-                    <input style={inputStyle} type="date" value={trialAddForm.birthDate} onChange={e => setTrialAddForm(f => ({...f, birthDate: e.target.value}))} /></div>
-                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Deneme Tarihi *</div>
-                    <input style={inputStyle} type="date" value={trialAddForm.trialDate} onChange={e => setTrialAddForm(f => ({...f, trialDate: e.target.value}))} /></div>
-                </div>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
-                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Veli Telefonu *</div>
-                    <input style={inputStyle} placeholder="05XX XXX XX XX" value={trialAddForm.parentPhone} onChange={e => setTrialAddForm(f => ({...f, parentPhone: e.target.value}))} /></div>
-                  <div><div style={{ fontSize:12, fontWeight:700, color:C.textMid, marginBottom:4 }}>Grup</div>
-                    <select style={inputStyle} value={trialAddForm.targetGroupId} onChange={e => setTrialAddForm(f => ({...f, targetGroupId: e.target.value}))}>
-                      <option value="">Grup seç</option>
-                      {(groups||[]).map(g => <option key={g.id} value={g.id}>{g.name}{g.time ? ` · ${g.time}` : ""}</option>)}
-                    </select></div>
-                </div>
-                <div style={{ display:"flex", gap:10, marginTop:4 }}>
-                  <button style={btnStyle(C.orange)} onClick={() => {
-                    const fn = trialAddForm.childFirstName.trim(), ln = trialAddForm.childLastName.trim(), ph = trialAddForm.parentPhone.trim();
-                    if (!fn || !ln) { showKsToast("⚠️ Çocuk adı soyadı zorunlu!", "#ef4444"); return; }
-                    if (!ph) { showKsToast("⚠️ Telefon numarası zorunlu!", "#ef4444"); return; }
-                    if (!trialAddForm.trialDate) { showKsToast("⚠️ Deneme tarihi seçin!", "#ef4444"); return; }
-                    const childId = `tc_${Date.now()}`;
-                    const parentId = `tp_${Date.now()}`;
-                    const childName = `${fn} ${ln}`;
-                    const trialTicketId = "TKT" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,6).toUpperCase();
-                    const newChild = { id: childId, name: childName, birthDate: trialAddForm.birthDate, isTrialStudent: true, trialDate: trialAddForm.trialDate, trialGroupId: trialAddForm.targetGroupId, parentPhone: ph, trialTicketId, enrollments: [], status: "Deneme", addedByTeacher: "Admin", addedAt: new Date().toISOString() };
-                    const newParent = { id: parentId, name: childName, parent1Phone: ph, isActive: true, source: "Deneme Kaydı", children: [newChild], createdAt: new Date().toISOString() };
-                    setParents(prev => [...(prev||[]), newParent]);
-                    setTrialAddForm({ childFirstName:"", childLastName:"", birthDate:"", parentPhone:"", targetGroupId:"", trialDate: new Date().toISOString().slice(0,10) });
-                    setShowTrialAdd(false);
-                    showKsToast(`✅ ${childName} deneme dersine kaydedildi!`, "#f97316", 4000);
-                  }}>✓ Kaydet</button>
-                  <button style={btnOutlineStyle(C.red)} onClick={() => setShowTrialAdd(false)}>İptal</button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {statusFilter === "Deneme" ? (() => {
           const allTrialKids = filtered.flatMap(p => (p.children||[]).filter(c => c.isTrialStudent).map(c => ({ child: c, parent: p })));
