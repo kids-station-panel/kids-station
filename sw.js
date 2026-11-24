@@ -1,4 +1,4 @@
-const CACHE = "ks-v82";
+const CACHE = "ks-v83";
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/app.min.js"])));
   self.skipWaiting(); // Hemen devral, bekleme
