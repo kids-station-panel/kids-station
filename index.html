@@ -3173,11 +3173,13 @@ function MembersPage({ members: parents, setMembers: setParents, finance, setFin
             const trialTicketId = "TKT" + Date.now().toString(36).toUpperCase() + Math.random().toString(36).substr(2,6).toUpperCase();
             const newChild = { id: childId, name: childName, birthDate: pt.birthDate, isTrialStudent: true, trialDate: date, trialGroupId: groupId, parentPhone: pt.parentPhone, trialTicketId, enrollments: [], status: "Deneme", source: "Form", addedAt: new Date().toISOString() };
             const newParent = { id: parentId, parent1Name: pt.parentName, parent1Phone: pt.parentPhone, isActive: true, source: "Deneme Kayıt Formu", children: [newChild], createdAt: new Date().toISOString() };
-            setParents(prev => [...(prev||[]), newParent]);
+            // Doğrudan Firestore'a yaz → onSnapshot anında UI'ı günceller
+            db.collection("members").doc(String(parentId)).set({ ...newParent, _order: Date.now() })
+              .then(() => showKsToast(`✅ ${childName} deneme dersine eklendi!`, "#22c55e"))
+              .catch(() => showKsToast("⚠️ Kayıt hatası! Tekrar deneyin.", "#ef4444"));
             db.collection("pendingTrials").doc(pt.id).delete().catch(() => {});
             setPendingTrials(prev => prev.filter(p => p.id !== pt.id));
             setPendingModal(null);
-            showKsToast(`✅ ${childName} deneme dersine eklendi!`, "#22c55e");
           }}
           onReject={() => {
             if (!pendingModal) return;
