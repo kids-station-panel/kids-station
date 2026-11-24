@@ -1,5 +1,14 @@
-const CACHE = "ks-v81";
-self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/"]))));
+const CACHE = "ks-v82";
+self.addEventListener("install", e => {
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/app.min.js"])));
+  self.skipWaiting(); // Hemen devral, bekleme
+});
+self.addEventListener("activate", e => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => clients.claim()) // Açık sekmeleri hemen ele geç
+  );
+});
 self.addEventListener("fetch", e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
 
 // Push bildirimi al (arka planda uygulama kapalıyken)
