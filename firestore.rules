@@ -121,6 +121,13 @@ service cloud.firestore {
       allow read, write: if isLoggedIn();
     }
 
+    // ── Mesai (çalışma saatleri) ───────────────────────────
+    // Öğretmenler kendi kayıtlarını okur/yazar; manager+ tümünü okur
+    match /timeEntries/{doc} {
+      allow read: if isTeacher();
+      allow write: if isTeacher();
+    }
+
     // ── Diğer her şey: varsayılan red ─────────────────────
     match /{document=**} {
       allow read, write: if false;
