@@ -1,6 +1,6 @@
-const CACHE = "ks-v97";
+const CACHE = "ks-v98";
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/app.min.js?v=97"])));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/app.min.js?v=98"])));
   self.skipWaiting(); // Hemen devral, bekleme
 });
 self.addEventListener("activate", e => {
@@ -9,7 +9,15 @@ self.addEventListener("activate", e => {
       .then(() => clients.claim()) // Açık sekmeleri hemen ele geç
   );
 });
-self.addEventListener("fetch", e => e.respondWith(fetch(e.request).catch(() => caches.match(e.request))));
+self.addEventListener("fetch", e => {
+  // SPA routing: tüm sayfa navigasyonlarında cache'deki index'i sun
+  // (GitHub Pages 404 flash'ı önler, /basvuru gibi doğrudan URL'ler çalışır)
+  if (e.request.mode === "navigate") {
+    e.respondWith(caches.match("/").then(r => r || fetch(e.request)));
+    return;
+  }
+  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+});
 
 // Push bildirimi al (arka planda uygulama kapalıyken)
 self.addEventListener("push", e => {

@@ -128,6 +128,13 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
+    // ── Deneme dersi başvuruları (public form) ─────────────
+    // Anonim dahil herhangi bir auth kullanıcı create edebilir; okuma/silme manager+
+    match /pendingTrials/{doc} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if isManager();
+    }
+
     // ── Diğer her şey: varsayılan red ─────────────────────
     match /{document=**} {
       allow read, write: if false;
