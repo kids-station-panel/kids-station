@@ -1,6 +1,6 @@
-const CACHE = "ks-v95";
+const CACHE = "ks-v96";
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/app.min.js?v=95"])));
+  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/app.min.js?v=96"])));
   self.skipWaiting(); // Hemen devral, bekleme
 });
 self.addEventListener("activate", e => {
