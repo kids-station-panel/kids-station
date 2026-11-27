@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kids Station – Veri Kontrolü</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; background: #f8fafc; color: #1e293b; }
+  h1 { font-size: 1.3rem; margin-bottom: 4px; }
+  .sub { color: #64748b; font-size: .85rem; margin-bottom: 24px; }
+  input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; margin-bottom: 10px; }
+  button { width: 100%; padding: 11px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+  button:hover { background: #1d4ed8; }
+  .card { background: #fff; border-radius: 12px; padding: 18px 20px; margin-top: 16px; box-shadow: 0 1px 4px #0001; }
+  .ok  { color: #16a34a; font-weight: 600; }
+  .err { color: #dc2626; font-weight: 600; }
+  .warn{ color: #d97706; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: .88rem; }
+  th,td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+  th { background: #f1f5f9; }
+  #status { margin-top: 12px; font-size: .9rem; color: #64748b; }
+</style>
+</head>
+<body>
+<h1>🔍 Kids Station – Veri Tanılama</h1>
+<p class="sub">Firebase hesabınızla giriş yaparak veritabanı durumunu kontrol edin.</p>
+
+<div id="loginBox">
+  <input id="email" type="email" placeholder="E-posta (admin/manager)" value="">
+  <input id="pass"  type="password" placeholder="Şifre">
+  <button onclick="doLogin()">Giriş Yap ve Kontrol Et</button>
+</div>
+
+<div id="status"></div>
+<div id="results"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCQHb0oEx22LCrbnfWVgC_m0rdnS0_COy8",
+  authDomain: "kids-station-2eec5.firebaseapp.com",
+  projectId: "kids-station-2eec5",
+});
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+async function doLogin() {
+  const email = document.getElementById('email').value.trim();
+  const pass  = document.getElementById('pass').value;
+  if (!email || !pass) { setStatus('⚠️ E-posta ve şifre gerekli.'); return; }
+  setStatus('Giriş yapılıyor...');
+  try {
+    await auth.signInWithEmailAndPassword(email, pass);
+    setStatus('Giriş başarılı, veriler kontrol ediliyor...');
+    await checkData();
+  } catch(e) {
+    setStatus('❌ Giriş hatası: ' + e.message);
+  }
+}
+
+async function checkData() {
+  const cols = [
+    { name: 'members',      label: 'Veliler / Üyeler' },
+    { name: 'staff',        label: 'Personel'          },
+    { name: 'groups',       label: 'Gruplar'           },
+    { name: 'attendance',   label: 'Yoklama'           },
+    { name: 'timeEntries',  label: 'Mesai'             },
+    { name: 'pendingTrials',label: 'Deneme Başvuruları'},
+    { name: 'finance',      label: 'Finans'            },
+  ];
+
+  const rows = [];
+  for (const col of cols) {
+    try {
+      const snap = await db.collection(col.name).get();
+      rows.push({ label: col.label, name: col.name, count: snap.size, ok: snap.size > 0 });
+    } catch(e) {
+      rows.push({ label: col.label, name: col.name, count: '—', err: e.code });
+    }
+  }
+
+  // members detayı
+  let memberDetail = '';
+  try {
+    const mSnap = await db.collection('members').limit(5).get();
+    if (mSnap.size > 0) {
+      const names = mSnap.docs.map(d => {
+        const data = d.data();
+        return data.name || data.parentName || d.id;
+      }).join(', ');
+      memberDetail = `İlk ${mSnap.size} kayıt: ${names}`;
+    }
+  } catch(e) {}
+
+  const totalMembers = rows.find(r => r.name === 'members');
+  const membersCount = totalMembers?.count ?? 0;
+
+  document.getElementById('loginBox').style.display = 'none';
+  setStatus('');
+
+  let html = '<div class="card">';
+  html += '<strong>Koleksiyon Durumu</strong>';
+  html += '<table><tr><th>Koleksiyon</th><th>Döküman Sayısı</th><th>Durum</th></tr>';
+  for (const r of rows) {
+    if (r.err) {
+      html += `<tr><td>${r.label}</td><td>${r.count}</td><td class="err">Erişim hatası (${r.err})</td></tr>`;
+    } else if (r.ok) {
+      html += `<tr><td>${r.label}</td><td>${r.count}</td><td class="ok">✅ Veri var</td></tr>`;
+    } else {
+      html += `<tr><td>${r.label}</td><td>${r.count}</td><td class="warn">⚠️ Boş</td></tr>`;
+    }
+  }
+  html += '</table>';
+  if (memberDetail) html += `<p style="font-size:.85rem;color:#64748b;margin-top:8px">${memberDetail}</p>`;
+  html += '</div>';
+
+  if (membersCount === 0) {
+    html += '<div class="card" style="border:2px solid #fca5a5"><p class="err">⛔ members koleksiyonu BOŞ — veli/öğrenci verileri silinmiş!</p><p style="font-size:.88rem">Firebase Console → Firestore → Backups bölümünden yedek varsa geri yükleyebilirsiniz.</p></div>';
+  } else {
+    html += `<div class="card" style="border:2px solid #86efac"><p class="ok">✅ ${membersCount} veli/üye kaydı mevcut — veri silme yaşanmamış.</p></div>`;
+  }
+
+  document.getElementById('results').innerHTML = html;
+}
+</script>
+</body>
+</html>
