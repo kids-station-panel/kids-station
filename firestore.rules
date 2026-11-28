@@ -34,21 +34,24 @@ service cloud.firestore {
     }
 
     // ── Üyeler (veliler ve çocuklar) ───────────────────────
-    // Öğretmenler okur ve yazar (yeni kayıt, düzenleme, grup ataması)
+    // Giriş yapmış herkes okur; yazma öğretmen ve üstü
     match /members/{doc} {
-      allow read, write: if isTeacher();
+      allow read: if isLoggedIn();
+      allow write: if isTeacher();
     }
 
     // ── Yoklama ────────────────────────────────────────────
-    // Öğretmenler okur ve yazar
+    // Giriş yapmış herkes okur; yazma öğretmen ve üstü
     match /attendance/{doc} {
-      allow read, write: if isTeacher();
+      allow read: if isLoggedIn();
+      allow write: if isTeacher();
     }
 
     // ── Gruplar ────────────────────────────────────────────
-    // Öğretmenler okur ve yazar (grup yönetimi için)
+    // Giriş yapmış herkes okur; yazma öğretmen ve üstü
     match /groups/{doc} {
-      allow read, write: if isTeacher();
+      allow read: if isLoggedIn();
+      allow write: if isTeacher();
     }
 
     // ── Personel ───────────────────────────────────────────
