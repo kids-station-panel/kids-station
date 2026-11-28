@@ -3,36 +3,75 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kids Station – Veri Kontrolü</title>
+<title>Kids Station – Acil Veri Kontrolü</title>
 <style>
-  body { font-family: system-ui, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; background: #f8fafc; color: #1e293b; }
-  h1 { font-size: 1.3rem; margin-bottom: 4px; }
-  .sub { color: #64748b; font-size: .85rem; margin-bottom: 24px; }
-  input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; margin-bottom: 10px; }
-  button { width: 100%; padding: 11px; background: #2563eb; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
-  button:hover { background: #1d4ed8; }
-  .card { background: #fff; border-radius: 12px; padding: 18px 20px; margin-top: 16px; box-shadow: 0 1px 4px #0001; }
-  .ok  { color: #16a34a; font-weight: 600; }
-  .err { color: #dc2626; font-weight: 600; }
-  .warn{ color: #d97706; font-weight: 600; }
-  table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: .88rem; }
-  th,td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
-  th { background: #f1f5f9; }
-  #status { margin-top: 12px; font-size: .9rem; color: #64748b; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,sans-serif;background:#f0f4f8;color:#1e293b;padding:20px}
+  .wrap{max-width:620px;margin:0 auto}
+  h1{font-size:1.3rem;margin-bottom:4px;color:#0f172a}
+  .sub{color:#64748b;font-size:.85rem;margin-bottom:20px}
+  .card{background:#fff;border-radius:12px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px #0001}
+  .card h2{font-size:1rem;margin-bottom:12px;color:#0f172a}
+  input{width:100%;padding:11px 13px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.95rem;margin-bottom:10px;outline:none}
+  input:focus{border-color:#3b82f6}
+  .btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:.95rem;cursor:pointer;font-weight:600}
+  .btn-blue{background:#2563eb;color:#fff}
+  .btn-blue:hover{background:#1d4ed8}
+  .btn-green{background:#16a34a;color:#fff;margin-top:10px}
+  .btn-green:hover{background:#15803d}
+  .btn-red{background:#dc2626;color:#fff;margin-top:10px}
+  .status{padding:12px 14px;border-radius:8px;font-size:.9rem;margin-bottom:10px}
+  .s-ok{background:#dcfce7;color:#15803d;border:1px solid #86efac}
+  .s-err{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+  .s-warn{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
+  .s-info{background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd}
+  table{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:8px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid #e2e8f0}
+  th{background:#f8fafc;font-weight:600}
+  .num{font-weight:700;color:#0f172a}
+  .ok-dot{color:#16a34a}
+  .warn-dot{color:#d97706}
+  .err-dot{color:#dc2626}
+  .step{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px}
+  .step-num{background:#2563eb;color:#fff;border-radius:50%;width:26px;height:26px;min-width:26px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem}
+  .step-text{font-size:.9rem;line-height:1.5}
+  .step-text strong{display:block;margin-bottom:2px}
+  pre{background:#f1f5f9;border-radius:6px;padding:10px;font-size:.8rem;overflow-x:auto;margin-top:6px}
+  #spinner{display:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin{display:inline-block;animation:spin .8s linear infinite;margin-right:6px}
 </style>
 </head>
 <body>
-<h1>🔍 Kids Station – Veri Tanılama</h1>
-<p class="sub">Firebase hesabınızla giriş yaparak veritabanı durumunu kontrol edin.</p>
+<div class="wrap">
+  <h1>🚨 Kids Station – Acil Veri Kontrolü</h1>
+  <p class="sub">Veri kaybı durumu kontrolü ve kurtarma rehberi</p>
 
-<div id="loginBox">
-  <input id="email" type="email" placeholder="E-posta (admin/manager)" value="">
-  <input id="pass"  type="password" placeholder="Şifre">
-  <button onclick="doLogin()">Giriş Yap ve Kontrol Et</button>
+  <div class="card" id="loginCard">
+    <h2>Adım 1 — Firebase'e giriş yapın</h2>
+    <input id="email" type="email" placeholder="Admin e-posta adresi">
+    <input id="pass" type="password" placeholder="Şifre">
+    <button class="btn btn-blue" onclick="doLogin()">
+      <span id="spinner" class="spin">⏳</span> Giriş Yap ve Veriyi Kontrol Et
+    </button>
+    <p id="loginErr" style="color:#dc2626;font-size:.85rem;margin-top:8px;display:none"></p>
+  </div>
+
+  <div id="resultsArea" style="display:none">
+    <div id="summaryCard" class="card"></div>
+    <div id="detailCard" class="card" style="display:none">
+      <h2>Koleksiyon detayları</h2>
+      <div id="tableArea"></div>
+      <button id="exportBtn" class="btn btn-green" onclick="exportData()" style="display:none">
+        📥 Tüm veriyi JSON olarak indir (yedek al)
+      </button>
+    </div>
+    <div id="recoveryCard" class="card" style="display:none">
+      <h2>Veri kurtarma seçenekleri</h2>
+      <div id="recoveryContent"></div>
+    </div>
+  </div>
 </div>
-
-<div id="status"></div>
-<div id="results"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
@@ -46,85 +85,163 @@ firebase.initializeApp({
 const auth = firebase.auth();
 const db   = firebase.firestore();
 
-function setStatus(msg) { document.getElementById('status').textContent = msg; }
+let allData = {};
 
 async function doLogin() {
   const email = document.getElementById('email').value.trim();
   const pass  = document.getElementById('pass').value;
-  if (!email || !pass) { setStatus('⚠️ E-posta ve şifre gerekli.'); return; }
-  setStatus('Giriş yapılıyor...');
+  const err   = document.getElementById('loginErr');
+  err.style.display = 'none';
+  if (!email || !pass) { err.textContent = '⚠️ E-posta ve şifre girin.'; err.style.display='block'; return; }
+  document.getElementById('spinner').style.display = 'inline-block';
+  document.querySelector('.btn-blue').disabled = true;
   try {
     await auth.signInWithEmailAndPassword(email, pass);
-    setStatus('Giriş başarılı, veriler kontrol ediliyor...');
-    await checkData();
+    await runCheck();
   } catch(e) {
-    setStatus('❌ Giriş hatası: ' + e.message);
+    document.getElementById('spinner').style.display = 'none';
+    document.querySelector('.btn-blue').disabled = false;
+    err.textContent = '❌ ' + (e.message || 'Giriş hatası');
+    err.style.display = 'block';
   }
 }
 
-async function checkData() {
+async function runCheck() {
   const cols = [
-    { name: 'members',      label: 'Veliler / Üyeler' },
-    { name: 'staff',        label: 'Personel'          },
-    { name: 'groups',       label: 'Gruplar'           },
-    { name: 'attendance',   label: 'Yoklama'           },
-    { name: 'timeEntries',  label: 'Mesai'             },
-    { name: 'pendingTrials',label: 'Deneme Başvuruları'},
-    { name: 'finance',      label: 'Finans'            },
+    { id:'members',       label:'Veliler / Üyeler',     critical:true },
+    { id:'staff',         label:'Personel',              critical:true },
+    { id:'groups',        label:'Gruplar',               critical:false},
+    { id:'attendance',    label:'Yoklama',               critical:false},
+    { id:'timeEntries',   label:'Mesai Kayıtları',       critical:false},
+    { id:'pendingTrials', label:'Deneme Başvuruları',    critical:false},
+    { id:'finance',       label:'Finans',                critical:false},
+    { id:'schedule',      label:'Program / Takvim',      critical:false},
+    { id:'announcements', label:'Duyurular',             critical:false},
   ];
 
-  const rows = [];
+  const results = [];
   for (const col of cols) {
     try {
-      const snap = await db.collection(col.name).get();
-      rows.push({ label: col.label, name: col.name, count: snap.size, ok: snap.size > 0 });
+      const snap = await db.collection(col.id).get();
+      const docs = snap.docs.map(d => ({id:d.id,...d.data()}));
+      allData[col.id] = docs;
+      results.push({...col, count:docs.length, ok:docs.length>0, docs});
     } catch(e) {
-      rows.push({ label: col.label, name: col.name, count: '—', err: e.code });
+      results.push({...col, count:0, ok:false, permErr:e.code==='permission-denied'});
     }
   }
 
-  // members detayı
-  let memberDetail = '';
-  try {
-    const mSnap = await db.collection('members').limit(5).get();
-    if (mSnap.size > 0) {
-      const names = mSnap.docs.map(d => {
-        const data = d.data();
-        return data.name || data.parentName || d.id;
-      }).join(', ');
-      memberDetail = `İlk ${mSnap.size} kayıt: ${names}`;
-    }
-  } catch(e) {}
+  document.getElementById('loginCard').style.display = 'none';
+  document.getElementById('resultsArea').style.display = 'block';
 
-  const totalMembers = rows.find(r => r.name === 'members');
-  const membersCount = totalMembers?.count ?? 0;
+  const membersResult = results.find(r => r.id === 'members');
+  const membersCount  = membersResult?.count ?? 0;
+  const hasData       = membersCount > 0;
 
-  document.getElementById('loginBox').style.display = 'none';
-  setStatus('');
-
-  let html = '<div class="card">';
-  html += '<strong>Koleksiyon Durumu</strong>';
-  html += '<table><tr><th>Koleksiyon</th><th>Döküman Sayısı</th><th>Durum</th></tr>';
-  for (const r of rows) {
-    if (r.err) {
-      html += `<tr><td>${r.label}</td><td>${r.count}</td><td class="err">Erişim hatası (${r.err})</td></tr>`;
-    } else if (r.ok) {
-      html += `<tr><td>${r.label}</td><td>${r.count}</td><td class="ok">✅ Veri var</td></tr>`;
-    } else {
-      html += `<tr><td>${r.label}</td><td>${r.count}</td><td class="warn">⚠️ Boş</td></tr>`;
-    }
-  }
-  html += '</table>';
-  if (memberDetail) html += `<p style="font-size:.85rem;color:#64748b;margin-top:8px">${memberDetail}</p>`;
-  html += '</div>';
-
-  if (membersCount === 0) {
-    html += '<div class="card" style="border:2px solid #fca5a5"><p class="err">⛔ members koleksiyonu BOŞ — veli/öğrenci verileri silinmiş!</p><p style="font-size:.88rem">Firebase Console → Firestore → Backups bölümünden yedek varsa geri yükleyebilirsiniz.</p></div>';
+  // Özet
+  const sumCard = document.getElementById('summaryCard');
+  if (hasData) {
+    sumCard.innerHTML = `
+      <div class="status s-ok">✅ Veri MEVCUT — members koleksiyonunda <strong>${membersCount}</strong> kayıt var.</div>
+      <p style="font-size:.9rem;color:#374151">Veriler silinmemiş. Sorun muhtemelen uygulama kodundaki bir önbellek sorunuydur.<br>
+      <strong>Çözüm:</strong> Tarayıcıda sitenin önbelleğini temizleyin (Ayarlar → Önbellek temizle) ve sayfayı yenileyin.</p>`;
   } else {
-    html += `<div class="card" style="border:2px solid #86efac"><p class="ok">✅ ${membersCount} veli/üye kaydı mevcut — veri silme yaşanmamış.</p></div>`;
+    sumCard.innerHTML = `
+      <div class="status s-err">⛔ KRİTİK — members koleksiyonu BOŞ. Veli ve öğrenci verileri silinmiş.</div>
+      <p style="font-size:.9rem;color:#374151">Aşağıdaki kurtarma seçeneklerini inceleyin.</p>`;
   }
 
-  document.getElementById('results').innerHTML = html;
+  // Tablo
+  document.getElementById('detailCard').style.display = 'block';
+  let table = '<table><tr><th>Koleksiyon</th><th>Kayıt Sayısı</th><th>Durum</th></tr>';
+  for (const r of results) {
+    let status, dot;
+    if (r.permErr)      { status='Erişim reddedildi (yetkisiz rol)'; dot='err-dot'; }
+    else if (r.ok)       { status='✅ Veri var';    dot='ok-dot'; }
+    else if (r.critical) { status='⛔ BOŞ';         dot='err-dot'; }
+    else                 { status='⚠️ Boş';         dot='warn-dot'; }
+    table += `<tr><td>${r.label}</td><td class="num ${dot}">${r.count}</td><td>${status}</td></tr>`;
+  }
+  table += '</table>';
+  document.getElementById('tableArea').innerHTML = table;
+
+  if (hasData) {
+    document.getElementById('exportBtn').style.display = 'block';
+  }
+
+  // Kurtarma
+  document.getElementById('recoveryCard').style.display = 'block';
+  if (hasData) {
+    document.getElementById('recoveryContent').innerHTML = `
+      <div class="status s-info">ℹ️ Veri mevcut — kurtarma gerekmeyebilir.</div>
+      <p style="font-size:.9rem;margin-top:8px">Yine de <strong>JSON yedeği alın</strong> (yukarıdaki yeşil buton) ve güvenli bir yere kaydedin.</p>`;
+  } else {
+    document.getElementById('recoveryContent').innerHTML = `
+      <div class="status s-warn" style="margin-bottom:12px">Aşağıdaki seçenekleri sırayla deneyin:</div>
+
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-text">
+          <strong>Firebase PITR Yedeği (en iyi seçenek)</strong>
+          Firebase Console → Firestore → <em>Backups</em> sekmesini açın.<br>
+          Eğer <strong>Point-in-Time Recovery</strong> aktifse dünün verisini geri yükleyebilirsiniz.<br>
+          <span style="color:#64748b">Not: Bu özellik Blaze planı gerektirir.</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-text">
+          <strong>Tarayıcı sekmesi açık mı?</strong>
+          Uygulamayı dün açık bırakan biri varsa (telefon veya bilgisayar),
+          o sekmeyi <strong>yenilemeyin</strong>. Veriler hâlâ bellekte olabilir.<br>
+          O sekmedeyken tarayıcı konsolunu açın (F12) ve şunu yapıştırın:
+          <pre id="consoleScript">// Bu sekmedeyken F12 → Console → yapıştır
+fetch('/check-export.html').catch(()=>{});
+var data = window.__ksState || {};
+console.log(JSON.stringify({members: (data.members||[]).length, data: data.members||[]}));</pre>
+          <button class="btn btn-blue" style="width:auto;padding:6px 14px;font-size:.82rem;margin-top:4px" onclick="copyScript()">📋 Kopyala</button>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-text">
+          <strong>Manuel yeniden giriş</strong>
+          Eğer yukarıdakiler işe yaramazsa, velilere ulaşıp bilgileri yeniden girmek gerekebilir.
+          Uygulamada "Yeni Veli Ekle" ile kayıtları tekrar oluşturabilirsiniz.
+        </div>
+      </div>`;
+  }
+}
+
+function copyScript() {
+  const txt = document.getElementById('consoleScript').textContent;
+  navigator.clipboard.writeText(txt).then(()=>alert('Kopyalandı!')).catch(()=>{});
+}
+
+async function exportData() {
+  const btn = document.getElementById('exportBtn');
+  btn.textContent = '⏳ Dışa aktarılıyor...';
+  btn.disabled = true;
+  try {
+    // Tüm koleksiyonları topla
+    const full = {};
+    for (const [col, docs] of Object.entries(allData)) {
+      if (docs.length > 0) full[col] = docs;
+    }
+    const json = JSON.stringify(full, null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'kids-station-yedek-' + new Date().toISOString().slice(0,10) + '.json';
+    a.click();
+    URL.revokeObjectURL(url);
+    btn.textContent = '✅ İndirildi';
+  } catch(e) {
+    btn.textContent = '❌ Hata: ' + e.message;
+  }
 }
 </script>
 </body>
