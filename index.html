@@ -203,8 +203,20 @@
   <style>@keyframes ks-spin{to{transform:rotate(360deg)}}</style>
 </div>
 <div id="root"></div>
-<!-- Acil splash kapatma: JS yüklenemese bile 8sn sonra splash kalkar -->
+<!-- Acil splash kapatma + hata yakalayıcı -->
 <script>
+  window.onerror = function(msg, src, line) {
+    var s = document.getElementById('ks-splash');
+    if (s) s.style.display = 'none';
+    document.getElementById('root').innerHTML =
+      '<div style="padding:30px;font-family:sans-serif;max-width:500px;margin:40px auto;background:#fee2e2;border-radius:12px;border:2px solid #ef4444">' +
+      '<h2 style="color:#991b1b;margin:0 0 12px">⚠️ Uygulama Hatası</h2>' +
+      '<p style="color:#7f1d1d;font-size:14px;margin:0 0 8px"><b>Hata:</b> ' + msg + '</p>' +
+      '<p style="color:#7f1d1d;font-size:12px;margin:0 0 16px"><b>Kaynak:</b> ' + src + ' — Satır: ' + line + '</p>' +
+      '<button onclick="location.reload()" style="background:#dc2626;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer">🔄 Yenile</button>' +
+      '</div>';
+    return false;
+  };
   (function() {
     var t = setTimeout(function() {
       var s = document.getElementById('ks-splash');
@@ -213,7 +225,7 @@
     window._ksSplashTimer = t;
   })();
 </script>
-<script src="app.min.js?v=104"></script>
+<script src="app.min.js?v=105"></script>
 <script>
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").then(function(reg) {

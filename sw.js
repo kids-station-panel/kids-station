@@ -1,4 +1,4 @@
-const CACHE = "ks-v104";
+const CACHE = "ks-v105";
 self.addEventListener("install", e => {
   // Sadece HTML'i önbelleğe al — JS her zaman ağdan gelecek (cache sorunlarını önler)
   e.waitUntil(caches.open(CACHE).then(c => c.add("/")).catch(() => {}));
