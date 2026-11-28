@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Veri Kurtarma</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#f0f4f8;color:#1e293b;padding:20px}
+  .wrap{max-width:680px;margin:0 auto}
+  h1{font-size:1.3rem;margin-bottom:4px}
+  .sub{color:#64748b;font-size:.85rem;margin-bottom:20px}
+  .card{background:#fff;border-radius:12px;padding:20px;margin-bottom:14px;box-shadow:0 1px 3px #0001}
+  h2{font-size:1rem;margin-bottom:12px}
+  input{width:100%;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:.95rem;margin-bottom:10px}
+  input:focus{outline:none;border-color:#3b82f6}
+  .btn{width:100%;padding:11px;border:none;border-radius:8px;font-size:.95rem;cursor:pointer;font-weight:600}
+  .btn-blue{background:#2563eb;color:#fff} .btn-blue:hover{background:#1d4ed8}
+  .btn-green{background:#16a34a;color:#fff;margin-top:8px} .btn-green:hover{background:#15803d}
+  .btn-red{background:#dc2626;color:#fff;margin-top:8px} .btn-red:hover{background:#b91c1c}
+  .status{padding:10px 14px;border-radius:8px;font-size:.88rem;margin:8px 0}
+  .ok{background:#dcfce7;color:#15803d;border:1px solid #86efac}
+  .err{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5}
+  .warn{background:#fef9c3;color:#854d0e;border:1px solid #fde047}
+  .info{background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd}
+  table{width:100%;border-collapse:collapse;font-size:.82rem;margin-top:8px}
+  th,td{padding:7px 9px;text-align:left;border-bottom:1px solid #e2e8f0}
+  th{background:#f8fafc;font-weight:600;position:sticky;top:0}
+  tr:hover{background:#f8fafc}
+  .tbl-wrap{max-height:350px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;margin-top:8px}
+  #log{font-size:.8rem;color:#64748b;margin-top:8px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>🔧 Kids Station – Veri Kurtarma</h1>
+<p class="sub">Silinmiş öğrenci verilerini yoklama kayıtlarından kurtarır.</p>
+
+<div class="card" id="loginCard">
+  <h2>Firebase Girişi</h2>
+  <input id="email" type="email" placeholder="Admin e-posta">
+  <input id="pass"  type="password" placeholder="Şifre">
+  <button class="btn btn-blue" onclick="doLogin()">Giriş Yap</button>
+  <p id="loginErr" style="color:#dc2626;font-size:.85rem;margin-top:8px"></p>
+</div>
+
+<div id="mainArea" style="display:none">
+  <div class="card">
+    <h2>Mevcut Durum</h2>
+    <div id="statusArea"></div>
+  </div>
+
+  <div class="card" id="recoveryCard" style="display:none">
+    <h2>Kurtarılabilir Öğrenciler (yoklama kayıtlarından)</h2>
+    <p style="font-size:.85rem;color:#64748b;margin-bottom:8px">
+      Bu öğrenciler yoklama kayıtlarında görünüyor ama şu an veli kaydında yok.
+      İsimler ve ID'ler yoklamadan alındı; veli bilgileri eksik.
+    </p>
+    <div class="tbl-wrap"><table id="recoveryTable">
+      <thead><tr><th>Öğrenci Adı</th><th>ID</th><th>Branş</th><th>Grup</th><th>Son Görülen</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <button class="btn btn-red" onclick="restoreSelected()">🔄 Eksik Kayıtları Geri Yükle</button>
+    <p id="restoreStatus" style="font-size:.85rem;margin-top:8px"></p>
+  </div>
+
+  <div class="card" id="exportCard" style="display:none">
+    <h2>Mevcut Veriyi Yedekle</h2>
+    <button class="btn btn-green" onclick="exportAll()">📥 Tüm Veriyi JSON Olarak İndir</button>
+  </div>
+
+  <div id="log"></div>
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyCQHb0oEx22LCrbnfWVgC_m0rdnS0_COy8",
+  authDomain:"kids-station-2eec5.firebaseapp.com",
+  projectId:"kids-station-2eec5"
+});
+const auth=firebase.auth(), db=firebase.firestore();
+let allData={}, recoverable=[];
+
+function log(msg){ document.getElementById('log').textContent += msg + '\n'; }
+
+async function doLogin(){
+  const email=document.getElementById('email').value.trim();
+  const pass=document.getElementById('pass').value;
+  const err=document.getElementById('loginErr');
+  err.textContent='';
+  if(!email||!pass){err.textContent='⚠️ Boş bırakmayın.';return;}
+  try{
+    await auth.signInWithEmailAndPassword(email,pass);
+    document.getElementById('loginCard').style.display='none';
+    document.getElementById('mainArea').style.display='block';
+    await analyzeData();
+  }catch(e){err.textContent='❌ '+e.message;}
+}
+
+async function analyzeData(){
+  const statusArea=document.getElementById('statusArea');
+  statusArea.innerHTML='<div class="status info">⏳ Veriler okunuyor...</div>';
+
+  // Tüm koleksiyonları çek
+  const cols=['members','attendance','groups','staff'];
+  for(const col of cols){
+    try{
+      const snap=await db.collection(col).get();
+      allData[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+      log(col+': '+allData[col].length+' döküman');
+    }catch(e){
+      allData[col]=[];
+      log(col+' HATA: '+e.message);
+    }
+  }
+
+  const members=allData['members']||[];
+  const attendance=allData['attendance']||[];
+
+  // Mevcut öğrenci ID'leri
+  const knownChildIds=new Set();
+  members.forEach(p=>(p.children||[]).forEach(c=>knownChildIds.add(String(c.id||c.childId))));
+
+  // Yoklamadan öğrenci bilgilerini topla
+  const childMap={};
+  attendance.forEach(a=>{
+    const cid=String(a.childId||'');
+    if(!cid) return;
+    if(!childMap[cid]){
+      childMap[cid]={
+        childId:cid, childName:a.childName||'İsimsiz',
+        branchName:a.branchName||'', groupId:a.groupId||'',
+        lastSeen:a.date||a.createdAt||'', count:0
+      };
+    }
+    childMap[cid].count++;
+    if((a.date||'')>(childMap[cid].lastSeen||'')) childMap[cid].lastSeen=a.date;
+  });
+
+  // Yoklamada var ama members'da olmayan öğrenciler
+  recoverable=Object.values(childMap).filter(c=>!knownChildIds.has(c.childId));
+  recoverable.sort((a,b)=>a.childName.localeCompare(b.childName,'tr'));
+
+  // Durum kartı
+  let html='';
+  if(members.length===0){
+    html+='<div class="status err">⛔ members koleksiyonu BOŞ — tüm veli/öğrenci verileri silinmiş.</div>';
+  } else {
+    const childCount=members.flatMap(p=>p.children||[]).length;
+    html+=`<div class="status ok">✅ ${members.length} veli kaydı, toplam ${childCount} öğrenci mevcut.</div>`;
+  }
+  if(recoverable.length>0){
+    html+=`<div class="status warn">⚠️ ${recoverable.length} öğrenci yoklamada görünüyor ama veli kaydında yok → kurtarılabilir.</div>`;
+  } else if(members.length===0){
+    html+='<div class="status warn">⚠️ Yoklamada da eşleşen öğrenci bulunamadı. Veriler tamamen kaybolmuş olabilir.</div>';
+  } else {
+    html+='<div class="status ok">✅ Yoklama kayıtlarıyla tam eşleşme — kayıp veri yok.</div>';
+  }
+  statusArea.innerHTML=html;
+
+  // Kurtarma tablosu
+  if(recoverable.length>0){
+    const tbody=document.querySelector('#recoveryTable tbody');
+    tbody.innerHTML='';
+    recoverable.forEach(c=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td><strong>${c.childName}</strong></td><td style="font-family:monospace;font-size:.78rem">${c.childId}</td><td>${c.branchName}</td><td>${c.groupId||'—'}</td><td>${c.lastSeen||'—'}</td>`;
+      tbody.appendChild(tr);
+    });
+    document.getElementById('recoveryCard').style.display='block';
+  }
+
+  document.getElementById('exportCard').style.display='block';
+}
+
+async function restoreSelected(){
+  const statusEl=document.getElementById('restoreStatus');
+  statusEl.textContent='⏳ Yükleniyor...';
+  if(recoverable.length===0){statusEl.textContent='Kurtarılacak kayıt yok.';return;}
+
+  const batch=db.batch();
+  const now=Date.now();
+  recoverable.forEach((c,i)=>{
+    // Her eksik öğrenci için stub parent kaydı oluştur
+    const parentId=Number(c.childId)||now+i;
+    const child={
+      id:Number(c.childId)||now+i+1,
+      name:c.childName,
+      birthDate:'',class:'',status:'active',
+      isTrialStudent:false,
+      enrollments:[],
+      trialStatus:undefined,
+      notes:'[Yoklamadan kurtarıldı]'
+    };
+    const parent={
+      id:parentId, name:'(Veli bilgisi eksik — '+c.childName+')',
+      phone:'', email:'', address:'',
+      children:[child],
+      _order:now+i,
+      _recovered:true
+    };
+    batch.set(db.collection('members').doc(String(parentId)), parent);
+  });
+
+  try{
+    await batch.commit();
+    statusEl.textContent='✅ '+recoverable.length+' kayıt geri yüklendi! Şimdi uygulamayı yenileyin ve eksik bilgileri doldurun.';
+    recoverable=[];
+    await analyzeData();
+  }catch(e){
+    statusEl.textContent='❌ Hata: '+e.message;
+  }
+}
+
+async function exportAll(){
+  const full={};
+  const cols=['members','staff','finance','groups','attendance','schedule','timeEntries','pendingTrials'];
+  for(const col of cols){
+    try{
+      const snap=await db.collection(col).get();
+      if(snap.size>0) full[col]=snap.docs.map(d=>({id:d.id,...d.data()}));
+    }catch(e){}
+  }
+  const blob=new Blob([JSON.stringify(full,null,2)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='kids-station-yedek-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
