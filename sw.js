@@ -1,17 +1,23 @@
-const CACHE = "ks-v103";
+const CACHE = "ks-v104";
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(["/", "/app.min.js?v=103"])));
-  self.skipWaiting(); // Hemen devral, bekleme
+  // Sadece HTML'i önbelleğe al — JS her zaman ağdan gelecek (cache sorunlarını önler)
+  e.waitUntil(caches.open(CACHE).then(c => c.add("/")).catch(() => {}));
+  self.skipWaiting();
 });
 self.addEventListener("activate", e => {
   e.waitUntil(
     caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
-      .then(() => clients.claim()) // Açık sekmeleri hemen ele geç
+      .then(() => clients.claim())
   );
 });
 self.addEventListener("fetch", e => {
-  // SPA routing: tüm sayfa navigasyonlarında cache'deki index'i sun
-  // (GitHub Pages 404 flash'ı önler, /basvuru gibi doğrudan URL'ler çalışır)
+  const url = new URL(e.request.url);
+  // JS dosyaları her zaman ağdan yükle (asla eski cache sunma)
+  if (url.pathname.endsWith('.js')) {
+    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    return;
+  }
+  // SPA routing: sayfa navigasyonlarında cache'deki HTML'i sun
   if (e.request.mode === "navigate") {
     e.respondWith(caches.match("/").then(r => r || fetch(e.request)));
     return;
