@@ -203,10 +203,31 @@
   <style>@keyframes ks-spin{to{transform:rotate(360deg)}}</style>
 </div>
 <div id="root"></div>
+<!-- Acil splash kapatma: JS yüklenemese bile 8sn sonra splash kalkar -->
+<script>
+  (function() {
+    var t = setTimeout(function() {
+      var s = document.getElementById('ks-splash');
+      if (s) { s.style.opacity = '0'; setTimeout(function() { if(s.parentNode) s.parentNode.removeChild(s); }, 400); }
+    }, 8000);
+    window._ksSplashTimer = t;
+  })();
+</script>
 <script src="app.min.js?v=104"></script>
 <script>
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js").then(function(reg) {
+      // Yeni SW varsa hemen aktive et (cache sorunlarını önler)
+      if (reg.waiting) reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+      reg.addEventListener('updatefound', function() {
+        var nw = reg.installing;
+        if (nw) nw.addEventListener('statechange', function() {
+          if (nw.state === 'installed' && reg.active) {
+            nw.postMessage({ type: 'SKIP_WAITING' });
+          }
+        });
+      });
+    }).catch(function() {});
   }
 </script>
 </body>
